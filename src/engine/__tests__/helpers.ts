@@ -1,4 +1,4 @@
-import { cardRegistry, defaultDeck } from "@/data/cards";
+import { cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
 import { createGame } from "../createGame";
 import { applyAction, playerToAct } from "../reducer";
 import {
@@ -17,7 +17,7 @@ export const ctx: GameContext = { defs: cardRegistry };
 export function startedGame(seed = 1, firstPlayer: PlayerId = 0): ApplyResult {
   const { state } = createGame(ctx, {
     seed,
-    decks: [defaultDeck, defaultDeck],
+    decks: [defaultDeck, cpuDeck],
     firstPlayer,
   });
   const a = applyAction(ctx, state, { type: "mulligan", player: 0, redraw: false });
@@ -34,20 +34,24 @@ export function fieldInst(
     cardId,
     rested: false,
     actedThisTurn: false,
+    enteredThisTurn: false,
+    abilityUsedThisTurn: false,
     ...opts,
   };
 }
 
 function basePlayer(partial: Partial<PlayerState> = {}): PlayerState {
   return {
-    deck: ["sato", "suzuki", "tanaka"],
+    deck: ["i_okumura", "i_iida", "i_tokumitsu"],
     hand: [],
     field: [],
-    tantou: "kocho",
+    tantou: "t_sasaki", // 能力なし（サポート上限のみ）の担当
+    tantouAbilityUsedThisTurn: false,
     outOfPlay: [],
     academic: 0,
     skill: 0,
     mulliganDecided: true,
+    untapCharges: 0,
     ...partial,
   };
 }
@@ -64,12 +68,24 @@ export function makeState(
     turnNumber: 3,
     phase: { type: "main", canPlayInstructor: true },
     players: [basePlayer(p0), basePlayer(p1)],
+    combatMods: [],
+    lessonMods: [],
     ...overrides,
   };
 }
 
 export function act(state: GameState, action: GameAction): ApplyResult {
   return applyAction(ctx, state, action);
+}
+
+/** choice フェーズを1手で解決するショートカット */
+export function choose(state: GameState, optionIndex: number): ApplyResult {
+  if (state.phase.type !== "choice") throw new Error("choiceフェーズではありません");
+  return act(state, {
+    type: "resolveChoice",
+    player: state.phase.pending.player,
+    optionIndex,
+  });
 }
 
 export { playerToAct };

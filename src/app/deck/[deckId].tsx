@@ -9,7 +9,7 @@ import {
   View,
 } from "react-native";
 import { CardFace } from "@/components/CardFace";
-import { cardRegistry, placeholderCards } from "@/data/cards";
+import { allCards, cardRegistry } from "@/data/cards";
 import { validateDeck } from "@/engine/deckRules";
 import { useDeckStore } from "@/store/deckStore";
 import { colors } from "@/theme";
@@ -22,7 +22,7 @@ export default function DeckEditScreen() {
 
   const [name, setName] = useState(existing?.name ?? "マイデッキ");
   const [main, setMain] = useState<string[]>(existing?.list.main ?? []);
-  const [tantou, setTantou] = useState<string>(existing?.list.tantou ?? "kocho");
+  const [tantou, setTantou] = useState<string>(existing?.list.tantou ?? "t_kuji");
 
   const errors = useMemo(
     () => validateDeck(cardRegistry, { main, tantou }),
@@ -41,8 +41,8 @@ export default function DeckEditScreen() {
     router.back();
   };
 
-  const mainCards = placeholderCards.filter((c) => c.type !== "tantou");
-  const tantouCards = placeholderCards.filter((c) => c.type === "tantou");
+  const mainCards = allCards.filter((c) => c.type !== "tantou");
+  const tantouCards = allCards.filter((c) => c.type === "tantou");
   const supportCount = main.filter((id) => cardRegistry[id].type === "support").length;
 
   return (
@@ -57,7 +57,7 @@ export default function DeckEditScreen() {
         />
 
         <Text style={styles.counter}>
-          {main.length}枚（20枚以上）・サポート {supportCount}/5
+          {main.length}枚（20枚以上）・サポート {supportCount}/{cardRegistry[tantou]?.supportLimit ?? 5}
         </Text>
         {errors.map((e) => (
           <Text key={e} style={styles.error}>

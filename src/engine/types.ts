@@ -13,7 +13,7 @@ export const TRACK_GOALS: Record<Track, number> = {
 };
 
 export const DECK_MIN = 20; // デッキ最小枚数（担当カードを除く）
-export const SUPPORT_MAX = 5; // サポートカード上限
+export const SUPPORT_MAX_DEFAULT = 5; // サポートカード上限（担当カードで変わる場合あり）
 export const INITIAL_HAND = 5;
 
 // ---------------------------------------------------------------- カード定義
@@ -23,54 +23,89 @@ export type CardType = "instructor" | "support" | "tantou";
 /** 効果の発動タイミング */
 export type Trigger =
   | "onPlay" // 【登場時】
-  | "onAttack" // 【アタック時】
+  | "onAttack" // 【アタック時】（バトル宣言時）
   | "onDefendAttacked" // 【相手のアタック時】
   | "onTurnEnd" // 【自分のターン終了時】
-  | "onBattle" // 【バトル時】
-  | "onSupport"; // サポートカード使用時
+  | "onBattle" // 【バトル時】（解決直前）
+  | "onSupport" // サポートカード使用時
+  | "onRemoved" // 【退場時】
+  | "onLesson"; // このインストラクターの教習時（教習の直前に発動）
 
-/** 宣言的な効果プリミティブ。語彙は実カードが必要とした時だけ増やす */
+/** カード固有の常在能力 */
+export type Keyword =
+  | "immuneToOpponentEffects" // 奥村: 相手の効果で場を離れない（デバフも受けない）
+  | "noSupportInOwnBattle" // 志萱: このカードのバトル中、持ち主はサポートカードを使えない
+  | "cantAttackOnEntry"; // 飯田: 登場したターンはアタックできない
+
+/** 宣言的な効果プリミティブ。実カードが必要とする語彙のみ */
 export type EffectOp =
-  | {
-      op: "modifyTrack";
-      target: "self" | "opponent";
-      track: Track;
-      amount: number; // 負数で教習時限を戻す
-    }
-  | {
-      op: "buffCombat";
-      // ownBattler: このバトルにおける自分側の参加インストラクター
-      target: "ownBattler";
-      amount: number;
-      duration: "battle";
-    }
+  | { op: "modifyTrack"; target: "self" | "opponent"; track: Track; amount: number }
+  | { op: "modifyTrackChoice"; amount: number } // 自分の技能か学科を選んで増減（浜田）
   | { op: "draw"; count: number }
+  | { op: "searchTop"; count: number; filterType: CardType; take: number } // 武田
+  | { op: "buffCombat"; target: "ownBattler"; amount: number; duration: "battle" } // 受付系サポート
   | {
-      // 山札の上から count 枚見て、filterType のカードを take 枚まで手札に。
-      // 残りは山札の下へ。（例: 武田）
-      op: "searchTop";
-      count: number;
-      filterType: CardType;
-      take: number;
-    };
+      // 特定インストラクターへの戦闘力修正
+      op: "combatMod";
+      target: "source" | "chooseOwn" | "chooseOpponent" | "battleAttacker";
+      amount: number;
+      until: "turnEnd" | "battleEnd";
+    }
+  | { op: "lessonMod"; target: "source" | "chooseOwn" | "allOwn"; amount: number } // このターン中の教習力修正
+  | { op: "removeTarget"; target: "opponent" } // 相手インストラクター1人を選んで退場
+  | { op: "removeSource" } // 効果の発生源自身を退場（小田の負け）
+  | { op: "removeAllExceptSource" } // 井関
+  | { op: "removeBothBattlers" } // 本間
+  | { op: "bounceTarget"; target: "opponentRested" } // 渡辺(勉)
+  | { op: "salvage"; cardType: "instructor" | "support" } // 自分の場外から手札へ（伊藤・梅本）
+  | { op: "discardOpponentChoice"; count: number } // 佐藤: 相手の手札を見て1枚場外へ
+  | { op: "discardOwnChoice"; count: number } // 大柳
+  | { op: "bottomOwnChoice"; count: number } // 寺島: 手札を山札の下へ
+  | { op: "summonNamed"; name: string } // 富野・諏訪: 手札の特定名カードを登場
+  | { op: "summonChoice" } // 田中: 手札からインストラクター1人を登場
+  | { op: "restSelf" }
+  | { op: "untapChoice" } // 自分のインストラクター1人を元気に（送迎系）
+  | { op: "untapSelf" } // 渡邊(孝)
+  | { op: "untapAtTurnEndCharge" } // 送迎サポート: ターン終了時の元気化を1回分予約
+  | { op: "revealOpponentHand" } // 瀧本
+  | { op: "recycleSupports" } // 釧路の夕日
+  | { op: "janken"; win: EffectOp[]; lose: EffectOp[] } // じゃんけん
+  | { op: "advanceSourceTrack" } // 内部用: 発生源の教習力で ctx.track を進める（onLesson の後）
+  | { op: "endTurnFinalize" }; // 内部用: ターン終了処理の最終段
 
 export interface EffectDef {
   trigger: Trigger;
   ops: EffectOp[];
 }
 
+/** 起動型能力（【ターン1回】など、プレイヤーが任意に使う） */
+export interface AbilityDef {
+  /** 使えるタイミング */
+  window: "main" | "battle";
+  oncePerTurn: boolean;
+  /** コスト: このカードを休憩状態にする（元気状態でのみ起動可） */
+  costRestSelf?: boolean;
+  ops: EffectOp[];
+  label: string; // UI表示用（例: 「相手を1人退場させる」）
+}
+
 export interface CardDef {
   id: string;
   name: string;
   type: CardType;
-  combat?: number; // 戦闘力（インストラクターのみ）
-  lesson?: number; // 教習力（インストラクターのみ）
+  combat?: number; // 戦闘力
+  lesson?: number; // 教習力
   /** サポートカードの使用可能タイミング */
   timing?: "battle" | "main" | "any";
   effects?: EffectDef[];
-  /** カードに印刷されている効果テキスト（表示用） */
+  keywords?: Keyword[];
+  ability?: AbilityDef;
+  /** 担当カードによるサポートカード上限の変更（佐々木系: 7） */
+  supportLimit?: number;
+  /** カードに印刷されている効果テキスト（表示・検索用） */
   effectText?: string;
-  /** assets/cards/<image>.png のキー。未指定ならテキストフェイス描画 */
+  flavor?: string;
+  /** assets/cards/<image>.webp のキー。未指定なら id を使う */
   image?: string;
 }
 
@@ -80,70 +115,121 @@ export interface GameContext {
   defs: CardRegistry;
 }
 
+// ---------------------------------------------------------------- 効果キュー
+
+export interface EffectContext {
+  owner: PlayerId;
+  /** 効果の発生源（場のインストラクターの uid。担当・サポートは undefined） */
+  sourceUid?: string;
+  /** 効果の発生源のカードID（解決中のサポートカード自身を除外する用途など） */
+  sourceCardId?: string;
+  /** onLesson 用: この教習で進めるトラック */
+  track?: Track;
+}
+
+export interface QueuedOp {
+  op: EffectOp;
+  ctx: EffectContext;
+}
+
 // ---------------------------------------------------------------- ゲーム状態
 
 export interface InstructorOnField {
-  uid: string; // 場のインスタンスID（同名は無いが将来のため）
+  uid: string;
   cardId: string;
   rested: boolean; // true = 休憩（横向き）
-  actedThisTurn: boolean; // このターン行動済みか（なにもしない含む）
+  actedThisTurn: boolean;
+  enteredThisTurn: boolean; // 飯田の「登場ターンはアタック不可」用
+  abilityUsedThisTurn: boolean;
 }
 
 export interface PlayerState {
   deck: string[]; // 先頭が山札の一番上
   hand: string[];
   field: InstructorOnField[];
-  tantou: string; // 担当カードID
-  outOfPlay: string[]; // 場外（退場したインストラクター・使用済みサポート）
-  academic: number; // 学科の進捗 0..10
-  skill: number; // 技能の進捗 0..19
+  tantou: string;
+  tantouAbilityUsedThisTurn: boolean;
+  outOfPlay: string[]; // 場外
+  academic: number;
+  skill: number;
   mulliganDecided: boolean;
+  /** 送迎サポートによる「ターン終了時に1人元気化」の残回数 */
+  untapCharges: number;
+}
+
+/** ターン/バトル限定の戦闘力・教習力修正 */
+export interface CombatMod {
+  player: PlayerId;
+  uid: string;
+  amount: number;
+  until: "turnEnd" | "battleEnd";
+}
+
+export interface LessonMod {
+  player: PlayerId;
+  /** null = そのプレイヤーの場全体（永山） */
+  uid: string | null;
+  amount: number; // until turnEnd 固定
 }
 
 export interface BattleContext {
   attackerPlayer: PlayerId;
   attackerUid: string;
   defenderUid: string;
-  /** サポートカードをプレイする優先権（防御側から開始） */
-  priority: PlayerId;
-  /** 連続パス数。2 で解決 */
+  priority: PlayerId; // サポートの優先権（防御側から）
   consecutivePasses: number;
-  /** バトル中の一時的な戦闘力修正 */
-  buffs: { player: PlayerId; amount: number }[];
+  buffs: { player: PlayerId; amount: number }[]; // サポート等によるバトル側バフ
 }
 
-/** プレイヤー入力が必要な効果の保留状態 */
-export type PendingChoice = {
-  kind: "searchTake";
-  player: PlayerId;
-  /** 公開されたカードID（選択者のみ閲覧可） */
-  revealed: string[];
-  /** revealed のうち選択可能な index */
-  selectable: number[];
-  /** 選択後に山札の下へ送る残りの処理用 */
-  filterType: CardType;
-};
+/** プレイヤー入力が必要な選択の内部解決情報（ビューでは秘匿） */
+export type ResolveSpec =
+  | { type: "searchTake"; revealed: string[]; map: number[] }
+  | { type: "janken"; win: EffectOp[]; lose: EffectOp[]; firstPick?: number }
+  | {
+      type: "targetUid";
+      uids: string[];
+      action: "remove" | "bounce" | "combatMod" | "lessonMod" | "untap";
+      amount?: number;
+      until?: "turnEnd" | "battleEnd";
+    }
+  | {
+      type: "handIndex";
+      indices: number[];
+      action: "discardOpp" | "discardOwn" | "bottomOwn" | "summonOwn";
+      remaining: number;
+    }
+  | { type: "salvage"; indices: number[] }
+  | { type: "track"; amount: number };
+
+export interface PendingChoice {
+  player: PlayerId; // 入力すべきプレイヤー
+  owner: PlayerId; // 効果の持ち主
+  prompt: string;
+  /** AI用ヒント: "janken" | "removeOpp" | "discardOwn" など */
+  purpose: string;
+  options: { label: string; cardId?: string }[];
+  resolve: ResolveSpec;
+  queue: QueuedOp[]; // この選択の後に続く効果
+  sourceCtx: EffectContext;
+}
 
 export type Phase =
   | { type: "mulligan" }
   | { type: "main"; canPlayInstructor: boolean }
   | { type: "battleSupport"; battle: BattleContext }
-  | {
-      type: "choice";
-      pending: PendingChoice;
-      /** choice 解決後に戻るフェーズ */
-      resume: Phase;
-    }
+  | { type: "choice"; pending: PendingChoice; resume: Phase }
   | { type: "finished"; winner: PlayerId | null; reason: GameEndReason };
 
 export type GameEndReason = "bothTracksComplete" | "deckOut";
 
 export interface GameState {
-  rngState: number; // シード付きPRNGの現在状態
+  rngState: number;
   turnPlayer: PlayerId;
   turnNumber: number;
   phase: Phase;
   players: [PlayerState, PlayerState];
+  combatMods: CombatMod[];
+  lessonMods: LessonMod[];
 }
 
 // ---------------------------------------------------------------- アクション
@@ -157,14 +243,15 @@ export type GameAction =
       uid: string;
       action: "skill" | "academic" | "doNothing";
     }
-  | {
-      type: "declareBattle";
-      player: PlayerId;
-      attackerUid: string;
-      defenderUid: string;
-    }
+  | { type: "declareBattle"; player: PlayerId; attackerUid: string; defenderUid: string }
   | { type: "playSupport"; player: PlayerId; handIndex: number }
   | { type: "passSupport"; player: PlayerId }
+  | {
+      /** 起動型能力。uid 省略時は担当カードの能力 */
+      type: "activateAbility";
+      player: PlayerId;
+      uid?: string;
+    }
   | { type: "resolveChoice"; player: PlayerId; optionIndex: number }
   | { type: "endTurn"; player: PlayerId };
 
@@ -174,7 +261,7 @@ export type GameEvent =
   | { type: "gameStarted"; firstPlayer: PlayerId }
   | { type: "mulliganTaken"; player: PlayerId; redraw: boolean }
   | { type: "turnStarted"; player: PlayerId; turnNumber: number }
-  | { type: "cardDrawn"; player: PlayerId; cardId?: string } // cardId は自分のみ
+  | { type: "cardDrawn"; player: PlayerId; cardId?: string }
   | { type: "instructorPlayed"; player: PlayerId; uid: string; cardId: string }
   | { type: "instructorUntapped"; player: PlayerId; uid: string }
   | { type: "instructorRested"; player: PlayerId; uid: string }
@@ -183,15 +270,10 @@ export type GameEvent =
       type: "trackAdvanced";
       player: PlayerId;
       track: Track;
-      amount: number; // 実際に動いた量（切り捨て・下限適用後）
+      amount: number;
       newValue: number;
     }
-  | {
-      type: "battleDeclared";
-      attackerPlayer: PlayerId;
-      attackerUid: string;
-      defenderUid: string;
-    }
+  | { type: "battleDeclared"; attackerPlayer: PlayerId; attackerUid: string; defenderUid: string }
   | { type: "supportPlayed"; player: PlayerId; cardId: string }
   | { type: "supportPassed"; player: PlayerId }
   | {
@@ -202,8 +284,17 @@ export type GameEvent =
       removedUids: string[];
     }
   | { type: "instructorRemoved"; player: PlayerId; uid: string; cardId: string }
+  | { type: "instructorBounced"; player: PlayerId; uid: string; cardId: string }
+  | { type: "cardDiscarded"; player: PlayerId; cardId: string }
+  | { type: "cardSalvaged"; player: PlayerId; cardId: string }
+  | { type: "abilityActivated"; player: PlayerId; cardId: string }
+  | { type: "combatModApplied"; player: PlayerId; uid: string; amount: number }
+  | { type: "lessonModApplied"; player: PlayerId; uid: string | null; amount: number }
+  | { type: "jankenPlayed"; owner: PlayerId; won: boolean }
+  | { type: "handRevealed"; player: PlayerId; cardIds: string[] } // player = 手札を見られた側
+  | { type: "supportsRecycled"; player: PlayerId; count: number }
   | { type: "choiceRequired"; player: PlayerId }
-  | { type: "cardsRevealed"; player: PlayerId; cardIds: string[] }
+  | { type: "cardsRevealed"; player: PlayerId; cardIds: string[] } // searchTop の公開
   | { type: "turnEnded"; player: PlayerId }
   | { type: "gameEnded"; winner: PlayerId | null; reason: GameEndReason };
 
@@ -219,6 +310,7 @@ export interface OpponentView {
   deckCount: number;
   field: InstructorOnField[];
   tantou: string;
+  tantouAbilityUsedThisTurn: boolean;
   outOfPlay: string[];
   academic: number;
   skill: number;
@@ -229,16 +321,36 @@ export interface SelfView {
   deckCount: number;
   field: InstructorOnField[];
   tantou: string;
+  tantouAbilityUsedThisTurn: boolean;
   outOfPlay: string[];
   academic: number;
   skill: number;
+  untapCharges: number;
 }
+
+/** ビュー用に秘匿処理した選択情報 */
+export interface PendingChoiceView {
+  player: PlayerId;
+  owner: PlayerId;
+  prompt: string;
+  purpose: string;
+  options: { label: string; cardId?: string }[];
+}
+
+export type PhaseView =
+  | { type: "mulligan" }
+  | { type: "main"; canPlayInstructor: boolean }
+  | { type: "battleSupport"; battle: BattleContext }
+  | { type: "choice"; pending: PendingChoiceView }
+  | { type: "finished"; winner: PlayerId | null; reason: GameEndReason };
 
 export interface PlayerView {
   playerId: PlayerId;
   turnPlayer: PlayerId;
   turnNumber: number;
-  phase: Phase; // choice の revealed は viewFor で秘匿処理
+  phase: PhaseView;
+  combatMods: CombatMod[];
+  lessonMods: LessonMod[];
   self: SelfView;
   opponent: OpponentView;
 }

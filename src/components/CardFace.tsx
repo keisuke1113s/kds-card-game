@@ -1,10 +1,12 @@
+import { Image } from "expo-image";
 import React from "react";
-import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
+import { cardImages } from "@/data/images";
 import { cardSize, CardSizeKey, colors } from "@/theme";
 
-// カード画像が未提供のあいだはテキストフェイスで描画する。
-// 画像が届いたら CardDef.image を見て expo-image に切り替える。
+// 実カード画像（868×1213）をそのまま描画する。
+// 画像が無いカードはテキストフェイスでフォールバック。
 
 const typeColor: Record<string, string> = {
   instructor: colors.instructor,
@@ -12,68 +14,60 @@ const typeColor: Record<string, string> = {
   tantou: colors.tantou,
 };
 
-const typeLabel: Record<string, string> = {
-  instructor: "指導員",
-  support: "サポート",
-  tantou: "担当",
-};
-
 interface Props {
   cardId: string;
   size: CardSizeKey;
   faceDown?: boolean;
   dimmed?: boolean;
-  style?: ViewStyle;
   onPress?: () => void;
   disabled?: boolean;
 }
 
-export function CardFace({ cardId, size, faceDown, dimmed, style, onPress, disabled }: Props) {
+export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: Props) {
   const dims = cardSize[size];
+
+  let body: React.ReactNode;
   if (faceDown) {
-    return (
-      <View style={[styles.card, styles.faceDown, dims, style]}>
+    const back = cardImages["cardback"];
+    body = back ? (
+      <Image source={back} style={[styles.image, dims]} contentFit="cover" />
+    ) : (
+      <View style={[styles.card, styles.faceDownFallback, dims]}>
         <Text style={styles.faceDownText}>KDS</Text>
       </View>
     );
+  } else {
+    const def = getCard(cardId);
+    const img = cardImages[def.image ?? def.id];
+    if (img) {
+      body = (
+        <Image
+          source={img}
+          style={[styles.image, dims, dimmed && styles.dimmed]}
+          contentFit="cover"
+          transition={100}
+        />
+      );
+    } else {
+      const color = typeColor[def.type];
+      body = (
+        <View style={[styles.card, dims, { borderColor: color }, dimmed && styles.dimmed]}>
+          <View style={[styles.header, { backgroundColor: color }]}>
+            <Text style={styles.name} numberOfLines={1}>
+              {def.name}
+            </Text>
+          </View>
+          {def.type === "instructor" && (
+            <Text style={styles.stats}>
+              戦{def.combat} 教{def.lesson}
+            </Text>
+          )}
+        </View>
+      );
+    }
   }
 
-  const def = getCard(cardId);
-  const color = typeColor[def.type];
-  const showEffect = (size === "lg" || size === "xl") && !!def.effectText;
-  const nameSize = size === "sm" ? 9 : size === "md" ? 11 : 16;
-  const badgeSize = size === "sm" ? 8 : size === "md" ? 10 : 13;
-
-  const body = (
-    <View style={[styles.card, dims, { borderColor: color }, dimmed && styles.dimmed, style]}>
-      <View style={[styles.header, { backgroundColor: color }]}>
-        <Text style={[styles.name, { fontSize: nameSize }]} numberOfLines={1}>
-          {def.name}
-        </Text>
-      </View>
-      {def.type === "instructor" ? (
-        <View style={styles.badges}>
-          <View style={[styles.badge, { backgroundColor: colors.danger }]}>
-            <Text style={[styles.badgeText, { fontSize: badgeSize }]}>戦{def.combat}</Text>
-          </View>
-          <View style={[styles.badge, { backgroundColor: colors.primary }]}>
-            <Text style={[styles.badgeText, { fontSize: badgeSize }]}>教{def.lesson}</Text>
-          </View>
-        </View>
-      ) : (
-        <Text style={[styles.typeLabel, { color, fontSize: badgeSize }]}>
-          {typeLabel[def.type]}
-        </Text>
-      )}
-      {showEffect && (
-        <Text style={styles.effect} numberOfLines={6}>
-          {def.effectText}
-        </Text>
-      )}
-    </View>
-  );
-
-  if (!onPress) return body;
+  if (!onPress) return <>{body}</>;
   return (
     <Pressable onPress={onPress} disabled={disabled} hitSlop={4}>
       {body}
@@ -82,25 +76,23 @@ export function CardFace({ cardId, size, faceDown, dimmed, style, onPress, disab
 }
 
 const styles = StyleSheet.create({
+  image: { borderRadius: 6, backgroundColor: colors.border },
   card: {
     borderRadius: 6,
     borderWidth: 2,
     backgroundColor: colors.surface,
     overflow: "hidden",
   },
-  faceDown: {
+  faceDownFallback: {
     backgroundColor: colors.primaryDark,
     borderColor: colors.primaryDark,
     alignItems: "center",
     justifyContent: "center",
+    borderWidth: 0,
   },
   faceDownText: { color: "#ffffff88", fontWeight: "800", fontSize: 12 },
   dimmed: { opacity: 0.45 },
   header: { paddingHorizontal: 3, paddingVertical: 2 },
-  name: { color: "#fff", fontWeight: "700" },
-  badges: { flexDirection: "row", gap: 2, padding: 2 },
-  badge: { borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1 },
-  badgeText: { color: "#fff", fontWeight: "700" },
-  typeLabel: { fontWeight: "700", padding: 3 },
-  effect: { fontSize: 11, color: colors.text, paddingHorizontal: 6, paddingTop: 4, lineHeight: 16 },
+  name: { color: "#fff", fontWeight: "700", fontSize: 10 },
+  stats: { fontSize: 10, fontWeight: "700", color: colors.text, padding: 3 },
 });

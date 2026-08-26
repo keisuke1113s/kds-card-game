@@ -51,7 +51,7 @@ export default function DeckListScreen() {
             {errors.length > 0 && (
               <Text style={styles.error}>{errors[0]}</Text>
             )}
-            {deck.id !== DEFAULT_DECK_ID && (
+            {!["default", "challenger"].includes(deck.id) && (
               <View style={styles.deckActions}>
                 <SmallButton label="編集" onPress={() => router.push(`/deck/${deck.id}`)} />
                 <SmallButton label="削除" danger onPress={() => confirmDelete(deck)} />

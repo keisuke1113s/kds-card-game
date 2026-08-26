@@ -1,4 +1,4 @@
-import { playerToAct } from "./reducer";
+import { playerToAct, supportsBlockedFor, usableAbility } from "./reducer";
 import { GameAction, GameContext, GameState, PlayerId } from "./types";
 
 /**
@@ -38,16 +38,30 @@ export function getLegalActions(
         actions.push({ type: "instructorAction", player, uid: inst.uid, action: "skill" });
         actions.push({ type: "instructorAction", player, uid: inst.uid, action: "academic" });
         actions.push({ type: "instructorAction", player, uid: inst.uid, action: "doNothing" });
-        for (const target of opp.field) {
-          if (target.rested) {
-            actions.push({
-              type: "declareBattle",
-              player,
-              attackerUid: inst.uid,
-              defenderUid: target.uid,
-            });
+        const def = ctx.defs[inst.cardId];
+        const cantAttack = def.keywords?.includes("cantAttackOnEntry") && inst.enteredThisTurn;
+        if (!cantAttack) {
+          for (const target of opp.field) {
+            if (target.rested) {
+              actions.push({
+                type: "declareBattle",
+                player,
+                attackerUid: inst.uid,
+                defenderUid: target.uid,
+              });
+            }
           }
         }
+      }
+
+      // 起動型能力（インストラクター・担当）
+      for (const inst of p.field) {
+        if (usableAbility(ctx, state, player, inst.uid)) {
+          actions.push({ type: "activateAbility", player, uid: inst.uid });
+        }
+      }
+      if (usableAbility(ctx, state, player, undefined)) {
+        actions.push({ type: "activateAbility", player });
       }
 
       // メインフェイズで使えるサポートカード
@@ -63,19 +77,32 @@ export function getLegalActions(
     }
 
     case "battleSupport": {
-      p.hand.forEach((cardId, handIndex) => {
-        const def = ctx.defs[cardId];
-        if (def.type === "support" && (def.timing === "battle" || def.timing === "any")) {
-          actions.push({ type: "playSupport", player, handIndex });
+      const battle = state.phase.battle;
+      if (!supportsBlockedFor(ctx, state, player, battle)) {
+        p.hand.forEach((cardId, handIndex) => {
+          const def = ctx.defs[cardId];
+          if (def.type === "support" && (def.timing === "battle" || def.timing === "any")) {
+            actions.push({ type: "playSupport", player, handIndex });
+          }
+        });
+      }
+      // バトル中に使える起動型能力（担当カードの戦闘力バフなど）
+      if (usableAbility(ctx, state, player, undefined)) {
+        actions.push({ type: "activateAbility", player });
+      }
+      for (const inst of p.field) {
+        if (usableAbility(ctx, state, player, inst.uid)) {
+          actions.push({ type: "activateAbility", player, uid: inst.uid });
         }
-      });
+      }
       actions.push({ type: "passSupport", player });
       break;
     }
 
     case "choice": {
-      for (const optionIndex of state.phase.pending.selectable) {
-        actions.push({ type: "resolveChoice", player, optionIndex });
+      const n = state.phase.pending.options.length;
+      for (let i = 0; i < n; i++) {
+        actions.push({ type: "resolveChoice", player, optionIndex: i });
       }
       break;
     }

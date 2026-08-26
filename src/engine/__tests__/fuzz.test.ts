@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultDeck } from "@/data/cards";
+import { cpuDeck, defaultDeck } from "@/data/cards";
 import { createGame } from "../createGame";
 import { getLegalActions } from "../legalActions";
 import { applyAction, playerToAct } from "../reducer";
@@ -14,27 +14,34 @@ import { ctx } from "./helpers";
 
 // ランダム合法手ボット同士で対局し、不変条件と決定性を検証するファジングテスト
 
-const TOTAL_CARDS_PER_PLAYER = defaultDeck.main.length; // 22
+const TOTALS = [defaultDeck.main.length, cpuDeck.main.length]; // 21 / 21
 
 function invariants(state: GameState) {
-  for (const p of state.players) {
+  // searchTop の公開カードは一時的に山札から出ている
+  let revealedOwner = -1;
+  let revealedCount = 0;
+  if (state.phase.type === "choice") {
+    const pending = state.phase.pending;
+    const r = pending.resolve as { type: string; revealed?: string[] };
+    if (r.type === "searchTake" && r.revealed) {
+      revealedOwner = pending.owner;
+      revealedCount = r.revealed.length;
+    }
+  }
+  state.players.forEach((p, pi) => {
     expect(p.academic).toBeGreaterThanOrEqual(0);
     expect(p.academic).toBeLessThanOrEqual(ACADEMIC_GOAL);
     expect(p.skill).toBeGreaterThanOrEqual(0);
     expect(p.skill).toBeLessThanOrEqual(SKILL_GOAL);
-    // カードの保存則: 山札+手札+場+場外 = 22（choice 中の公開カードを除く）
-    let revealed = 0;
-    if (state.phase.type === "choice") {
-      const owner = state.phase.pending.player;
-      if (state.players[owner] === p) revealed = state.phase.pending.revealed.length;
-    }
+    // カードの保存則: 山札+手札+場+場外（+公開中） = デッキ枚数
+    const revealed = pi === revealedOwner ? revealedCount : 0;
     expect(
       p.deck.length + p.hand.length + p.field.length + p.outOfPlay.length + revealed
-    ).toBe(TOTAL_CARDS_PER_PLAYER);
+    ).toBe(TOTALS[pi]);
     // 場のUIDは一意
     const uids = p.field.map((f) => f.uid);
     expect(new Set(uids).size).toBe(uids.length);
-  }
+  });
 }
 
 function playRandomGame(seed: number): {
@@ -42,7 +49,7 @@ function playRandomGame(seed: number): {
   actionLog: GameAction[];
   turns: number;
 } {
-  let { state } = createGame(ctx, { seed, decks: [defaultDeck, defaultDeck] });
+  let { state } = createGame(ctx, { seed, decks: [defaultDeck, cpuDeck] });
   const actionLog: GameAction[] = [];
   let botRng = seed ^ 0x9e3779b9;
   let steps = 0;
@@ -77,7 +84,7 @@ describe("ファジング（ランダム対局）", () => {
     for (const seed of [3, 17, 42]) {
       const first = playRandomGame(seed);
       // 記録したアクション列をそのまま再適用
-      let { state } = createGame(ctx, { seed, decks: [defaultDeck, defaultDeck] });
+      let { state } = createGame(ctx, { seed, decks: [defaultDeck, cpuDeck] });
       for (const action of first.actionLog) {
         state = applyAction(ctx, state, action).state;
       }

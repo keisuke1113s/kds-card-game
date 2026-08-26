@@ -1,7 +1,7 @@
 import {
   CardRegistry,
   DECK_MIN,
-  SUPPORT_MAX,
+  SUPPORT_MAX_DEFAULT,
 } from "./types";
 
 export interface DeckList {
@@ -34,9 +34,11 @@ export function validateDeck(defs: CardRegistry, deck: DeckList): string[] {
     names.add(name);
   }
 
+  // 担当カードによってサポート上限が変わる（佐々木系: 7枚）
+  const supportMax = defs[deck.tantou]?.supportLimit ?? SUPPORT_MAX_DEFAULT;
   const supportCount = deck.main.filter((id) => defs[id].type === "support").length;
-  if (supportCount > SUPPORT_MAX) {
-    errors.push(`サポートカードは${SUPPORT_MAX}枚以下です（現在 ${supportCount}枚）`);
+  if (supportCount > supportMax) {
+    errors.push(`サポートカードは${supportMax}枚以下です（現在 ${supportCount}枚）`);
   }
 
   const tantouInMain = deck.main.filter((id) => defs[id].type === "tantou");

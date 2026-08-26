@@ -1,8 +1,21 @@
-import { modifyTrack, runCardEffects, takeFromRevealed } from "./effects";
+import {
+  applyChoice,
+  checkWin,
+  effectiveCombat,
+  modifyTrack,
+  opponentOf,
+  putInstructorOnField,
+  removeInstructor,
+  runQueue,
+  startTurn,
+  triggerOps,
+} from "./effects";
 import { shuffle } from "./rng";
 import {
+  AbilityDef,
   ApplyResult,
   BattleContext,
+  CardDef,
   GameAction,
   GameContext,
   GameEvent,
@@ -10,21 +23,9 @@ import {
   InstructorOnField,
   Phase,
   PlayerId,
-  ACADEMIC_GOAL,
-  SKILL_GOAL,
+  QueuedOp,
   INITIAL_HAND,
 } from "./types";
-
-function newUid(state: GameState): string {
-  // 場＋場外の総数はカードを出すたびに単調増加するため、これだけで一意。
-  // 状態のみから導出するのでリプレイしても同一UIDになる。
-  const n =
-    state.players[0].field.length +
-    state.players[0].outOfPlay.length +
-    state.players[1].field.length +
-    state.players[1].outOfPlay.length;
-  return `u${n}`;
-}
 
 function clone(state: GameState): GameState {
   return JSON.parse(JSON.stringify(state));
@@ -34,17 +35,13 @@ function illegal(msg: string): never {
   throw new Error(`不正なアクション: ${msg}`);
 }
 
-function opponent(p: PlayerId): PlayerId {
-  return (1 - p) as PlayerId;
-}
-
 /** 今、入力すべきプレイヤー。finished なら null */
 export function playerToAct(state: GameState): PlayerId | null {
   switch (state.phase.type) {
     case "mulligan": {
       if (!state.players[0].mulliganDecided) return 0;
       if (!state.players[1].mulliganDecided) return 1;
-      return null; // 遷移中（起こらない）
+      return null;
     }
     case "main":
       return state.turnPlayer;
@@ -57,58 +54,105 @@ export function playerToAct(state: GameState): PlayerId | null {
   }
 }
 
-/** 勝利条件チェック（学科10＋技能19の両方）。達成していれば phase を finished に */
-function checkWin(state: GameState, events: GameEvent[]): void {
-  if (state.phase.type === "finished") return;
-  for (const pid of [0, 1] as PlayerId[]) {
-    const p = state.players[pid];
-    if (p.academic >= ACADEMIC_GOAL && p.skill >= SKILL_GOAL) {
-      state.phase = { type: "finished", winner: pid, reason: "bothTracksComplete" };
-      events.push({ type: "gameEnded", winner: pid, reason: "bothTracksComplete" });
-      return;
-    }
-  }
-}
-
-function findInstructor(
-  state: GameState,
-  player: PlayerId,
-  uid: string
-): InstructorOnField {
+function findInstructor(state: GameState, player: PlayerId, uid: string): InstructorOnField {
   const inst = state.players[player].field.find((f) => f.uid === uid);
   if (!inst) illegal(`インストラクター ${uid} が場にいません`);
   return inst;
 }
 
-/** ターン開始処理: 元気化 → 1枚ドロー（引けなければ敗北） */
-function startTurn(state: GameState, events: GameEvent[]): void {
-  const pid = state.turnPlayer;
-  const p = state.players[pid];
-  state.turnNumber++;
-  events.push({ type: "turnStarted", player: pid, turnNumber: state.turnNumber });
-
-  for (const inst of p.field) {
-    if (inst.rested) {
-      inst.rested = false;
-      events.push({ type: "instructorUntapped", player: pid, uid: inst.uid });
-    }
-    inst.actedThisTurn = false;
+/** phase（choice の resume 含む）の battleSupport を取り出す */
+function currentBattle(phase: Phase): BattleContext | null {
+  if (phase.type === "battleSupport") return phase.battle;
+  if (phase.type === "choice" && phase.resume.type === "battleSupport") {
+    return phase.resume.battle;
   }
-
-  const drawn = p.deck.shift();
-  if (drawn === undefined) {
-    const winner = opponent(pid);
-    state.phase = { type: "finished", winner, reason: "deckOut" };
-    events.push({ type: "gameEnded", winner, reason: "deckOut" });
-    return;
-  }
-  p.hand.push(drawn);
-  events.push({ type: "cardDrawn", player: pid, cardId: drawn });
-
-  state.phase = { type: "main", canPlayInstructor: true };
+  return null;
 }
 
-/** バトル解決: 戦闘力比較 → 低い方（同値は両方）場外 */
+/** バトル参加者が効果で場を離れていたらバトルを中断して main に戻す */
+function checkBattleAborted(state: GameState, events: GameEvent[]): void {
+  const battle = currentBattle(state.phase);
+  if (!battle) return;
+  const atkAlive = state.players[battle.attackerPlayer].field.some(
+    (f) => f.uid === battle.attackerUid
+  );
+  const defAlive = state.players[opponentOf(battle.attackerPlayer)].field.some(
+    (f) => f.uid === battle.defenderUid
+  );
+  if (atkAlive && defAlive) return;
+
+  state.combatMods = state.combatMods.filter((m) => m.until !== "battleEnd");
+  const main: Phase = { type: "main", canPlayInstructor: false };
+  if (state.phase.type === "battleSupport") {
+    state.phase = main;
+  } else if (state.phase.type === "choice") {
+    state.phase.resume = main;
+  }
+  void events;
+}
+
+/** 志萱: このバトルに自分の noSupportInOwnBattle 持ちが参加しているか */
+export function supportsBlockedFor(
+  ctx: GameContext,
+  state: GameState,
+  player: PlayerId,
+  battle: BattleContext
+): boolean {
+  const myBattlerUid = battle.attackerPlayer === player ? battle.attackerUid : battle.defenderUid;
+  const inst = state.players[player].field.find((f) => f.uid === myBattlerUid);
+  if (!inst) return false;
+  return ctx.defs[inst.cardId].keywords?.includes("noSupportInOwnBattle") ?? false;
+}
+
+/** 起動できる能力を返す（起動できなければ null） */
+export function usableAbility(
+  ctx: GameContext,
+  state: GameState,
+  player: PlayerId,
+  uid: string | undefined
+): { def: CardDef; ability: AbilityDef; inst?: InstructorOnField } | null {
+  const p = state.players[player];
+  if (uid !== undefined) {
+    const inst = p.field.find((f) => f.uid === uid);
+    if (!inst) return null;
+    const def = ctx.defs[inst.cardId];
+    if (!def.ability) return null;
+    if (def.ability.oncePerTurn && inst.abilityUsedThisTurn) return null;
+    if (def.ability.costRestSelf && inst.rested) return null;
+    if (!abilityWindowOpen(state, player, def.ability)) return null;
+    return { def, ability: def.ability, inst };
+  }
+  const def = ctx.defs[p.tantou];
+  if (!def.ability) return null;
+  if (def.ability.oncePerTurn && p.tantouAbilityUsedThisTurn) return null;
+  if (!abilityWindowOpen(state, player, def.ability)) return null;
+  return { def, ability: def.ability };
+}
+
+function abilityWindowOpen(state: GameState, player: PlayerId, ability: AbilityDef): boolean {
+  if (ability.window === "main") {
+    if (state.phase.type !== "main" || state.turnPlayer !== player) return false;
+  } else {
+    // battle: 優先権を持っている時に使える
+    if (state.phase.type !== "battleSupport" || state.phase.battle.priority !== player) {
+      return false;
+    }
+  }
+  // 対象が存在しない起動は無駄撃ちになるので不可にする
+  for (const op of ability.ops) {
+    if (
+      (op.op === "lessonMod" && op.target !== "source") &&
+      state.players[player].field.length === 0
+    ) {
+      return false;
+    }
+    if (op.op === "removeTarget" && state.players[1 - player].field.length === 0) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function resolveBattle(
   ctx: GameContext,
   state: GameState,
@@ -116,63 +160,47 @@ function resolveBattle(
   events: GameEvent[]
 ): void {
   const atkP = battle.attackerPlayer;
-  const defP = opponent(atkP);
+  const defP = opponentOf(atkP);
+  const attacker = state.players[atkP].field.find((f) => f.uid === battle.attackerUid);
+  const defender = state.players[defP].field.find((f) => f.uid === battle.defenderUid);
 
-  const attacker = findInstructor(state, atkP, battle.attackerUid);
-  const defender = findInstructor(state, defP, battle.defenderUid);
-
-  // 【バトル時】トリガー
-  for (const [pid, inst] of [
-    [atkP, attacker],
-    [defP, defender],
-  ] as const) {
-    runCardEffects(ctx, state, pid, ctx.defs[inst.cardId], "onBattle", events);
+  if (!attacker || !defender) {
+    // 効果でどちらかが場を離れていた（通常は checkBattleAborted 済み）
+    state.combatMods = state.combatMods.filter((m) => m.until !== "battleEnd");
+    state.phase = { type: "main", canPlayInstructor: false };
+    return;
   }
+
+  const queue: QueuedOp[] = [];
+
+  // 【バトル時】
+  queue.push(...triggerOps(ctx, atkP, ctx.defs[attacker.cardId], "onBattle", attacker.uid));
+  queue.push(...triggerOps(ctx, defP, ctx.defs[defender.cardId], "onBattle", defender.uid));
 
   const buffFor = (pid: PlayerId) =>
     battle.buffs.filter((b) => b.player === pid).reduce((a, b) => a + b.amount, 0);
-
-  const attackerTotal = (ctx.defs[attacker.cardId].combat ?? 0) + buffFor(atkP);
-  const defenderTotal = (ctx.defs[defender.cardId].combat ?? 0) + buffFor(defP);
+  const attackerTotal = effectiveCombat(ctx, state, atkP, attacker) + buffFor(atkP);
+  const defenderTotal = effectiveCombat(ctx, state, defP, defender) + buffFor(defP);
 
   const removedUids: string[] = [];
-  const remove = (pid: PlayerId, inst: InstructorOnField) => {
-    const p = state.players[pid];
-    p.field = p.field.filter((f) => f.uid !== inst.uid);
-    p.outOfPlay.push(inst.cardId);
-    removedUids.push(inst.uid);
-    events.push({
-      type: "instructorRemoved",
-      player: pid,
-      uid: inst.uid,
-      cardId: inst.cardId,
-    });
-  };
+  if (attackerTotal < defenderTotal) removedUids.push(attacker.uid);
+  else if (defenderTotal < attackerTotal) removedUids.push(defender.uid);
+  else removedUids.push(attacker.uid, defender.uid);
 
-  if (attackerTotal < defenderTotal) remove(atkP, attacker);
-  else if (defenderTotal < attackerTotal) remove(defP, defender);
-  else {
-    remove(atkP, attacker);
-    remove(defP, defender);
-  }
+  events.push({ type: "battleResolved", attackerPlayer: atkP, attackerTotal, defenderTotal, removedUids });
 
-  events.push({
-    type: "battleResolved",
-    attackerPlayer: atkP,
-    attackerTotal,
-    defenderTotal,
-    removedUids,
-  });
-
+  // バトル終了: バトル限定の修正値をクリアし、main に戻してから退場処理
+  state.combatMods = state.combatMods.filter((m) => m.until !== "battleEnd");
   state.phase = { type: "main", canPlayInstructor: false };
-  checkWin(state, events); // バトル時効果でトラックが動く可能性
+
+  for (const uid of removedUids) {
+    const owner = uid === attacker.uid ? atkP : defP;
+    removeInstructor(ctx, state, owner, uid, events, queue);
+  }
+  runQueue(ctx, state, queue, events);
 }
 
-export function applyAction(
-  ctx: GameContext,
-  prev: GameState,
-  action: GameAction
-): ApplyResult {
+export function applyAction(ctx: GameContext, prev: GameState, action: GameAction): ApplyResult {
   if (prev.phase.type === "finished") illegal("ゲームは終了しています");
   const state = clone(prev);
   const events: GameEvent[] = [];
@@ -187,7 +215,6 @@ export function applyAction(
       const p = state.players[action.player];
       if (p.mulliganDecided) illegal("すでにマリガンを決定済みです");
       if (action.redraw) {
-        // 手札を山札に戻してシャッフルし、5枚引き直す
         const all = [...p.deck, ...p.hand];
         const s = shuffle(state.rngState, all);
         state.rngState = s.rngState;
@@ -198,7 +225,7 @@ export function applyAction(
       events.push({ type: "mulliganTaken", player: action.player, redraw: action.redraw });
 
       if (state.players.every((pl) => pl.mulliganDecided)) {
-        startTurn(state, events);
+        startTurn(ctx, state, events);
       }
       break;
     }
@@ -208,31 +235,14 @@ export function applyAction(
       if (!state.phase.canPlayInstructor) {
         illegal("インストラクターを出せるのはメインフェイズの最初だけです");
       }
-      const p = state.players[action.player];
-      const cardId = p.hand[action.handIndex];
+      const cardId = state.players[action.player].hand[action.handIndex];
       if (cardId === undefined) illegal("手札の指定が不正です");
-      const def = ctx.defs[cardId];
-      if (def.type !== "instructor") illegal("インストラクターカードではありません");
+      if (ctx.defs[cardId].type !== "instructor") illegal("インストラクターカードではありません");
 
-      p.hand.splice(action.handIndex, 1);
-      const inst: InstructorOnField = {
-        uid: newUid(state),
-        cardId,
-        rested: false,
-        actedThisTurn: false,
-      };
-      p.field.push(inst);
       state.phase.canPlayInstructor = false;
-      events.push({
-        type: "instructorPlayed",
-        player: action.player,
-        uid: inst.uid,
-        cardId,
-      });
-
-      // 【登場時】
-      runCardEffects(ctx, state, action.player, def, "onPlay", events);
-      checkWin(state, events);
+      const queue: QueuedOp[] = [];
+      putInstructorOnField(ctx, state, action.player, action.handIndex, events, queue);
+      runQueue(ctx, state, queue, events);
       break;
     }
 
@@ -246,37 +256,36 @@ export function applyAction(
       state.phase.canPlayInstructor = false;
 
       if (action.action === "doNothing") {
-        // なにもしない: 元気なまま
         events.push({ type: "didNothing", player: action.player, uid: action.uid });
         break;
       }
 
-      // 技能/学科を進める → 休憩状態に
-      const def = ctx.defs[inst.cardId];
+      const track = action.action === "skill" ? "skill" : "academic";
       inst.rested = true;
       events.push({ type: "instructorRested", player: action.player, uid: action.uid });
-      modifyTrack(
-        state,
-        action.player,
-        action.action === "skill" ? "skill" : "academic",
-        def.lesson ?? 0,
-        events
-      );
-      checkWin(state, events);
+
+      // 教習時トリガー（梨本のじゃんけん等）→ その後に教習を進める
+      const queue: QueuedOp[] = [
+        ...triggerOps(ctx, action.player, ctx.defs[inst.cardId], "onLesson", inst.uid, track),
+        { op: { op: "advanceSourceTrack" }, ctx: { owner: action.player, sourceUid: inst.uid, track } },
+      ];
+      runQueue(ctx, state, queue, events);
       break;
     }
 
     case "declareBattle": {
       if (state.phase.type !== "main") illegal("メインフェイズではありません");
       const atk = findInstructor(state, action.player, action.attackerUid);
-      const def = findInstructor(state, opponent(action.player), action.defenderUid);
+      const def = findInstructor(state, opponentOf(action.player), action.defenderUid);
       if (atk.actedThisTurn) illegal("このインストラクターは行動済みです");
       if (atk.rested) illegal("休憩中のインストラクターはバトルできません");
       if (!def.rested) illegal("バトルの対象は休憩状態のインストラクターのみです");
+      const atkDef = ctx.defs[atk.cardId];
+      if (atkDef.keywords?.includes("cantAttackOnEntry") && atk.enteredThisTurn) {
+        illegal("このインストラクターは登場したターンにアタックできません");
+      }
 
       atk.actedThisTurn = true;
-      // バトルも行動なので、以降このターンはインストラクターを出せない
-      // （バトル解決後の main フェイズは canPlayInstructor: false で復帰する）
       atk.rested = true; // 仕掛けた側は即休憩
       events.push({
         type: "battleDeclared",
@@ -292,25 +301,19 @@ export function applyAction(
           attackerPlayer: action.player,
           attackerUid: atk.uid,
           defenderUid: def.uid,
-          priority: opponent(action.player), // 防御側から
+          priority: opponentOf(action.player), // 防御側から
           consecutivePasses: 0,
           buffs: [],
         },
       };
 
       // 【アタック時】【相手のアタック時】
-      runCardEffects(ctx, state, action.player, ctx.defs[atk.cardId], "onAttack", events);
-      if (state.phase.type === "battleSupport") {
-        runCardEffects(
-          ctx,
-          state,
-          opponent(action.player),
-          ctx.defs[def.cardId],
-          "onDefendAttacked",
-          events
-        );
-      }
-      checkWin(state, events);
+      const queue: QueuedOp[] = [
+        ...triggerOps(ctx, action.player, atkDef, "onAttack", atk.uid),
+        ...triggerOps(ctx, opponentOf(action.player), ctx.defs[def.cardId], "onDefendAttacked", def.uid),
+      ];
+      runQueue(ctx, state, queue, events);
+      checkBattleAborted(state, events);
       break;
     }
 
@@ -322,10 +325,17 @@ export function applyAction(
       if (def.type !== "support") illegal("サポートカードではありません");
 
       if (state.phase.type === "battleSupport") {
-        if (state.phase.battle.priority !== action.player) illegal("優先権がありません");
+        const battle = state.phase.battle;
+        if (battle.priority !== action.player) illegal("優先権がありません");
         if (def.timing !== "battle" && def.timing !== "any") {
           illegal("このサポートカードはバトル中に使えません");
         }
+        if (supportsBlockedFor(ctx, state, action.player, battle)) {
+          illegal("このバトル中はサポートカードを使えません");
+        }
+        // プレイしたら連続パスをリセットし、優先権を相手へ
+        battle.consecutivePasses = 0;
+        battle.priority = opponentOf(action.player);
       } else if (state.phase.type === "main") {
         if (state.turnPlayer !== action.player) illegal("自分のターンではありません");
         if (def.timing !== "main" && def.timing !== "any") {
@@ -338,14 +348,10 @@ export function applyAction(
       p.hand.splice(action.handIndex, 1);
       p.outOfPlay.push(cardId);
       events.push({ type: "supportPlayed", player: action.player, cardId });
-      runCardEffects(ctx, state, action.player, def, "onSupport", events);
 
-      // バトル中: プレイしたら連続パスはリセットし、優先権を相手へ
-      if (state.phase.type === "battleSupport") {
-        state.phase.battle.consecutivePasses = 0;
-        state.phase.battle.priority = opponent(action.player);
-      }
-      checkWin(state, events);
+      const queue: QueuedOp[] = triggerOps(ctx, action.player, def, "onSupport", undefined);
+      runQueue(ctx, state, queue, events);
+      checkBattleAborted(state, events);
       break;
     }
 
@@ -358,8 +364,38 @@ export function applyAction(
       if (battle.consecutivePasses >= 2) {
         resolveBattle(ctx, state, battle, events);
       } else {
-        battle.priority = opponent(action.player);
+        battle.priority = opponentOf(action.player);
       }
+      break;
+    }
+
+    case "activateAbility": {
+      const found = usableAbility(ctx, state, action.player, action.uid);
+      if (!found) illegal("この能力は今使えません");
+      const { def, ability, inst } = found;
+
+      if (inst) {
+        if (ability.costRestSelf) {
+          inst.rested = true;
+          events.push({ type: "instructorRested", player: action.player, uid: inst.uid });
+        }
+        if (ability.oncePerTurn) inst.abilityUsedThisTurn = true;
+      } else {
+        if (ability.oncePerTurn) state.players[action.player].tantouAbilityUsedThisTurn = true;
+      }
+      events.push({ type: "abilityActivated", player: action.player, cardId: def.id });
+
+      // バトル中に起動したら相手に応答の機会を返す（連続パスをリセット。優先権は保持）
+      if (state.phase.type === "battleSupport") {
+        state.phase.battle.consecutivePasses = 0;
+      }
+
+      const queue: QueuedOp[] = ability.ops.map((op) => ({
+        op,
+        ctx: { owner: action.player, sourceUid: inst?.uid },
+      }));
+      runQueue(ctx, state, queue, events);
+      checkBattleAborted(state, events);
       break;
     }
 
@@ -367,13 +403,11 @@ export function applyAction(
       if (state.phase.type !== "choice") illegal("選択フェイズではありません");
       const pending = state.phase.pending;
       if (pending.player !== action.player) illegal("選択権がありません");
-      if (!pending.selectable.includes(action.optionIndex)) {
+      if (action.optionIndex < 0 || action.optionIndex >= pending.options.length) {
         illegal("その選択肢は選べません");
       }
-      const resume = state.phase.resume;
-      state.phase = resume;
-      takeFromRevealed(state, pending.player, pending.revealed, action.optionIndex, events);
-      checkWin(state, events);
+      applyChoice(ctx, state, action.optionIndex, events);
+      checkBattleAborted(state, events);
       break;
     }
 
@@ -381,24 +415,26 @@ export function applyAction(
       if (state.phase.type !== "main") illegal("メインフェイズではありません");
       if (state.turnPlayer !== action.player) illegal("自分のターンではありません");
       const pid = action.player;
+      const p = state.players[pid];
       events.push({ type: "turnEnded", player: pid });
 
-      // 【自分のターン終了時】: 場のインストラクター＋担当カード
-      const p = state.players[pid];
-      for (const inst of [...p.field]) {
-        runCardEffects(ctx, state, pid, ctx.defs[inst.cardId], "onTurnEnd", events);
-        if (state.phase.type !== "main") break; // choice 等に入ったら中断（現状の語彙では起こらない）
+      const queue: QueuedOp[] = [];
+      // 【自分のターン終了時】: 場のインストラクター → 担当カード
+      for (const inst of p.field) {
+        queue.push(...triggerOps(ctx, pid, ctx.defs[inst.cardId], "onTurnEnd", inst.uid));
       }
-      runCardEffects(ctx, state, pid, ctx.defs[p.tantou], "onTurnEnd", events);
-      checkWin(state, events);
-      // checkWin が phase をミューテートするため、狭められた型を戻して判定
-      if ((state.phase as Phase).type === "finished") break;
-
-      state.turnPlayer = opponent(pid);
-      startTurn(state, events);
+      queue.push(...triggerOps(ctx, pid, ctx.defs[p.tantou], "onTurnEnd", undefined));
+      // 送迎サポートの元気化予約
+      for (let i = 0; i < p.untapCharges; i++) {
+        queue.push({ op: { op: "untapChoice" }, ctx: { owner: pid } });
+      }
+      queue.push({ op: { op: "endTurnFinalize" }, ctx: { owner: pid } });
+      runQueue(ctx, state, queue, events);
       break;
     }
   }
 
   return { state, events };
 }
+
+export { modifyTrack, checkWin };

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { cardRegistry, defaultDeck } from "@/data/cards";
+import { cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
 import { DeckList, validateDeck } from "@/engine/deckRules";
 
 export interface SavedDeck {
@@ -16,6 +16,12 @@ export const builtinDeck: SavedDeck = {
   id: DEFAULT_DECK_ID,
   name: "スタンダードデッキ",
   list: defaultDeck,
+};
+
+export const builtinDeck2: SavedDeck = {
+  id: "challenger",
+  name: "チャレンジャーデッキ",
+  list: cpuDeck,
 };
 
 interface DeckState {
@@ -50,7 +56,7 @@ export const useDeckStore = create<DeckState>()(
 );
 
 export function allDecks(customDecks: SavedDeck[]): SavedDeck[] {
-  return [builtinDeck, ...customDecks];
+  return [builtinDeck, builtinDeck2, ...customDecks];
 }
 
 /** 対戦に使うデッキ。保存済みでも念のため検証し、不正ならデフォルトに戻す */

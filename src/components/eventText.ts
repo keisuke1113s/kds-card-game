@@ -14,11 +14,7 @@ export function eventText(e: GameEvent, human: PlayerId): string | null {
     case "turnStarted":
       return `--- ターン${e.turnNumber}: ${who(e.player)}の番 ---`;
     case "cardDrawn":
-      return e.player === human && e.cardId
-        ? `「${getCard(e.cardId).name}」を引いた`
-        : e.player === human
-          ? null
-          : null;
+      return e.player === human && e.cardId ? `「${getCard(e.cardId).name}」を引いた` : null;
     case "instructorPlayed":
       return `${who(e.player)}が「${getCard(e.cardId).name}」を場に出した`;
     case "trackAdvanced":
@@ -38,8 +34,27 @@ export function eventText(e: GameEvent, human: PlayerId): string | null {
       return `バトル解決: ${e.attackerTotal} vs ${e.defenderTotal}`;
     case "instructorRemoved":
       return `${who(e.player)}の「${getCard(e.cardId).name}」が場外へ`;
+    case "instructorBounced":
+      return `${who(e.player)}の「${getCard(e.cardId).name}」が手札に戻された`;
+    case "cardDiscarded":
+      return `${who(e.player)}の「${getCard(e.cardId).name}」が場外に置かれた`;
+    case "cardSalvaged":
+      return `${who(e.player)}が場外から「${getCard(e.cardId).name}」を回収した`;
+    case "abilityActivated":
+      return `${who(e.player)}が「${getCard(e.cardId).name}」の力を使った`;
+    case "combatModApplied":
+      return e.amount > 0 ? `戦闘力が＋${e.amount}された` : `戦闘力が${e.amount}された`;
+    case "lessonModApplied":
+      return `${who(e.player)}の教習力が＋${e.amount}された`;
+    case "jankenPlayed":
+      return `じゃんけん！ ${who(e.owner)}の${e.won ? "勝ち" : "負け"}`;
+    case "handRevealed":
+      return `${who(e.player)}の手札が公開された`;
+    case "supportsRecycled":
+      return `${who(e.player)}が場外のサポート${e.count}枚を山札に戻した`;
     case "cardsRevealed":
       return e.player === human ? null : `CPUが山札の上を確認した`;
+    case "choiceRequired":
     case "turnEnded":
       return null;
     case "gameEnded":

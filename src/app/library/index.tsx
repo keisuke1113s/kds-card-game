@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { CardFace } from "@/components/CardFace";
-import { placeholderCards } from "@/data/cards";
+import { allCards } from "@/data/cards";
 import { colors } from "@/theme";
 
 const sections: { label: string; type: string }[] = [
@@ -22,7 +22,7 @@ export default function LibraryScreen() {
           <View>
             <Text style={styles.sectionTitle}>{section.label}</Text>
             <View style={styles.grid}>
-              {placeholderCards
+              {allCards
                 .filter((c) => c.type === section.type)
                 .map((c) => (
                   <CardFace key={c.id} cardId={c.id} size="md" onPress={() => setSelected(c.id)} />

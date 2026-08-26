@@ -3,7 +3,8 @@ import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
-import { builtinDeck, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { cpuDeck } from "@/data/cards";
+import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -20,7 +21,7 @@ export default function HomeScreen() {
     const deck = resolveActiveDeck(deckState);
     startGame({
       playerDeck: deck.list,
-      cpuDeck: builtinDeck.list,
+      cpuDeck,
       difficulty,
       aiSpeedMs,
     });

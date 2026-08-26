@@ -29,11 +29,10 @@ export class HeuristicAI implements AIController {
     let bestScore = -Infinity;
     for (const action of legal) {
       let score = this.score(view, action);
-      if (this.params.noise > 0) {
-        const r = nextRandom(this.rngState);
-        this.rngState = r.rngState;
-        score += (r.value - 0.5) * 2 * this.params.noise;
-      }
+      // じゃんけん等の同点選択がランダムになるよう、常に微小ノイズを足す
+      const r = nextRandom(this.rngState);
+      this.rngState = r.rngState;
+      score += (r.value - 0.5) * 2 * Math.max(this.params.noise, 0.01);
       if (score > bestScore) {
         bestScore = score;
         best = action;
@@ -58,6 +57,8 @@ export class HeuristicAI implements AIController {
         return this.scorePlaySupport(view, action.handIndex);
       case "passSupport":
         return 0;
+      case "activateAbility":
+        return this.scoreAbility(view, action.uid);
       case "resolveChoice":
         return this.scoreChoice(view, action.optionIndex);
       case "endTurn":
@@ -65,16 +66,27 @@ export class HeuristicAI implements AIController {
     }
   }
 
+  private cardValue(cardId: string): number {
+    const def = this.defs[cardId];
+    return (def.lesson ?? 0) * 1.5 + (def.combat ?? 0) * 0.5 + (def.effects?.length ? 1 : 0);
+  }
+
   private instValue(inst: InstructorOnField): number {
-    const def = this.defs[inst.cardId];
-    return (def.lesson ?? 0) * 1.5 + (def.combat ?? 0) * 0.5;
+    return this.cardValue(inst.cardId);
+  }
+
+  private effCombat(view: PlayerView, player: number, inst: InstructorOnField): number {
+    const base = this.defs[inst.cardId].combat ?? 0;
+    const mods = view.combatMods
+      .filter((m) => m.player === player && m.uid === inst.uid)
+      .reduce((a, m) => a + m.amount, 0);
+    return base + mods;
   }
 
   private scoreMulligan(view: PlayerView, redraw: boolean): number {
     const instructors = view.self.hand.filter(
       (id) => this.defs[id].type === "instructor"
     ).length;
-    // インストラクターが少なすぎる手札は引き直す
     if (instructors <= 1) return redraw ? 5 : 0;
     return redraw ? 0 : 5;
   }
@@ -82,15 +94,46 @@ export class HeuristicAI implements AIController {
   private scorePlayInstructor(view: PlayerView, handIndex: number): number {
     const def = this.defs[view.self.hand[handIndex]];
     let score = 4 + (def.lesson ?? 0) * 1.2 + (def.combat ?? 0) * 0.4;
-    // 登場時効果の価値（現在の語彙のみ評価）
     for (const eff of def.effects ?? []) {
       if (eff.trigger !== "onPlay") continue;
       for (const op of eff.ops) {
-        if (op.op === "modifyTrack" && op.target === "opponent" && op.amount < 0) {
-          const current = view.opponent[op.track];
-          score += Math.min(-op.amount, current) * 1.2; // 実際に戻せる量だけ価値
-        } else if (op.op === "searchTop" || op.op === "draw") {
-          score += 1.5;
+        switch (op.op) {
+          case "modifyTrack":
+            if (op.target === "opponent" && op.amount < 0) {
+              score += Math.min(-op.amount, view.opponent[op.track]) * 1.2;
+            } else if (op.target === "self" && op.amount > 0) {
+              score += Math.min(op.amount, TRACK_GOALS[op.track] - view.self[op.track]) * 1.2;
+            }
+            break;
+          case "searchTop":
+          case "draw":
+            score += 1.5;
+            break;
+          case "removeAllExceptSource": {
+            // 井関: 盤面リセットは相手の場が価値で上回るときだけ
+            const oppValue = view.opponent.field.reduce((a, f) => a + this.instValue(f), 0);
+            const ownValue = view.self.field.reduce((a, f) => a + this.instValue(f), 0);
+            score += (oppValue - ownValue) * 1.2 - 1;
+            break;
+          }
+          case "removeTarget":
+          case "discardOpponentChoice":
+            score += view.opponent.field.length > 0 || op.op === "discardOpponentChoice" ? 2 : 0;
+            break;
+          case "bounceTarget":
+            score += view.opponent.field.some((f) => f.rested) ? 1.5 : 0;
+            break;
+          case "salvage":
+            score += view.self.outOfPlay.length > 0 ? 1.2 : 0;
+            break;
+          case "summonNamed":
+            score += view.self.hand.some((id) => this.defs[id].name === op.name) ? 2.5 : 0;
+            break;
+          case "janken":
+            score += 0.8; // 期待値ざっくり
+            break;
+          default:
+            score += 0.3;
         }
       }
     }
@@ -111,19 +154,19 @@ export class HeuristicAI implements AIController {
     const def = this.defs[inst.cardId];
 
     if (action === "doNothing") {
-      // 高戦闘力を立たせておく抑止価値（相手の場が空なら無意味）
       const oppHasField = view.opponent.field.length > 0;
       return oppHasField ? 0.3 + (def.combat ?? 0) * 0.25 : 0.1;
     }
 
     const track = action === "skill" ? "skill" : "academic";
     const remaining = this.remaining(view, track);
-    const gain = Math.min(def.lesson ?? 0, remaining);
-    if (gain === 0) return -3; // 達成済みトラックに使うのは無駄
+    const lessonBuff = view.lessonMods
+      .filter((m) => m.player === view.playerId && (m.uid === null || m.uid === uid))
+      .reduce((a, m) => a + m.amount, 0);
+    const gain = Math.min((def.lesson ?? 0) + lessonBuff, remaining);
+    if (gain <= 0) return -3;
     let score = 2 + gain * 1.5;
-    // 残りが少ないトラックを締め切りに向けて優先
-    if (gain === remaining) score += 3; // このアクションでトラック完了
-    // 相手にバトルで狙われるリスク: 教習すると休憩状態になる
+    if (gain === remaining) score += 3; // トラック完了
     const threat = Math.max(
       0,
       ...view.opponent.field.map((f) => this.defs[f.cardId].combat ?? 0)
@@ -132,37 +175,29 @@ export class HeuristicAI implements AIController {
     return score;
   }
 
-  private scoreBattle(
-    view: PlayerView,
-    attackerUid: string,
-    defenderUid: string
-  ): number {
+  private scoreBattle(view: PlayerView, attackerUid: string, defenderUid: string): number {
     const atk = view.self.field.find((f) => f.uid === attackerUid);
     const def = view.opponent.field.find((f) => f.uid === defenderUid);
     if (!atk || !def) return -Infinity;
-    const myCombat = this.defs[atk.cardId].combat ?? 0;
-    let theirCombat = this.defs[def.cardId].combat ?? 0;
+    const myCombat = this.effCombat(view, view.playerId, atk);
+    let theirCombat = this.effCombat(view, 1 - view.playerId, def);
     if (this.params.estimateOpponentSupport && view.opponent.handCount > 0) {
-      theirCombat += 1; // サポート1枚分を織り込む
+      theirCombat += 1;
     }
     const targetValue = this.instValue(def);
     const myValue = this.instValue(atk);
     const margin = myCombat - theirCombat;
 
-    let score: number;
     if (margin > 0) {
-      score = (2 + targetValue + margin * 0.3) * this.params.aggression;
-    } else if (margin === 0) {
-      score = (targetValue - myValue) * this.params.aggression; // 有利なトレードのみ
-    } else {
-      // 手持ちのバトルサポートで届くなら仕掛ける価値あり
-      const maxBuff = this.maxOwnBattleBuff(view);
-      score =
-        maxBuff + margin >= 1
-          ? (1 + targetValue - 1) * this.params.aggression * 0.7
-          : -5;
+      return (2 + targetValue + margin * 0.3) * this.params.aggression;
     }
-    return score;
+    if (margin === 0) {
+      return (targetValue - myValue) * this.params.aggression;
+    }
+    const maxBuff = this.maxOwnBattleBuff(view);
+    return maxBuff + margin >= 1
+      ? (1 + targetValue - 1) * this.params.aggression * 0.7
+      : -5;
   }
 
   private maxOwnBattleBuff(view: PlayerView): number {
@@ -180,51 +215,156 @@ export class HeuristicAI implements AIController {
     return max;
   }
 
+  /** バトル中の現在の戦闘力合計（バフ込み） */
+  private battleTotals(view: PlayerView): { mine: number; theirs: number; myInst?: InstructorOnField } | null {
+    if (view.phase.type !== "battleSupport") return null;
+    const battle = view.phase.battle;
+    const amAttacker = battle.attackerPlayer === view.playerId;
+    const myUid = amAttacker ? battle.attackerUid : battle.defenderUid;
+    const oppUid = amAttacker ? battle.defenderUid : battle.attackerUid;
+    const mine = view.self.field.find((f) => f.uid === myUid);
+    const theirs = view.opponent.field.find((f) => f.uid === oppUid);
+    if (!mine || !theirs) return null;
+    const buffFor = (pid: number) =>
+      battle.buffs.filter((b) => b.player === pid).reduce((a, b) => a + b.amount, 0);
+    return {
+      mine: this.effCombat(view, view.playerId, mine) + buffFor(view.playerId),
+      theirs: this.effCombat(view, 1 - view.playerId, theirs) + buffFor(1 - view.playerId),
+      myInst: mine,
+    };
+  }
+
   private scorePlaySupport(view: PlayerView, handIndex: number): number {
     const def = this.defs[view.self.hand[handIndex]];
 
     if (view.phase.type === "battleSupport") {
-      const battle = view.phase.battle;
-      const amAttacker = battle.attackerPlayer === view.playerId;
-      const myUid = amAttacker ? battle.attackerUid : battle.defenderUid;
-      const oppUid = amAttacker ? battle.defenderUid : battle.attackerUid;
-      const mine = view.self.field.find((f) => f.uid === myUid);
-      const theirs = view.opponent.field.find((f) => f.uid === oppUid);
-      if (!mine || !theirs) return -10;
-
-      const buffFor = (pid: number) =>
-        battle.buffs.filter((b) => b.player === pid).reduce((a, b) => a + b.amount, 0);
-      const myTotal =
-        (this.defs[mine.cardId].combat ?? 0) + buffFor(view.playerId);
-      const theirTotal =
-        (this.defs[theirs.cardId].combat ?? 0) + buffFor(1 - view.playerId);
+      const totals = this.battleTotals(view);
+      if (!totals || !totals.myInst) return -10;
 
       let buff = 0;
+      let nuke = false;
       for (const eff of def.effects ?? []) {
         for (const op of eff.ops) {
           if (op.op === "buffCombat") buff += op.amount;
+          if (op.op === "removeBothBattlers") nuke = true;
         }
       }
-
-      const losingOrTying = myTotal <= theirTotal;
-      const flips = myTotal + buff > theirTotal;
-      if (losingOrTying && flips) {
-        // 勝敗が覆る最小のカードを好む（過剰なバフほど減点）
-        return 4 + this.instValue(mine) - buff * 0.3;
+      if (nuke) {
+        // 本間: 自分が負けそうで、相手の方が価値が高いときだけ
+        const battle = view.phase.battle;
+        const oppUid = battle.attackerPlayer === view.playerId ? battle.defenderUid : battle.attackerUid;
+        const theirInst = view.opponent.field.find((f) => f.uid === oppUid);
+        const losing = totals.mine <= totals.theirs;
+        if (losing && theirInst) {
+          return 2 + this.instValue(theirInst) - this.instValue(totals.myInst) * 0.5;
+        }
+        return -6;
       }
-      return -4; // 勝っている・覆らないなら温存
+      const losingOrTying = totals.mine <= totals.theirs;
+      const flips = totals.mine + buff > totals.theirs;
+      if (losingOrTying && flips) {
+        return 4 + this.instValue(totals.myInst) - buff * 0.3;
+      }
+      return -4;
     }
 
-    // メインフェイズのサポート（ドロー系など）
-    if (view.self.deckCount <= 3) return -3; // 山札切れ敗北を避ける
-    return 1.2;
+    // メインフェイズのサポート
+    let score = 1.2;
+    for (const eff of def.effects ?? []) {
+      for (const op of eff.ops) {
+        switch (op.op) {
+          case "janken": // S字・クランク・効果測定: 確実にトラックが進む
+            score += 1.5;
+            break;
+          case "lessonMod": {
+            // 永山: 教習前・場が多いほど強い
+            const readyCount = view.self.field.filter((f) => !f.actedThisTurn && !f.rested).length;
+            score += readyCount * 1.2 - 1;
+            break;
+          }
+          case "untapAtTurnEndCharge": {
+            const willRest = view.self.field.length;
+            score += willRest > 0 ? 0.8 : -2;
+            break;
+          }
+          case "recycleSupports": {
+            const supportsOut = view.self.outOfPlay.filter(
+              (id) => this.defs[id].type === "support"
+            ).length;
+            score += supportsOut >= 2 ? supportsOut * 0.6 : -3;
+            break;
+          }
+        }
+      }
+    }
+    return score;
+  }
+
+  private scoreAbility(view: PlayerView, uid: string | undefined): number {
+    if (uid !== undefined) {
+      const inst = view.self.field.find((f) => f.uid === uid);
+      if (!inst) return -10;
+      const def = this.defs[inst.cardId];
+      const ability = def.ability;
+      if (!ability) return -10;
+      // 久慈: 相手を1人退場 — 相手の場の最高価値と、自分が休憩するコストを比較
+      const bestTarget = Math.max(0, ...view.opponent.field.map((f) => this.instValue(f)));
+      if (bestTarget <= 0) return -5;
+      const cost = ability.costRestSelf ? (def.lesson ?? 0) * 0.8 : 0;
+      return 2 + bestTarget - cost;
+    }
+    // 担当カードの能力
+    const tantou = this.defs[view.self.tantou];
+    const ability = tantou?.ability;
+    if (!ability) return -10;
+    if (ability.window === "battle") {
+      // アタック側+1: 自分がアタッカーで、+1で勝敗が変わる/守れるときだけ
+      if (view.phase.type !== "battleSupport") return -10;
+      const battle = view.phase.battle;
+      if (battle.attackerPlayer !== view.playerId) return -6;
+      const totals = this.battleTotals(view);
+      if (!totals) return -10;
+      const flips = totals.mine <= totals.theirs && totals.mine + 1 > totals.theirs;
+      return flips ? 5 : -2;
+    }
+    // 教習力+1: タダで価値が出るので、教習前のインストラクターがいるなら真っ先に使う
+    const readyLessons = view.self.field.filter((f) => !f.actedThisTurn && !f.rested).length;
+    return readyLessons > 0 ? 9 : -3;
   }
 
   private scoreChoice(view: PlayerView, optionIndex: number): number {
     if (view.phase.type !== "choice") return 0;
-    const cardId = view.phase.pending.revealed[optionIndex];
-    if (!cardId) return 0;
-    const def = this.defs[cardId];
-    return (def.lesson ?? 0) * 1.5 + (def.combat ?? 0);
+    const pending = view.phase.pending;
+    const option = pending.options[optionIndex];
+    if (!option) return 0;
+    const value = option.cardId ? this.cardValue(option.cardId) : 0;
+
+    switch (pending.purpose) {
+      case "janken":
+        return 0; // ノイズでランダムに
+      case "removeOpp":
+      case "bounceOpp":
+      case "discardOpp":
+      case "debuffTarget":
+        return value; // 相手の高価値カードを狙う
+      case "discardOwn":
+      case "bottomOwn":
+        return -value; // 自分の低価値カードを手放す
+      case "salvage":
+      case "searchTake":
+      case "summonOwn":
+      case "untapOwn":
+      case "buffTarget":
+      case "lessonTarget":
+        return value;
+      case "chooseTrack": {
+        // option 0 = 学科, 1 = 技能: 残りが多い方（完了済みでない方）を優先
+        const remA = TRACK_GOALS.academic - view.self.academic;
+        const remS = TRACK_GOALS.skill - view.self.skill;
+        return optionIndex === 0 ? Math.min(remA, 3) : Math.min(remS, 3);
+      }
+      default:
+        return value;
+    }
   }
 }

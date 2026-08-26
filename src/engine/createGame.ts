@@ -43,10 +43,12 @@ export function createGame(ctx: GameContext, setup: GameSetup): ApplyResult {
       hand: shuffled.slice(0, INITIAL_HAND),
       field: [],
       tantou: deck.tantou,
+      tantouAbilityUsedThisTurn: false,
       outOfPlay: [],
       academic: 0,
       skill: 0,
       mulliganDecided: false,
+      untapCharges: 0,
     };
     return player;
   }) as [PlayerState, PlayerState];
@@ -57,6 +59,8 @@ export function createGame(ctx: GameContext, setup: GameSetup): ApplyResult {
     turnNumber: 0, // 最初の endTurn 相当の startTurn で 1 になる
     phase: { type: "mulligan" },
     players,
+    combatMods: [],
+    lessonMods: [],
   };
 
   const events: GameEvent[] = [{ type: "gameStarted", firstPlayer }];

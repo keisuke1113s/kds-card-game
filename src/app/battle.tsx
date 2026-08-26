@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -9,7 +9,8 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { cardRegistry, getCard } from "@/data/cards";
+import { cardRegistry, cpuDeck, getCard } from "@/data/cards";
+import { effectiveCombat } from "@/engine/effects";
 import { getLegalActions } from "@/engine/legalActions";
 import {
   ACADEMIC_GOAL,
@@ -22,7 +23,7 @@ import { playerToAct } from "@/engine/reducer";
 import { CardFace } from "@/components/CardFace";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
-import { builtinDeck, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -35,6 +36,7 @@ export default function BattleScreen() {
   const dispatch = useGameStore((s) => s.dispatch);
   const quitGame = useGameStore((s) => s.quitGame);
   const eventLog = useGameStore((s) => s.eventLog);
+  const lastEvents = useGameStore((s) => s.lastEvents);
   const aiThinking = useGameStore((s) => s.aiThinking);
   const startGame = useGameStore((s) => s.startGame);
   const difficulty = useSettingsStore((s) => s.difficulty);
@@ -44,14 +46,23 @@ export default function BattleScreen() {
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
   const [previewHandIndex, setPreviewHandIndex] = useState<number | null>(null);
+  const [revealedHand, setRevealedHand] = useState<string[] | null>(null);
 
   const legal = useMemo(
     () => (state ? getLegalActions(ctx, state, HUMAN) : []),
     [state]
   );
 
+  // 瀧本などで相手の手札が公開されたらオーバーレイ表示
+  useEffect(() => {
+    for (const e of lastEvents) {
+      if (e.type === "handRevealed" && e.player === CPU) {
+        setRevealedHand(e.cardIds);
+      }
+    }
+  }, [lastEvents]);
+
   if (!state) {
-    // 対局が無い（直接開かれた等）→ ホームへ
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.center}>
@@ -64,8 +75,7 @@ export default function BattleScreen() {
 
   const me = state.players[HUMAN];
   const cpu = state.players[CPU];
-  const isMyMain =
-    state.phase.type === "main" && state.turnPlayer === HUMAN;
+  const isMyMain = state.phase.type === "main" && state.turnPlayer === HUMAN;
   const actor = playerToAct(state);
 
   const can = (pred: (a: GameAction) => boolean) => legal.some(pred);
@@ -76,17 +86,12 @@ export default function BattleScreen() {
     dispatch(action);
   };
 
-  // ---- 手札タップ時に可能なアクション
-  const handActionFor = (index: number): GameAction | null => {
-    const found = legal.find(
+  const handActionFor = (index: number): GameAction | null =>
+    legal.find(
       (a) =>
-        (a.type === "playInstructor" || a.type === "playSupport") &&
-        a.handIndex === index
-    );
-    return found ?? null;
-  };
+        (a.type === "playInstructor" || a.type === "playSupport") && a.handIndex === index
+    ) ?? null;
 
-  // ---- バトル対象
   const battleTargets = (attackerUid: string): Set<string> =>
     new Set(
       legal
@@ -98,26 +103,28 @@ export default function BattleScreen() {
     legal.filter(
       (a) =>
         (a.type === "instructorAction" && a.uid === uid) ||
-        (a.type === "declareBattle" && a.attackerUid === uid)
+        (a.type === "declareBattle" && a.attackerUid === uid) ||
+        (a.type === "activateAbility" && a.uid === uid)
     );
 
-  // ---- バトル中の戦闘力表示
+  const tantouUsable = can((a) => a.type === "activateAbility" && a.uid === undefined);
+
   const battleInfo = (() => {
     if (state.phase.type !== "battleSupport") return null;
     const b = state.phase.battle;
-    const atkState = state.players[b.attackerPlayer];
-    const defState = state.players[1 - b.attackerPlayer];
-    const atk = atkState.field.find((f) => f.uid === b.attackerUid);
-    const def = defState.field.find((f) => f.uid === b.defenderUid);
-    if (!atk || !def) return null;
+    const atkInst = state.players[b.attackerPlayer].field.find((f) => f.uid === b.attackerUid);
+    const defInst = state.players[1 - b.attackerPlayer].field.find((f) => f.uid === b.defenderUid);
+    if (!atkInst || !defInst) return null;
     const buff = (p: number) =>
       b.buffs.filter((x) => x.player === p).reduce((a, x) => a + x.amount, 0);
     return {
-      attackerName: getCard(atk.cardId).name,
-      defenderName: getCard(def.cardId).name,
-      attackerTotal: (getCard(atk.cardId).combat ?? 0) + buff(b.attackerPlayer),
-      defenderTotal: (getCard(def.cardId).combat ?? 0) + buff(1 - b.attackerPlayer),
-      iAmAttacker: b.attackerPlayer === HUMAN,
+      attackerName: getCard(atkInst.cardId).name,
+      defenderName: getCard(defInst.cardId).name,
+      attackerTotal:
+        effectiveCombat(ctx, state, b.attackerPlayer, atkInst) + buff(b.attackerPlayer),
+      defenderTotal:
+        effectiveCombat(ctx, state, (1 - b.attackerPlayer) as 0 | 1, defInst) +
+        buff(1 - b.attackerPlayer),
       myPriority: b.priority === HUMAN,
     };
   })();
@@ -127,13 +134,18 @@ export default function BattleScreen() {
     .filter((t): t is string => t !== null)
     .slice(-4);
 
+  const humanChoice =
+    state.phase.type === "choice" && state.phase.pending.player === HUMAN
+      ? state.phase.pending
+      : null;
+
   const statusText = (() => {
     if (state.phase.type === "finished") return "対戦終了";
     if (actor === CPU || aiThinking) return "CPUが考えています…";
     if (state.phase.type === "mulligan") return "手札を確認してください";
     if (state.phase.type === "battleSupport")
-      return battleInfo?.myPriority ? "サポートカードを使えます" : "";
-    if (state.phase.type === "choice") return "カードを選んでください";
+      return battleInfo?.myPriority ? "サポートカードや担当の力を使えます" : "";
+    if (state.phase.type === "choice") return "選択してください";
     if (isMyMain) return "あなたのターン";
     return "";
   })();
@@ -154,12 +166,7 @@ export default function BattleScreen() {
 
   const rematch = () => {
     const deck = resolveActiveDeck(deckState);
-    startGame({
-      playerDeck: deck.list,
-      cpuDeck: builtinDeck.list,
-      difficulty,
-      aiSpeedMs,
-    });
+    startGame({ playerDeck: deck.list, cpuDeck, difficulty, aiSpeedMs });
   };
 
   return (
@@ -170,11 +177,14 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
           <Text style={styles.infoText}>手札 {cpu.hand.length}枚</Text>
           <Text style={styles.infoText}>山札 {cpu.deck.length}枚</Text>
+          <Text style={styles.infoText}>場外 {cpu.outOfPlay.length}枚</Text>
           <CardFace cardId={cpu.tantou} size="sm" />
         </View>
         <TrackBar label="学科" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
+          state={state}
+          player={CPU}
           field={cpu.field}
           highlightUids={targetingUid ? battleTargets(targetingUid) : new Set()}
           highlightColor={colors.target}
@@ -225,13 +235,11 @@ export default function BattleScreen() {
       {/* ===== 自分エリア ===== */}
       <View style={[styles.zone, { backgroundColor: colors.boardBottom }]}>
         <FieldRow
+          state={state}
+          player={HUMAN}
           field={me.field}
           highlightUids={
-            new Set(
-              me.field
-                .filter((f) => instActions(f.uid).length > 0)
-                .map((f) => f.uid)
-            )
+            new Set(me.field.filter((f) => instActions(f.uid).length > 0).map((f) => f.uid))
           }
           highlightColor={colors.highlight}
           selectedUid={selectedUid}
@@ -247,7 +255,16 @@ export default function BattleScreen() {
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>あなた</Text>
           <Text style={styles.infoText}>山札 {me.deck.length}枚</Text>
-          <CardFace cardId={me.tantou} size="sm" />
+          <Text style={styles.infoText}>場外 {me.outOfPlay.length}枚</Text>
+          <View style={tantouUsable ? styles.tantouUsable : undefined}>
+            <CardFace
+              cardId={me.tantou}
+              size="sm"
+              onPress={() => {
+                if (tantouUsable) doAction({ type: "activateAbility", player: HUMAN });
+              }}
+            />
+          </View>
           <View style={{ flex: 1 }} />
           {battleInfo?.myPriority && (
             <ActionButton
@@ -260,8 +277,7 @@ export default function BattleScreen() {
             label="ターン終了"
             color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
             onPress={() =>
-              can((a) => a.type === "endTurn") &&
-              doAction({ type: "endTurn", player: HUMAN })
+              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: HUMAN })
             }
           />
         </View>
@@ -314,13 +330,16 @@ export default function BattleScreen() {
       )}
 
       {selectedUid && (
-        <Overlay title={`「${nameOf(state, HUMAN, selectedUid)}」の行動`} onClose={() => setSelectedUid(null)}>
+        <Overlay
+          title={`「${nameOf(state, HUMAN, selectedUid)}」の行動`}
+          onClose={() => setSelectedUid(null)}
+        >
           <View style={styles.overlayButtons}>
             {instActions(selectedUid).some(
               (a) => a.type === "instructorAction" && a.action === "skill"
             ) && (
               <ActionButton
-                label={`技能を進める（+${lessonOf(state, HUMAN, selectedUid)}）`}
+                label={`技能を進める（+${lessonOf(state, selectedUid)}）`}
                 color={colors.success}
                 onPress={() =>
                   doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "skill" })
@@ -331,7 +350,7 @@ export default function BattleScreen() {
               (a) => a.type === "instructorAction" && a.action === "academic"
             ) && (
               <ActionButton
-                label={`学科を進める（+${lessonOf(state, HUMAN, selectedUid)}）`}
+                label={`学科を進める（+${lessonOf(state, selectedUid)}）`}
                 color={colors.primary}
                 onPress={() =>
                   doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "academic" })
@@ -346,6 +365,15 @@ export default function BattleScreen() {
                   setTargetingUid(selectedUid);
                   setSelectedUid(null);
                 }}
+              />
+            )}
+            {instActions(selectedUid).some((a) => a.type === "activateAbility") && (
+              <ActionButton
+                label={`特技: ${abilityLabelOf(state, selectedUid)}`}
+                color={colors.tantou}
+                onPress={() =>
+                  doAction({ type: "activateAbility", player: HUMAN, uid: selectedUid })
+                }
               />
             )}
             {instActions(selectedUid).some(
@@ -364,7 +392,10 @@ export default function BattleScreen() {
       )}
 
       {previewHandIndex !== null && me.hand[previewHandIndex] !== undefined && (
-        <Overlay title={getCard(me.hand[previewHandIndex]).name} onClose={() => setPreviewHandIndex(null)}>
+        <Overlay
+          title={getCard(me.hand[previewHandIndex]).name}
+          onClose={() => setPreviewHandIndex(null)}
+        >
           <CardFace cardId={me.hand[previewHandIndex]} size="lg" />
           <View style={styles.overlayButtons}>
             {(() => {
@@ -383,36 +414,58 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "choice" && state.phase.pending.player === HUMAN && (
-        <Overlay title="手札に加えるカードを選んでください">
-          <View style={styles.overlayCards}>
-            {state.phase.pending.revealed.map((id, i) => {
-              const selectable = (state.phase.type === "choice"
-                ? state.phase.pending.selectable
-                : []
-              ).includes(i);
-              return (
-                <View key={i} style={selectable ? styles.playableCard : undefined}>
+      {humanChoice && (
+        <Overlay title={humanChoice.prompt}>
+          {humanChoice.purpose === "janken" ? (
+            <View style={styles.jankenRow}>
+              {humanChoice.options.map((o, i) => (
+                <Pressable
+                  key={i}
+                  style={styles.jankenButton}
+                  onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
+                >
+                  <Text style={styles.jankenEmoji}>{o.label.split(" ")[1] ?? o.label}</Text>
+                  <Text style={styles.jankenLabel}>{o.label.split(" ")[0]}</Text>
+                </Pressable>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.overlayCards}>
+              {humanChoice.options.map((o, i) =>
+                o.cardId ? (
                   <CardFace
-                    cardId={id}
+                    key={i}
+                    cardId={o.cardId}
                     size="md"
-                    dimmed={!selectable}
-                    onPress={() =>
-                      selectable &&
-                      doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })
-                    }
+                    onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
                   />
-                </View>
-              );
-            })}
+                ) : (
+                  <ActionButton
+                    key={i}
+                    label={o.label}
+                    color={colors.primary}
+                    onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
+                  />
+                )
+              )}
+            </View>
+          )}
+        </Overlay>
+      )}
+
+      {revealedHand && (
+        <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
+          <View style={styles.overlayCards}>
+            {revealedHand.map((id, i) => (
+              <CardFace key={i} cardId={id} size="md" />
+            ))}
           </View>
+          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
         </Overlay>
       )}
 
       {state.phase.type === "finished" && (
-        <Overlay
-          title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
-        >
+        <Overlay title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}>
           <Text style={styles.resultText}>
             {state.phase.reason === "deckOut"
               ? state.phase.winner === HUMAN
@@ -446,18 +499,32 @@ function nameOf(state: GameState, player: 0 | 1, uid: string): string {
   return inst ? getCard(inst.cardId).name : "";
 }
 
-function lessonOf(state: GameState, player: 0 | 1, uid: string): number {
-  const inst = state.players[player].field.find((f) => f.uid === uid);
-  return inst ? (getCard(inst.cardId).lesson ?? 0) : 0;
+function lessonOf(state: GameState, uid: string): number {
+  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+  if (!inst) return 0;
+  const base = getCard(inst.cardId).lesson ?? 0;
+  const mods = state.lessonMods
+    .filter((m) => m.player === HUMAN && (m.uid === null || m.uid === uid))
+    .reduce((a, m) => a + m.amount, 0);
+  return Math.max(0, base + mods);
+}
+
+function abilityLabelOf(state: GameState, uid: string): string {
+  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+  return inst ? (getCard(inst.cardId).ability?.label ?? "") : "";
 }
 
 function FieldRow({
+  state,
+  player,
   field,
   highlightUids,
   highlightColor,
   selectedUid,
   onPress,
 }: {
+  state: GameState;
+  player: 0 | 1;
   field: InstructorOnField[];
   highlightUids: Set<string>;
   highlightColor: string;
@@ -471,30 +538,37 @@ function FieldRow({
       contentContainerStyle={styles.fieldRow}
     >
       {field.length === 0 && <Text style={styles.emptyField}>インストラクターなし</Text>}
-      {field.map((inst) => (
-        <Pressable
-          key={inst.uid}
-          onPress={() => onPress(inst.uid)}
-          style={[
-            styles.fieldSlot,
-            highlightUids.has(inst.uid) && {
-              borderColor: highlightColor,
-              borderWidth: 2,
-              borderRadius: 8,
-            },
-            selectedUid === inst.uid && {
-              borderColor: colors.accent,
-              borderWidth: 2,
-              borderRadius: 8,
-            },
-          ]}
-        >
-          <View style={inst.rested ? styles.restedCard : undefined}>
-            <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
-          </View>
-          {inst.rested && <Text style={styles.restedLabel}>休憩</Text>}
-        </Pressable>
-      ))}
+      {field.map((inst) => {
+        const combat = effectiveCombat(ctx, state, player, inst);
+        const base = getCard(inst.cardId).combat ?? 0;
+        return (
+          <Pressable
+            key={inst.uid}
+            onPress={() => onPress(inst.uid)}
+            style={[
+              styles.fieldSlot,
+              highlightUids.has(inst.uid) && {
+                borderColor: highlightColor,
+                borderWidth: 2,
+                borderRadius: 8,
+              },
+              selectedUid === inst.uid && {
+                borderColor: colors.accent,
+                borderWidth: 2,
+                borderRadius: 8,
+              },
+            ]}
+          >
+            <View style={inst.rested ? styles.restedCard : undefined}>
+              <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+            </View>
+            <Text style={styles.fieldCaption}>
+              {inst.rested ? "休憩 " : ""}
+              {combat !== base ? `戦${combat}` : ""}
+            </Text>
+          </Pressable>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -551,15 +625,10 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14 },
   infoText: { color: colors.textMuted, fontSize: 12 },
-  fieldRow: {
-    gap: 8,
-    paddingVertical: 4,
-    alignItems: "center",
-    minHeight: 86,
-  },
+  fieldRow: { gap: 8, paddingVertical: 4, alignItems: "center", minHeight: 92 },
   fieldSlot: { alignItems: "center", padding: 2 },
   restedCard: { transform: [{ rotate: "90deg" }] },
-  restedLabel: { fontSize: 9, color: colors.textMuted, marginTop: 2 },
+  fieldCaption: { fontSize: 9, color: colors.textMuted, marginTop: 2, minHeight: 11 },
   emptyField: { color: colors.textMuted, fontSize: 12, paddingVertical: 24 },
   middle: { flex: 1, paddingHorizontal: 12, paddingVertical: 4, justifyContent: "center", gap: 4 },
   battleBanner: {
@@ -587,6 +656,12 @@ const styles = StyleSheet.create({
   },
   hand: { gap: 6, alignItems: "center", paddingRight: 8 },
   playableCard: {
+    borderColor: colors.highlight,
+    borderWidth: 2,
+    borderRadius: 8,
+    padding: 1,
+  },
+  tantouUsable: {
     borderColor: colors.highlight,
     borderWidth: 2,
     borderRadius: 8,
@@ -626,5 +701,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   overlayButtons: { gap: 10, alignSelf: "stretch" },
+  jankenRow: { flexDirection: "row", gap: 12 },
+  jankenButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: "center",
+    gap: 4,
+  },
+  jankenEmoji: { fontSize: 30 },
+  jankenLabel: { color: "#fff", fontWeight: "700" },
   resultText: { textAlign: "center", color: colors.text, lineHeight: 22 },
 });
