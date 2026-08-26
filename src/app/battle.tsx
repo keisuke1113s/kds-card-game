@@ -52,20 +52,26 @@ const ctx = { defs: cardRegistry };
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
 
+/** カードの持ち主（拡大表示のバッジに使う） */
+type Owner = "self" | "cpu";
+
 interface Announcement {
   key: number;
   text: string;
   cardId?: string;
   emph?: boolean;
+  owner?: Owner;
 }
 
 let annSeq = 0;
 
+const ownerOf = (player: number): Owner => (player === HUMAN ? "self" : "cpu");
+
 /** イベント列から実況表示を組み立てる */
 function announcementsFor(events: GameEvent[]): Announcement[] {
   const out: Announcement[] = [];
-  const add = (text: string, cardId?: string, emph?: boolean) =>
-    out.push({ key: ++annSeq, text, cardId, emph });
+  const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
+    out.push({ key: ++annSeq, text, cardId, emph, owner });
 
   for (const e of events) {
     switch (e.type) {
@@ -73,29 +79,35 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         add(e.player === HUMAN ? "あなたのターン" : "CPUのターン", undefined, true);
         break;
       case "instructorPlayed":
-        if (e.player === CPU) add(`CPUが「${getCard(e.cardId).name}」を場に出した！`, e.cardId);
+        if (e.player === CPU)
+          add(`CPUが「${getCard(e.cardId).name}」を場に出した！`, e.cardId, false, "cpu");
         break;
       case "cardDrawn":
         // 自分のドローだけ公開（CPUの手札は非公開情報）
-        if (e.player === HUMAN && e.cardId) add(`「${getCard(e.cardId).name}」を引いた`, e.cardId);
+        if (e.player === HUMAN && e.cardId)
+          add(`「${getCard(e.cardId).name}」を引いた`, e.cardId, false, "self");
         break;
       case "instructorActed":
         if (e.player === CPU) {
           if (e.action === "doNothing") {
-            add(`「${getCard(e.cardId).name}」は様子を見ている…`, e.cardId);
+            add(`「${getCard(e.cardId).name}」は様子を見ている…`, e.cardId, false, "cpu");
           } else {
             add(
               `「${getCard(e.cardId).name}」が${e.action === "skill" ? "技能" : "学科"}教習！`,
-              e.cardId
+              e.cardId,
+              false,
+              "cpu"
             );
           }
         }
         break;
       case "supportPlayed":
-        if (e.player === CPU) add(`CPUのサポート「${getCard(e.cardId).name}」！`, e.cardId);
+        if (e.player === CPU)
+          add(`CPUのサポート「${getCard(e.cardId).name}」！`, e.cardId, false, "cpu");
         break;
       case "abilityActivated":
-        if (e.player === CPU) add(`CPUが「${getCard(e.cardId).name}」の力を使った！`, e.cardId);
+        if (e.player === CPU)
+          add(`CPUが「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
       case "battleDeclared":
         add(e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "バトル開始！", undefined, true);
@@ -111,21 +123,24 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         break;
       }
       case "instructorRemoved":
-        add(`「${getCard(e.cardId).name}」が場外へ！`, e.cardId, true);
+        add(`「${getCard(e.cardId).name}」が場外へ！`, e.cardId, true, ownerOf(e.player));
         break;
       case "instructorBounced":
-        add(`「${getCard(e.cardId).name}」が手札に戻された`, e.cardId);
+        add(`「${getCard(e.cardId).name}」が手札に戻された`, e.cardId, false, ownerOf(e.player));
         break;
       case "cardDiscarded":
         add(
           e.player === HUMAN
             ? `あなたの「${getCard(e.cardId).name}」が場外に置かれた！`
             : `CPUの「${getCard(e.cardId).name}」が場外に置かれた`,
-          e.cardId
+          e.cardId,
+          false,
+          ownerOf(e.player)
         );
         break;
       case "cardSalvaged":
-        if (e.player === CPU) add(`CPUが場外から「${getCard(e.cardId).name}」を回収`, e.cardId);
+        if (e.player === CPU)
+          add(`CPUが場外から「${getCard(e.cardId).name}」を回収`, e.cardId, false, "cpu");
         break;
       case "battleResolved":
         add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
@@ -156,7 +171,12 @@ export default function BattleScreen() {
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
   const [previewHandIndex, setPreviewHandIndex] = useState<number | null>(null);
   const [revealedHand, setRevealedHand] = useState<string[] | null>(null);
-  const [detailCardId, setDetailCardId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<{ cardId: string; owner?: Owner } | null>(null);
+  const setDetailCardId = useCallback(
+    (cardId: string | null, owner?: Owner) => setDetail(cardId ? { cardId, owner } : null),
+    []
+  );
+  const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
@@ -391,7 +411,7 @@ export default function BattleScreen() {
               });
             } else if (!targetingUid) {
               const inst = cpu.field.find((f) => f.uid === uid);
-              if (inst) setDetailCardId(inst.cardId);
+              if (inst) setDetailCardId(inst.cardId, "cpu");
             }
           }}
         />
@@ -476,7 +496,7 @@ export default function BattleScreen() {
               setTargetingUid(null);
             } else {
               const inst = me.field.find((f) => f.uid === uid);
-              if (inst) setDetailCardId(inst.cardId);
+              if (inst) setDetailCardId(inst.cardId, "self");
             }
           }}
         />
@@ -488,7 +508,11 @@ export default function BattleScreen() {
           <Text style={styles.infoText}>場外 {me.outOfPlay.length}枚</Text>
           <View style={tantouUsable ? styles.tantouUsable : undefined}>
             {/* 担当カードはタップすると拡大表示。そこから力を使う */}
-            <CardFace cardId={me.tantou} size="sm" onPress={() => setDetailCardId(me.tantou)} />
+            <CardFace
+              cardId={me.tantou}
+              size="sm"
+              onPress={() => setDetailCardId(me.tantou, "self")}
+            />
           </View>
           <View style={{ flex: 1 }} />
           {battleInfo?.myPriority && (
@@ -550,6 +574,7 @@ export default function BattleScreen() {
               exiting={ZoomOut.duration(200)}
               style={styles.annCardBox}
             >
+              {currentAnn.owner && <OwnerBadge owner={currentAnn.owner} />}
               <Text style={styles.annCardTitle}>{currentAnn.text}</Text>
               {annQueue.length > 0 && (
                 <Text style={styles.annHint}>あと{annQueue.length}件</Text>
@@ -742,6 +767,7 @@ export default function BattleScreen() {
 
       {detailCardId && (
         <Overlay title={getCard(detailCardId).name} onClose={() => setDetailCardId(null)}>
+          {detail?.owner && <OwnerBadge owner={detail.owner} />}
           <CardDetail cardId={detailCardId} />
           {detailCardId === me.tantou && tantouUsable && (
             <ActionButton
@@ -927,6 +953,23 @@ function RestRotator({ rested, children }: { rested: boolean; children: React.Re
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
+/** 拡大表示の上部に出す「あなた」「CPU」バッジ */
+function OwnerBadge({ owner }: { owner: Owner }) {
+  const isSelf = owner === "self";
+  return (
+    <View
+      style={[
+        styles.ownerBadge,
+        { backgroundColor: isSelf ? colors.success : colors.danger },
+      ]}
+    >
+      <Text style={styles.ownerBadgeText}>
+        {isSelf ? "あなたのカード" : "CPUのカード"}
+      </Text>
+    </View>
+  );
+}
+
 function ActionButton({
   label,
   color,
@@ -1012,6 +1055,12 @@ const styles = StyleSheet.create({
     color: colors.primaryDark,
     textAlign: "center",
   },
+  ownerBadge: {
+    borderRadius: 20,
+    paddingVertical: 5,
+    paddingHorizontal: 16,
+  },
+  ownerBadgeText: { color: "#fff", fontWeight: "900", fontSize: 14 },
   annBox: {
     backgroundColor: "#ffffffee",
     borderRadius: 16,
