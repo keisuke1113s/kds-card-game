@@ -78,9 +78,10 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
       case "turnStarted":
         add(e.player === HUMAN ? "あなたのターン" : "CPUのターン", undefined, true);
         break;
+      // 誰の行動かはバッジで示すので、文章では繰り返さない
       case "instructorPlayed":
         if (e.player === CPU)
-          add(`CPUが「${getCard(e.cardId).name}」を場に出した！`, e.cardId, false, "cpu");
+          add(`「${getCard(e.cardId).name}」を場に出した！`, e.cardId, false, "cpu");
         break;
       case "cardDrawn":
         // 自分のドローだけ公開（CPUの手札は非公開情報）
@@ -103,11 +104,11 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         break;
       case "supportPlayed":
         if (e.player === CPU)
-          add(`CPUのサポート「${getCard(e.cardId).name}」！`, e.cardId, false, "cpu");
+          add(`サポート「${getCard(e.cardId).name}」を使った！`, e.cardId, false, "cpu");
         break;
       case "abilityActivated":
         if (e.player === CPU)
-          add(`CPUが「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
+          add(`「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
       case "battleDeclared":
         add(e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "バトル開始！", undefined, true);
@@ -130,9 +131,7 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         break;
       case "cardDiscarded":
         add(
-          e.player === HUMAN
-            ? `あなたの「${getCard(e.cardId).name}」が場外に置かれた！`
-            : `CPUの「${getCard(e.cardId).name}」が場外に置かれた`,
+          `「${getCard(e.cardId).name}」が場外に置かれた！`,
           e.cardId,
           false,
           ownerOf(e.player)
@@ -140,7 +139,7 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         break;
       case "cardSalvaged":
         if (e.player === CPU)
-          add(`CPUが場外から「${getCard(e.cardId).name}」を回収`, e.cardId, false, "cpu");
+          add(`場外から「${getCard(e.cardId).name}」を回収した`, e.cardId, false, "cpu");
         break;
       case "battleResolved":
         add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
@@ -963,9 +962,7 @@ function OwnerBadge({ owner }: { owner: Owner }) {
         { backgroundColor: isSelf ? colors.success : colors.danger },
       ]}
     >
-      <Text style={styles.ownerBadgeText}>
-        {isSelf ? "あなたのカード" : "CPUのカード"}
-      </Text>
+      <Text style={styles.ownerBadgeText}>{isSelf ? "あなた" : "CPU"}</Text>
     </View>
   );
 }
