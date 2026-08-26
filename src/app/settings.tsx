@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { hapticsAvailable } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -51,6 +52,12 @@ export default function SettingsScreen() {
       <Text style={styles.note}>
         CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
       </Text>
+      {!hapticsAvailable() && (
+        <Text style={styles.note}>
+          ※ この端末（iPhoneのブラウザ）では振動が使えません。App Store 版・TestFlight 版の
+          アプリでは振動します。
+        </Text>
+      )}
 
       {!inBattle && (
         <Pressable
