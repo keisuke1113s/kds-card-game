@@ -71,8 +71,8 @@ const styles = StyleSheet.create({
   cardWrap: {
     alignItems: "center",
     justifyContent: "center",
-    width: cardSize.lg.width + 40,
-    height: cardSize.lg.height + 14,
+    width: cardSize.lg.width + 78,
+    height: cardSize.lg.height + 30,
   },
   backCard: {
     position: "absolute",
@@ -81,7 +81,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     ...shadow.card,
   },
-  backRight: { transform: [{ translateX: 18 }, { rotate: "8deg" }] },
+  backRight: { transform: [{ translateX: 40 }, { translateY: 6 }, { rotate: "14deg" }] },
   frontCard: { ...shadow.overlay },
   headerRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
