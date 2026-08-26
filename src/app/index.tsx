@@ -19,13 +19,16 @@ import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 
-/** カード実物のロゴで使われている色 */
+/** カード実物のロゴから採色した色 */
 const brand = {
-  red: "#e5342c",
-  yellow: "#efa724",
-  green: "#63b737",
-  orange: "#ee7a3a",
-  skyblue: "#4fb6e0",
+  red: "#d83030", // K・「!」・キャッチコピー
+  yellow: "#e49c18", // D・G
+  green: "#78b424", // S
+  coral: "#e2604a", // a
+  blue: "#3d8fd0", // 1つ目の O
+  lime: "#c9d63a", // 2つ目の G
+  skyblue: "#8fd3ee", // 2つ目の O
+  amber: "#eeb121", // 最後の「!」
 } as const;
 
 export default function HomeScreen() {
@@ -63,9 +66,13 @@ export default function HomeScreen() {
               <Text style={[styles.logo, { color: brand.yellow }]}>D</Text>
               <Text style={[styles.logo, { color: brand.green }]}>S</Text>
               <View style={styles.goRow}>
-                <Text style={[styles.go, { color: brand.orange }]}>a </Text>
-                <Text style={[styles.go, { color: brand.yellow }]}>GO!</Text>
-                <Text style={[styles.go, { color: brand.skyblue }]}> GO!</Text>
+                <Text style={[styles.go, { color: brand.coral }]}>a</Text>
+                <Text style={[styles.go, { color: brand.yellow }]}> G</Text>
+                <Text style={[styles.go, { color: brand.blue }]}>O</Text>
+                <Text style={[styles.go, { color: brand.red }]}>!</Text>
+                <Text style={[styles.go, { color: brand.lime }]}> G</Text>
+                <Text style={[styles.go, { color: brand.skyblue }]}>O</Text>
+                <Text style={[styles.go, { color: brand.amber }]}>!</Text>
               </View>
             </View>
             <Text style={styles.catch}>運転が楽しくなる!!</Text>
