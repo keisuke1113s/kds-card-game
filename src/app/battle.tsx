@@ -197,7 +197,7 @@ export default function BattleScreen() {
   );
   const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
-  const [pileView, setPileView] = useState<"deck" | "outOfPlay" | null>(null);
+  const [pileView, setPileView] = useState<"deck" | "outOfPlay" | "cpuOutOfPlay" | null>(null);
   const [choicePreview, setChoicePreview] = useState<number | null>(null);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
@@ -403,8 +403,10 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
           <Text style={styles.infoText}>手札 {cpu.hand.length}枚</Text>
           <Text style={styles.infoText}>山札 {cpu.deck.length}枚</Text>
-          <Text style={styles.infoText}>場外 {cpu.outOfPlay.length}枚</Text>
-          <CardFace cardId={cpu.tantou} size="sm" />
+          <Pressable onPress={() => setPileView("cpuOutOfPlay")} hitSlop={6}>
+            <Text style={styles.infoLink}>場外 {cpu.outOfPlay.length}枚 ▸</Text>
+          </Pressable>
+          <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
         <TrackBar label="学科" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
@@ -838,41 +840,42 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {pileView && (
-        <Overlay
-          title={
-            pileView === "deck"
-              ? `山札の中身（${me.deck.length}枚）`
-              : `場外の中身（${me.outOfPlay.length}枚）`
-          }
-          onClose={() => setPileView(null)}
-        >
-          {pileView === "deck" && (
-            <Text style={styles.pileNote}>
-              ※ カードの種類と枚数を確認できます。ここに並んでいる順番は、実際の山札の並び順とは違います。
-            </Text>
-          )}
-          <ScrollView style={styles.pileScroll} contentContainerStyle={styles.pileContent}>
-            {(pileView === "deck" ? sortedPile(me.deck) : sortedPile(me.outOfPlay)).length === 0 ? (
-              <Text style={styles.infoText}>カードはありません</Text>
-            ) : (
-              <View style={styles.overlayCards}>
-                {(pileView === "deck" ? sortedPile(me.deck) : sortedPile(me.outOfPlay)).map(
-                  (id, i) => (
+      {pileView && (() => {
+        const isCpu = pileView === "cpuOutOfPlay";
+        const cards = sortedPile(
+          pileView === "deck" ? me.deck : isCpu ? cpu.outOfPlay : me.outOfPlay
+        );
+        const title =
+          pileView === "deck"
+            ? `山札の中身（${cards.length}枚）`
+            : `${isCpu ? "CPUの" : "あなたの"}場外（${cards.length}枚）`;
+        return (
+          <Overlay title={title} onClose={() => setPileView(null)}>
+            {pileView === "deck" && (
+              <Text style={styles.pileNote}>
+                ※ カードの種類と枚数を確認できます。ここに並んでいる順番は、実際の山札の並び順とは違います。
+              </Text>
+            )}
+            <ScrollView style={styles.pileScroll} contentContainerStyle={styles.pileContent}>
+              {cards.length === 0 ? (
+                <Text style={styles.infoText}>カードはありません</Text>
+              ) : (
+                <View style={styles.overlayCards}>
+                  {cards.map((id, i) => (
                     <CardFace
                       key={`${id}-${i}`}
                       cardId={id}
                       size="md"
-                      onPress={() => setDetailCardId(id, "self")}
+                      onPress={() => setDetailCardId(id, isCpu ? "cpu" : "self")}
                     />
-                  )
-                )}
-              </View>
-            )}
-          </ScrollView>
-          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setPileView(null)} />
-        </Overlay>
-      )}
+                  ))}
+                </View>
+              )}
+            </ScrollView>
+            <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setPileView(null)} />
+          </Overlay>
+        );
+      })()}
 
       {/* カード詳細は他のオーバーレイの上に重ねる（最後に描画する） */}
       {detailCardId && (
