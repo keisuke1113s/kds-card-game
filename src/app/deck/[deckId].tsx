@@ -11,15 +11,20 @@ import {
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { allCards, cardRegistry } from "@/data/cards";
-import { validateDeck } from "@/engine/deckRules";
-import { useDeckStore } from "@/store/deckStore";
+import { randomDeckList, validateDeck } from "@/engine/deckRules";
+import {
+  allDecks,
+  isBuiltinDeck,
+  useDeckStore,
+} from "@/store/deckStore";
 import { colors } from "@/theme";
 
 export default function DeckEditScreen() {
   const { deckId } = useLocalSearchParams<{ deckId: string }>();
   const router = useRouter();
-  const { customDecks, saveDeck } = useDeckStore();
-  const existing = customDecks.find((d) => d.id === deckId);
+  const { customDecks, builtinOverrides, saveDeck, resetBuiltin } = useDeckStore();
+  const existing = allDecks(customDecks, builtinOverrides).find((d) => d.id === deckId);
+  const builtin = isBuiltinDeck(deckId ?? "");
 
   const [name, setName] = useState(existing?.name ?? "マイデッキ");
   const [main, setMain] = useState<string[]>(existing?.list.main ?? []);
@@ -37,6 +42,25 @@ export default function DeckEditScreen() {
     );
   };
 
+  /** ルールを満たすデッキをランダムに組み直す */
+  const randomize = () => {
+    const seed =
+      typeof globalThis.crypto?.getRandomValues === "function"
+        ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
+        : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
+    const { deck } = randomDeckList(cardRegistry, seed, {
+      size: Math.max(21, main.length),
+    });
+    setMain(deck.main);
+    setTantou(deck.tantou);
+  };
+
+  const resetToDefault = () => {
+    if (!deckId) return;
+    resetBuiltin(deckId);
+    router.back();
+  };
+
   const save = () => {
     if (!deckId || errors.length > 0) return;
     saveDeck({ id: deckId, name: name.trim() || "マイデッキ", list: { main, tantou } });
@@ -46,6 +70,7 @@ export default function DeckEditScreen() {
   const mainCards = allCards.filter((c) => c.type !== "tantou");
   const tantouCards = allCards.filter((c) => c.type === "tantou");
   const supportCount = main.filter((id) => cardRegistry[id].type === "support").length;
+  const supportMax = cardRegistry[tantou]?.supportLimit ?? 5;
 
   return (
     <View style={styles.root}>
@@ -56,10 +81,25 @@ export default function DeckEditScreen() {
           style={styles.nameInput}
           placeholder="デッキ名"
           maxLength={20}
+          editable={!builtin}
         />
 
+        <View style={styles.toolRow}>
+          <Pressable style={styles.toolButton} onPress={randomize}>
+            <Text style={styles.toolButtonText}>🎲 ランダムに入れ替える</Text>
+          </Pressable>
+          {builtin && (
+            <Pressable
+              style={[styles.toolButton, { backgroundColor: colors.cancel }]}
+              onPress={resetToDefault}
+            >
+              <Text style={styles.toolButtonText}>最初の構成に戻す</Text>
+            </Pressable>
+          )}
+        </View>
+
         <Text style={styles.counter}>
-          {main.length}枚（20枚以上）・サポート {supportCount}/{cardRegistry[tantou]?.supportLimit ?? 5}
+          {main.length}枚（20枚以上）・サポート {supportCount}/{supportMax}
         </Text>
         {errors.map((e) => (
           <Text key={e} style={styles.error}>
@@ -71,7 +111,7 @@ export default function DeckEditScreen() {
         <View style={styles.grid}>
           {tantouCards.map((c) => (
             <View key={c.id} style={tantou === c.id ? styles.selected : undefined}>
-              <CardFace cardId={c.id} size="md" onPress={() => setDetailId(c.id)} />
+              <CardFace cardId={c.id} size="md" dimmed={tantou !== c.id} onPress={() => setDetailId(c.id)} />
             </View>
           ))}
         </View>
@@ -122,7 +162,7 @@ export default function DeckEditScreen() {
               </Pressable>
             )}
             <Pressable
-              style={[styles.overlayButton, { backgroundColor: colors.textMuted }]}
+              style={[styles.overlayButton, { backgroundColor: colors.cancel }]}
               onPress={() => setDetailId(null)}
             >
               <Text style={styles.overlayButtonText}>閉じる</Text>
@@ -162,6 +202,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: colors.text,
   },
+  toolRow: { flexDirection: "row", gap: 8, marginTop: 10, flexWrap: "wrap" },
+  toolButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  toolButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
   counter: { marginTop: 10, fontWeight: "700", color: colors.text },
   error: { color: colors.danger, fontSize: 12, marginTop: 4 },
   sectionTitle: {

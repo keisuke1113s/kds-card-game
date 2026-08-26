@@ -4,21 +4,20 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { cardRegistry, getCard } from "@/data/cards";
-import { validateDeck } from "@/engine/deckRules";
+import { randomDeckList, validateDeck } from "@/engine/deckRules";
 import {
   allDecks,
-  builtinDeck,
+  isBuiltinDeck,
   SavedDeck,
   useDeckStore,
 } from "@/store/deckStore";
 import { colors } from "@/theme";
 
-const BUILTIN_IDS = ["default", "challenger"];
-
 export default function DeckListScreen() {
   const router = useRouter();
-  const { customDecks, activeDeckId, setActiveDeck, deleteDeck } = useDeckStore();
-  const decks = allDecks(customDecks);
+  const { customDecks, builtinOverrides, activeDeckId, setActiveDeck, deleteDeck, saveDeck } =
+    useDeckStore();
+  const decks = allDecks(customDecks, builtinOverrides);
   const [viewing, setViewing] = useState<SavedDeck | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SavedDeck | null>(null);
@@ -26,6 +25,19 @@ export default function DeckListScreen() {
   const newDeck = () => {
     const id = `deck-${Date.now()}`;
     router.push(`/deck/${id}`);
+  };
+
+  /** ルールを満たすデッキをランダムに作って保存し、そのまま使えるようにする */
+  const newRandomDeck = () => {
+    const seed =
+      typeof globalThis.crypto?.getRandomValues === "function"
+        ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
+        : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
+    const { deck } = randomDeckList(cardRegistry, seed);
+    const id = `deck-${Date.now()}`;
+    const count = customDecks.length + 1;
+    saveDeck({ id, name: `ランダムデッキ${count}`, list: deck });
+    setActiveDeck(id);
   };
 
   // Web では Alert.alert が動かないため、確認は自前のオーバーレイで行う
@@ -64,11 +76,9 @@ export default function DeckListScreen() {
               {errors.length > 0 && <Text style={styles.error}>{errors[0]}</Text>}
               <View style={styles.deckActions}>
                 <SmallButton label="中身を見る" onPress={() => setViewing(deck)} />
-                {!BUILTIN_IDS.includes(deck.id) && (
-                  <>
-                    <SmallButton label="編集" onPress={() => router.push(`/deck/${deck.id}`)} />
-                    <SmallButton label="削除" danger onPress={() => confirmDelete(deck)} />
-                  </>
+                <SmallButton label="中身を変える" onPress={() => router.push(`/deck/${deck.id}`)} />
+                {!isBuiltinDeck(deck.id) && (
+                  <SmallButton label="削除" danger onPress={() => confirmDelete(deck)} />
                 )}
               </View>
             </Pressable>
@@ -77,8 +87,11 @@ export default function DeckListScreen() {
         <Pressable onPress={newDeck} style={styles.newButton}>
           <Text style={styles.newButtonText}>＋ 新しいデッキをつくる</Text>
         </Pressable>
+        <Pressable onPress={newRandomDeck} style={styles.newButton}>
+          <Text style={styles.newButtonText}>🎲 ランダムでデッキをつくる</Text>
+        </Pressable>
         <Text style={styles.note}>
-          スタンダードデッキ: {builtinDeck.list.main.length}枚入りの基本デッキです。
+          組み込みの2つのデッキも「中身を変える」から編集できます（「最初の構成に戻す」で元に戻せます）。
         </Text>
       </ScrollView>
 

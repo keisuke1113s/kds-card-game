@@ -1,7 +1,9 @@
-import React from "react";
+import { useRouter } from "expo-router";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
+import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
@@ -12,6 +14,10 @@ const speeds: { label: string; ms: number }[] = [
 ];
 
 export default function SettingsScreen() {
+  const router = useRouter();
+  const quitGame = useGameStore((s) => s.quitGame);
+  const inBattle = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const {
     difficulty,
     setDifficulty,
@@ -58,6 +64,48 @@ export default function SettingsScreen() {
       <Text style={styles.note}>
         設定は次の対戦から反映されます（サウンドは即時）。
       </Text>
+
+      {inBattle && (
+        <>
+          <Text style={styles.sectionTitle}>対戦中</Text>
+          <Pressable
+            style={[styles.wideButton, { backgroundColor: colors.primary }]}
+            onPress={() => router.back()}
+          >
+            <Text style={styles.wideButtonText}>対戦にもどる</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.wideButton, { backgroundColor: colors.danger }]}
+            onPress={() => setConfirmQuit(true)}
+          >
+            <Text style={styles.wideButtonText}>対戦をやめる</Text>
+          </Pressable>
+        </>
+      )}
+      {confirmQuit && (
+        <Pressable style={styles.overlayBg} onPress={() => setConfirmQuit(false)}>
+          <Pressable style={styles.overlayBox} onPress={() => {}}>
+            <Text style={styles.overlayTitle}>対戦をやめますか？</Text>
+            <Text style={styles.note}>この対局は失われます。</Text>
+            <Pressable
+              style={[styles.wideButton, { backgroundColor: colors.danger }]}
+              onPress={() => {
+                setConfirmQuit(false);
+                quitGame();
+                router.replace("/");
+              }}
+            >
+              <Text style={styles.wideButtonText}>やめてホームへ</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.wideButton, { backgroundColor: colors.cancel }]}
+              onPress={() => setConfirmQuit(false)}
+            >
+              <Text style={styles.wideButtonText}>つづける</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      )}
     </ScrollView>
   );
 }
@@ -97,4 +145,28 @@ const styles = StyleSheet.create({
   },
   choiceText: { fontWeight: "700", color: colors.text },
   note: { color: colors.textMuted, marginTop: 16, fontSize: 12 },
+  wideButton: {
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    alignSelf: "stretch",
+  },
+  wideButtonText: { color: "#fff", fontWeight: "800", fontSize: 15 },
+  overlayBg: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#00000088",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  overlayBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 400,
+    gap: 10,
+    alignItems: "center",
+  },
+  overlayTitle: { fontSize: 17, fontWeight: "800", color: colors.text },
 });

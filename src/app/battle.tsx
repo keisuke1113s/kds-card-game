@@ -184,7 +184,6 @@ export default function BattleScreen() {
   const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
   const [choicePreview, setChoicePreview] = useState<number | null>(null);
-  const [confirmQuit, setConfirmQuit] = useState(false);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
@@ -370,15 +369,11 @@ export default function BattleScreen() {
     return "";
   })();
 
-  // Web（ホーム画面に追加した場合も含む）では Alert.alert が動かないため、
-  // 確認は自前のオーバーレイで行う
-  const quit = () => setConfirmQuit(true);
-
   const rematch = () => {
     const deck = resolveActiveDeck(deckState);
     startGame({
       playerDeck: deck.list,
-      cpuDeck: cpuDeckFor(deck).list,
+      cpuDeck: cpuDeckFor(deck, deckState.builtinOverrides).list,
       difficulty,
       aiSpeedMs,
     });
@@ -557,9 +552,9 @@ export default function BattleScreen() {
           })}
           {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
         </ScrollView>
-        {/* 対戦を中断してホームへ戻る */}
-        <Pressable onPress={quit} style={styles.quitButton}>
-          <Text style={styles.quitText}>対戦{"\n"}をやめる</Text>
+        {/* 設定画面へ（対戦をやめる操作もそこから行う） */}
+        <Pressable onPress={() => router.push("/settings")} style={styles.quitButton}>
+          <Text style={styles.quitText}>⚙️{"\n"}せってい</Text>
         </Pressable>
       </View>
 
@@ -820,28 +815,6 @@ export default function BattleScreen() {
             ))}
           </View>
           <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
-        </Overlay>
-      )}
-
-      {confirmQuit && (
-        <Overlay title="対戦をやめますか？" onClose={() => setConfirmQuit(false)}>
-          <Text style={styles.resultText}>この対局は失われます。</Text>
-          <View style={styles.overlayButtons}>
-            <ActionButton
-              label="つづける"
-              color={colors.primary}
-              onPress={() => setConfirmQuit(false)}
-            />
-            <ActionButton
-              label="やめてホームへ"
-              color={colors.danger}
-              onPress={() => {
-                setConfirmQuit(false);
-                quitGame();
-                router.replace("/");
-              }}
-            />
-          </View>
         </Overlay>
       )}
 

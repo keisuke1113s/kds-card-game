@@ -11,65 +11,96 @@ export interface SavedDeck {
 }
 
 export const DEFAULT_DECK_ID = "default";
+export const CHALLENGER_DECK_ID = "challenger";
 
-export const builtinDeck: SavedDeck = {
-  id: DEFAULT_DECK_ID,
-  name: "スタンダードデッキ",
-  list: defaultDeck,
-};
+/** 初期構成（「最初の構成に戻す」で使う） */
+export const builtinDefaults: SavedDeck[] = [
+  { id: DEFAULT_DECK_ID, name: "スタンダードデッキ", list: defaultDeck },
+  { id: CHALLENGER_DECK_ID, name: "チャレンジャーデッキ", list: cpuDeck },
+];
 
-export const builtinDeck2: SavedDeck = {
-  id: "challenger",
-  name: "チャレンジャーデッキ",
-  list: cpuDeck,
-};
+export function isBuiltinDeck(id: string): boolean {
+  return builtinDefaults.some((d) => d.id === id);
+}
 
 interface DeckState {
   customDecks: SavedDeck[];
+  /** 組み込みデッキを編集したときの上書き内容 */
+  builtinOverrides: Record<string, DeckList>;
   activeDeckId: string;
   setActiveDeck: (id: string) => void;
   saveDeck: (deck: SavedDeck) => void;
   deleteDeck: (id: string) => void;
+  /** 組み込みデッキを初期構成に戻す */
+  resetBuiltin: (id: string) => void;
 }
 
 export const useDeckStore = create<DeckState>()(
   persist(
     (set) => ({
       customDecks: [],
+      builtinOverrides: {},
       activeDeckId: DEFAULT_DECK_ID,
       setActiveDeck: (activeDeckId) => set({ activeDeckId }),
       saveDeck: (deck) =>
-        set((s) => ({
-          customDecks: [...s.customDecks.filter((d) => d.id !== deck.id), deck],
-        })),
+        set((s) =>
+          isBuiltinDeck(deck.id)
+            ? { builtinOverrides: { ...s.builtinOverrides, [deck.id]: deck.list } }
+            : { customDecks: [...s.customDecks.filter((d) => d.id !== deck.id), deck] }
+        ),
       deleteDeck: (id) =>
         set((s) => ({
           customDecks: s.customDecks.filter((d) => d.id !== id),
           activeDeckId: s.activeDeckId === id ? DEFAULT_DECK_ID : s.activeDeckId,
         })),
+      resetBuiltin: (id) =>
+        set((s) => {
+          const next = { ...s.builtinOverrides };
+          delete next[id];
+          return { builtinOverrides: next };
+        }),
     }),
     {
       name: "kds-decks",
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      migrate: (persisted) => {
+        const s = persisted as Partial<DeckState>;
+        if (!s.builtinOverrides) s.builtinOverrides = {};
+        return s as DeckState;
+      },
     }
   )
 );
 
-export function allDecks(customDecks: SavedDeck[]): SavedDeck[] {
-  return [builtinDeck, builtinDeck2, ...customDecks];
+/** 組み込みデッキ（編集済みなら編集後の内容） */
+export function builtinDecks(overrides: Record<string, DeckList>): SavedDeck[] {
+  return builtinDefaults.map((d) => ({ ...d, list: overrides[d.id] ?? d.list }));
+}
+
+export function allDecks(
+  customDecks: SavedDeck[],
+  overrides: Record<string, DeckList> = {}
+): SavedDeck[] {
+  return [...builtinDecks(overrides), ...customDecks];
 }
 
 /** 対戦に使うデッキ。保存済みでも念のため検証し、不正ならデフォルトに戻す */
 export function resolveActiveDeck(state: DeckState): SavedDeck {
-  const deck =
-    allDecks(state.customDecks).find((d) => d.id === state.activeDeckId) ?? builtinDeck;
-  return validateDeck(cardRegistry, deck.list).length === 0 ? deck : builtinDeck;
+  const decks = allDecks(state.customDecks, state.builtinOverrides);
+  const fallback = decks[0];
+  const deck = decks.find((d) => d.id === state.activeDeckId) ?? fallback;
+  return validateDeck(cardRegistry, deck.list).length === 0 ? deck : fallback;
 }
 
 /**
  * CPUが使うデッキ。プレイヤーと同じ内容にならないよう、
  * チャレンジャーデッキを選んだときはCPUがスタンダードデッキを使う。
  */
-export function cpuDeckFor(playerDeck: SavedDeck): SavedDeck {
-  return playerDeck.id === builtinDeck2.id ? builtinDeck : builtinDeck2;
+export function cpuDeckFor(
+  playerDeck: SavedDeck,
+  overrides: Record<string, DeckList> = {}
+): SavedDeck {
+  const [standard, challenger] = builtinDecks(overrides);
+  return playerDeck.id === CHALLENGER_DECK_ID ? standard : challenger;
 }

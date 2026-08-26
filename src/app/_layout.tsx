@@ -34,6 +34,7 @@ export default function RootLayout() {
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="battle" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="prematch" options={{ title: "対戦の準備" }} />
         <Stack.Screen name="deck/index" options={{ title: "デッキ" }} />
         <Stack.Screen name="deck/[deckId]" options={{ title: "デッキ構築" }} />
         <Stack.Screen name="library/index" options={{ title: "カード図鑑" }} />

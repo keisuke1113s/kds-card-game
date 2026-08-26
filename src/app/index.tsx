@@ -3,18 +3,13 @@ import React, { useCallback } from "react";
 import { stopBgm } from "@/audio/sound";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
-import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
 export default function HomeScreen() {
   const router = useRouter();
-  const startGame = useGameStore((s) => s.startGame);
   const inProgress = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
-  const difficulty = useSettingsStore((s) => s.difficulty);
-  const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
 
   // BGMは対戦中のみ。ホームに戻ったら止める
@@ -26,16 +21,8 @@ export default function HomeScreen() {
 
   const activeDeck = resolveActiveDeck(deckState);
 
-  const onStart = () => {
-    const deck = activeDeck;
-    startGame({
-      playerDeck: deck.list,
-      cpuDeck: cpuDeckFor(deck).list,
-      difficulty,
-      aiSpeedMs,
-    });
-    router.push("/battle");
-  };
+  // 対戦条件（CPUの強さ・速さ・サウンド）を確認する画面へ
+  const onStart = () => router.push("/prematch");
 
   return (
     <SafeAreaView style={styles.root}>
@@ -54,17 +41,16 @@ export default function HomeScreen() {
           />
         )}
         <MenuButton
-          label={`たいせん（CPU: ${DIFFICULTY_LABELS[difficulty]}）`}
+          label="たいせん"
           color={colors.primary}
           onPress={onStart}
         />
         <Text style={styles.matchup}>
-          あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck).name}
+          あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck, deckState.builtinOverrides).name}
         </Text>
         <MenuButton label="デッキこうちく" color={colors.success} onPress={() => router.push("/deck")} />
         <MenuButton label="カードずかん" color={colors.instructor} onPress={() => router.push("/library")} />
         <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
-        <MenuButton label="せってい" color={colors.textMuted} onPress={() => router.push("/settings")} />
       </View>
       <Text style={styles.footer}>KDSカードゲーム（非公式デジタル版・開発中）</Text>
     </SafeAreaView>
