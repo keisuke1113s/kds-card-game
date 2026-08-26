@@ -1,98 +1,104 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from "expo-router";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { DIFFICULTY_LABELS } from "@/ai/difficulty";
+import { builtinDeck, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { useGameStore } from "@/store/gameStore";
+import { useSettingsStore } from "@/store/settingsStore";
+import { colors } from "@/theme";
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+export default function HomeScreen() {
+  const router = useRouter();
+  const startGame = useGameStore((s) => s.startGame);
+  const inProgress = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
+  const difficulty = useSettingsStore((s) => s.difficulty);
+  const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
+  const deckState = useDeckStore();
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
-  }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
-  }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+  const onStart = () => {
+    const deck = resolveActiveDeck(deckState);
+    startGame({
+      playerDeck: deck.list,
+      cpuDeck: builtinDeck.list,
+      difficulty,
+      aiSpeedMs,
+    });
+    router.push("/battle");
+  };
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
+    <SafeAreaView style={styles.root}>
+      <View style={styles.titleBox}>
+        <Text style={styles.kicker}>KDS</Text>
+        <Text style={styles.title}>カードゲーム</Text>
+        <Text style={styles.subtitle}>学科10時限・技能19時限をめざせ！</Text>
+      </View>
+
+      <View style={styles.menu}>
+        {inProgress && (
+          <MenuButton
+            label="対戦にもどる"
+            color={colors.accent}
+            onPress={() => router.push("/battle")}
+          />
+        )}
+        <MenuButton
+          label={`たいせん（CPU: ${DIFFICULTY_LABELS[difficulty]}）`}
+          color={colors.primary}
+          onPress={onStart}
+        />
+        <MenuButton label="デッキこうちく" color={colors.success} onPress={() => router.push("/deck")} />
+        <MenuButton label="カードずかん" color={colors.instructor} onPress={() => router.push("/library")} />
+        <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
+        <MenuButton label="せってい" color={colors.textMuted} onPress={() => router.push("/settings")} />
+      </View>
+      <Text style={styles.footer}>KDSカードゲーム（非公式デジタル版・開発中）</Text>
+    </SafeAreaView>
   );
 }
 
-export default function HomeScreen() {
+function MenuButton({
+  label,
+  color,
+  onPress,
+}: {
+  label: string;
+  color: string;
+  onPress: () => void;
+}) {
   return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
-
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
-
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
-          />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
-
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.button, { backgroundColor: color }, pressed && { opacity: 0.8 }]}
+    >
+      <Text style={styles.buttonText}>{label}</Text>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
+  root: { flex: 1, backgroundColor: colors.background, padding: 24 },
+  titleBox: { alignItems: "center", marginTop: 48, marginBottom: 32 },
+  kicker: {
+    fontSize: 40,
+    fontWeight: "900",
+    color: colors.primary,
+    letterSpacing: 8,
   },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
+  title: { fontSize: 32, fontWeight: "800", color: colors.text },
+  subtitle: { marginTop: 8, color: colors.textMuted },
+  menu: { gap: 12 },
+  button: {
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: "center",
   },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
+  buttonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  footer: {
+    marginTop: "auto",
+    textAlign: "center",
+    color: colors.textMuted,
+    fontSize: 12,
   },
 });

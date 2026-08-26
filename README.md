@@ -1,56 +1,33 @@
-# Welcome to your Expo app 👋
+# KDSカードゲーム（デジタル版）
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+[card.kds946.com](https://card.kds946.com) で公開されている KDS オリジナルカードゲームの、CPU対戦できるスマホアプリ（iOS / Android）。React Native + Expo 製。
 
-## Get started
-
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
+## 開発
 
 ```bash
-npm run reset-project
+npm install
+npm start          # Expo 開発サーバー（w で Web、i で iOSシミュレータ）
+npm test           # エンジン・AIのテスト（vitest）
+npm run typecheck  # 型チェック
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 構成
 
-### Other setup steps
+- `src/engine/` — ゲームルールの純TypeScript実装（React非依存）。決定的リデューサー＋シード付き乱数。`getLegalActions` が合法手を列挙し、UIとAIの両方がそれを使う
+- `src/ai/` — ヒューリスティックCPU（よわい/ふつう/つよい）。秘匿済みビューしか見えない設計
+- `src/data/` — カード定義（宣言的な効果DSL）。`schema.ts` の zod スキーマが実カードJSONの受け口
+- `src/app/` — expo-router 画面（ホーム/対戦/デッキ構築/図鑑/ルール/設定）
+- `src/store/` — zustand ストア（対局進行・デッキ・設定。AsyncStorage 永続化）
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+## 実カードデータの追加方法
 
-## Learn more
+1. カード画像（868×1213px）を `assets/cards/<cardId>.png` に置く
+2. `src/data/cards.ts` の配列にカード定義を追加（または JSON を `cardSetSchema` で検証して読み込む）
+3. 効果は `{ trigger, ops }` で宣言的に書く。語彙: `modifyTrack` / `buffCombat` / `draw` / `searchTop`。語彙で表せない特殊カードはエンジンの効果システムに op を追加する
 
-To learn more about developing your project with Expo, look at the following resources:
+## 今後（未実装）
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
-
-## Join the community
-
-Join our community of developers creating universal apps.
-
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+- 実カードデータ・画像の取り込み（現在はプレースホルダー22枚＋担当2枚）
+- カードアニメーション（reanimated）・効果音
+- EAS Build でのストア申請（アイコン・スプラッシュ含む）
+- オンライン対戦（エンジンは決定的・直列化可能でその前提で設計済み）
