@@ -19,7 +19,9 @@ import Animated, {
   SlideInRight,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withSequence,
+  withSpring,
   withTiming,
   ZoomIn,
   ZoomOut,
@@ -72,6 +74,10 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         break;
       case "instructorPlayed":
         if (e.player === CPU) add(`CPUが「${getCard(e.cardId).name}」を場に出した！`, e.cardId);
+        break;
+      case "cardDrawn":
+        // 自分のドローだけ公開（CPUの手札は非公開情報）
+        if (e.player === HUMAN && e.cardId) add(`「${getCard(e.cardId).name}」を引いた`, e.cardId);
         break;
       case "instructorActed":
         if (e.player === CPU) {
@@ -183,8 +189,8 @@ export default function BattleScreen() {
       const [next, ...rest] = annQueue;
       setCurrentAnn(next);
       setAnnQueue(rest);
-      const base = next.cardId ? 950 : 720;
-      const dur = rest.length > 2 ? 420 : base;
+      const base = next.cardId ? 1350 : 800;
+      const dur = rest.length > 2 ? 450 : base;
       const t = setTimeout(() => setCurrentAnn(null), dur);
       return () => clearTimeout(t);
     }
@@ -409,11 +415,14 @@ export default function BattleScreen() {
         )}
         {!!statusText && <Text style={styles.statusText}>{statusText}</Text>}
         <View style={styles.log}>
-          {logLines.map((line, i) => (
-            <Text key={i} style={styles.logLine} numberOfLines={1}>
+          {logLines.slice(0, -1).map((line, i) => (
+            <Text key={`${i}-${line}`} style={styles.logLine} numberOfLines={1}>
               {line}
             </Text>
           ))}
+          {logLines.length > 0 && (
+            <LatestLogLine key={allLogLines.length} text={logLines[logLines.length - 1]} />
+          )}
           <Pressable onPress={() => setShowLog(true)} hitSlop={6}>
             <Text style={styles.logButton}>すべてのログを見る ▸</Text>
           </Pressable>
@@ -504,19 +513,27 @@ export default function BattleScreen() {
 
       </Animated.View>
 
-      {/* ===== 実況表示 ===== */}
+      {/* ===== 実況表示（カードはタップで詳細） ===== */}
       {currentAnn && (
-        <View style={styles.annLayer} pointerEvents="none">
+        <View style={styles.annLayer} pointerEvents="box-none">
           <Animated.View
             key={currentAnn.key}
             entering={ZoomIn.springify().damping(14)}
             exiting={ZoomOut.duration(200)}
             style={[styles.annBox, currentAnn.emph && styles.annBoxEmph]}
+            pointerEvents={currentAnn.cardId ? "auto" : "none"}
           >
-            {currentAnn.cardId && <CardFace cardId={currentAnn.cardId} size="lg" />}
+            {currentAnn.cardId && (
+              <CardFace
+                cardId={currentAnn.cardId}
+                size="lg"
+                onPress={() => setDetailCardId(currentAnn.cardId!)}
+              />
+            )}
             <Text style={[styles.annText, currentAnn.emph && styles.annTextEmph]}>
               {currentAnn.text}
             </Text>
+            {currentAnn.cardId && <Text style={styles.annHint}>カードをタップで詳細</Text>}
           </Animated.View>
         </View>
       )}
@@ -824,6 +841,26 @@ function FieldRow({
   );
 }
 
+/** 最新ログ: 大きく飛び出してから元のサイズに収まり、ハイライトが消える */
+function LatestLogLine({ text }: { text: string }) {
+  const scale = useSharedValue(1.35);
+  const glow = useSharedValue(1);
+  useEffect(() => {
+    scale.value = withSpring(1, { damping: 13, stiffness: 160 });
+    glow.value = withDelay(500, withTiming(0, { duration: 800 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    backgroundColor: `rgba(255, 213, 79, ${glow.value * 0.45})`,
+  }));
+  return (
+    <Animated.Text style={[styles.logLatest, style]} numberOfLines={2}>
+      {text}
+    </Animated.Text>
+  );
+}
+
 /** 休憩⇄元気の回転アニメーション */
 function RestRotator({ rested, children }: { rested: boolean; children: React.ReactNode }) {
   const rotation = useSharedValue(rested ? 90 : 0);
@@ -915,6 +952,16 @@ const styles = StyleSheet.create({
   annBoxEmph: { borderColor: colors.accent, backgroundColor: "#fffdf2f5" },
   annText: { fontSize: 15, fontWeight: "700", color: colors.text, textAlign: "center" },
   annTextEmph: { fontSize: 19, fontWeight: "900", color: colors.primaryDark },
+  annHint: { fontSize: 10, color: colors.textMuted },
+  logLatest: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: colors.primaryDark,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    alignSelf: "flex-start",
+  },
   battleRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   battleSide: { alignItems: "center", gap: 3 },
   battleSideLabel: { fontSize: 10, color: colors.textMuted, fontWeight: "700" },

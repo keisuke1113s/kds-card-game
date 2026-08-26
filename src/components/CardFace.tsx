@@ -1,5 +1,5 @@
 import { Image } from "expo-image";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
 import { cardImages } from "@/data/images";
@@ -25,6 +25,8 @@ interface Props {
 
 export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: Props) {
   const dims = cardSize[size];
+  // 画像の読み込みに失敗したらテキストフェイスに切り替える
+  const [imageFailed, setImageFailed] = useState(false);
 
   let body: React.ReactNode;
   if (faceDown) {
@@ -38,7 +40,7 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
     );
   } else {
     const def = getCard(cardId);
-    const img = cardImages[def.image ?? def.id];
+    const img = imageFailed ? undefined : cardImages[def.image ?? def.id];
     if (img) {
       body = (
         <Image
@@ -46,6 +48,7 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
           style={[styles.image, dims, dimmed && styles.dimmed]}
           contentFit="cover"
           transition={100}
+          onError={() => setImageFailed(true)}
         />
       );
     } else {
