@@ -704,6 +704,11 @@ export default function BattleScreen() {
                 }
               />
             )}
+            <ActionButton
+              label="キャンセル"
+              color={colors.cancel}
+              onPress={() => setSelectedUid(null)}
+            />
           </View>
         </Overlay>
       )}
@@ -770,6 +775,24 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
+      {revealedHand && (
+        <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
+          <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
+          <View style={styles.overlayCards}>
+            {revealedHand.map((id, i) => (
+              <CardFace
+                key={i}
+                cardId={id}
+                size="md"
+                onPress={() => setDetailCardId(id, "cpu")}
+              />
+            ))}
+          </View>
+          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
+        </Overlay>
+      )}
+
+      {/* カード詳細は他のオーバーレイの上に重ねる（最後に描画する） */}
       {detailCardId && (
         <Overlay title={getCard(detailCardId).name} onClose={() => setDetailCardId(null)}>
           {detail?.owner && <OwnerBadge owner={detail.owner} />}
@@ -785,17 +808,6 @@ export default function BattleScreen() {
             />
           )}
           <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setDetailCardId(null)} />
-        </Overlay>
-      )}
-
-      {revealedHand && (
-        <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
-          <View style={styles.overlayCards}>
-            {revealedHand.map((id, i) => (
-              <CardFace key={i} cardId={id} size="md" />
-            ))}
-          </View>
-          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
         </Overlay>
       )}
 

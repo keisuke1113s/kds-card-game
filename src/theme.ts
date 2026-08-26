@@ -10,6 +10,7 @@ export const colors = {
   success: "#2e9e5b",
   text: "#1a2a3a",
   textMuted: "#5b7183",
+  cancel: "#8d9aa8", // キャンセル等の控えめなボタン
   border: "#c9dded",
   // カード種別
   instructor: "#3d9be9",
