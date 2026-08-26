@@ -15,6 +15,8 @@ import { useEffect } from "react";
 import { stopBgm } from "@/audio/sound";
 import { AppButton } from "@/components/AppButton";
 import { CardFace } from "@/components/CardFace";
+import { Image } from "expo-image";
+import { cardSmalls } from "@/data/images";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
@@ -126,7 +128,13 @@ export default function HomeScreen() {
           <View style={styles.row}>
             <AppButton
               label="デッキ構築"
-              icon="🃏"
+              iconNode={
+                <Image
+                  source={cardSmalls["cardback"]}
+                  style={styles.buttonCardIcon}
+                  contentFit="cover"
+                />
+              }
               tone="success"
               style={styles.flex}
               onPress={() => router.push("/deck")}
@@ -269,6 +277,13 @@ const styles = StyleSheet.create({
   menu: { gap: spacing.md },
   row: { flexDirection: "row", gap: spacing.md },
   flex: { flex: 1 },
+  buttonCardIcon: {
+    width: 20,
+    height: 28,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#ffffff88",
+  },
   matchupCard: {
     flexDirection: "row",
     alignItems: "center",

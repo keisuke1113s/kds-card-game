@@ -39,8 +39,10 @@ interface Props {
   /** 押したときの触覚の強さ */
   feel?: "light" | "medium" | "heavy";
   style?: ViewStyle;
-  /** ラベルの左に置く絵文字など */
+  /** ラベルの左に置く絵文字 */
   icon?: string;
+  /** 絵文字の代わりに画像などを置きたいとき */
+  iconNode?: React.ReactNode;
   fullWidth?: boolean;
 }
 
@@ -53,6 +55,7 @@ export function AppButton({
   feel = "light",
   style,
   icon,
+  iconNode,
   fullWidth,
 }: Props) {
   const press = useSharedValue(0);
@@ -108,7 +111,7 @@ export function AppButton({
         ]}
       >
         <View style={styles.inner}>
-          {!!icon && <Text style={[styles.icon, { fontSize: fontSize + 2 }]}>{icon}</Text>}
+          {iconNode ?? (!!icon && <Text style={[styles.icon, { fontSize: fontSize + 2 }]}>{icon}</Text>)}
           <Text
             style={[
               styles.label,
