@@ -1,8 +1,10 @@
+import { Image } from "expo-image";
 import React from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
+import { cardThumbs } from "@/data/images";
 import { CardFace } from "./CardFace";
-import { colors } from "@/theme";
+import { cardSize, colors, shadow } from "@/theme";
 
 const typeLabel: Record<string, string> = {
   instructor: "インストラクター",
@@ -23,8 +25,21 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
     : { style: [styles.container, styles.plain] };
   return (
     <Container {...containerProps}>
+      {/* 手に持っているように、後ろから裏面が2枚のぞく。表のカードは真っ直ぐ */}
       <View style={styles.cardWrap}>
-        <CardFace cardId={cardId} size="lg" />
+        <Image
+          source={cardThumbs["cardback"]}
+          style={[styles.backCard, styles.backLeft]}
+          contentFit="cover"
+        />
+        <Image
+          source={cardThumbs["cardback"]}
+          style={[styles.backCard, styles.backRight]}
+          contentFit="cover"
+        />
+        <View style={styles.frontCard}>
+          <CardFace cardId={cardId} size="lg" />
+        </View>
       </View>
       <View style={styles.headerRow}>
         <Text style={styles.name}>{def.name}</Text>
@@ -58,7 +73,22 @@ const styles = StyleSheet.create({
   scroll: { alignSelf: "stretch", maxHeight: 480 },
   container: { alignItems: "center", gap: 10, paddingBottom: 4 },
   plain: { alignSelf: "stretch" },
-  cardWrap: { alignItems: "center" },
+  cardWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: cardSize.lg.width + 56,
+    height: cardSize.lg.height + 16,
+  },
+  backCard: {
+    position: "absolute",
+    width: cardSize.lg.width,
+    height: cardSize.lg.height,
+    borderRadius: 6,
+    ...shadow.card,
+  },
+  backLeft: { transform: [{ translateX: -22 }, { rotate: "-9deg" }] },
+  backRight: { transform: [{ translateX: 22 }, { rotate: "9deg" }] },
+  frontCard: { ...shadow.overlay },
   headerRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
   type: { fontSize: 13, color: colors.textMuted, fontWeight: "700" },
