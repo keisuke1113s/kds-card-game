@@ -487,14 +487,8 @@ export default function BattleScreen() {
           <Text style={styles.infoText}>山札 {me.deck.length}枚</Text>
           <Text style={styles.infoText}>場外 {me.outOfPlay.length}枚</Text>
           <View style={tantouUsable ? styles.tantouUsable : undefined}>
-            <CardFace
-              cardId={me.tantou}
-              size="sm"
-              onPress={() => {
-                if (tantouUsable) doAction({ type: "activateAbility", player: HUMAN });
-                else setDetailCardId(me.tantou);
-              }}
-            />
+            {/* 担当カードはタップすると拡大表示。そこから力を使う */}
+            <CardFace cardId={me.tantou} size="sm" onPress={() => setDetailCardId(me.tantou)} />
           </View>
           <View style={{ flex: 1 }} />
           {battleInfo?.myPriority && (
@@ -619,9 +613,14 @@ export default function BattleScreen() {
           title={`「${nameOf(state, HUMAN, selectedUid)}」の行動`}
           onClose={() => setSelectedUid(null)}
         >
-          {!!effectTextOf(state, selectedUid) && (
-            <Text style={styles.menuEffectText}>{effectTextOf(state, selectedUid)}</Text>
-          )}
+          <View style={styles.menuCardRow}>
+            <CardFace cardId={cardIdOf(state, selectedUid)} size="md" />
+            {!!effectTextOf(state, selectedUid) && (
+              <Text style={[styles.menuEffectText, styles.menuEffectFlex]}>
+                {effectTextOf(state, selectedUid)}
+              </Text>
+            )}
+          </View>
           <View style={styles.overlayButtons}>
             {instActions(selectedUid).some(
               (a) => a.type === "instructorAction" && a.action === "skill"
@@ -744,6 +743,16 @@ export default function BattleScreen() {
       {detailCardId && (
         <Overlay title={getCard(detailCardId).name} onClose={() => setDetailCardId(null)}>
           <CardDetail cardId={detailCardId} />
+          {detailCardId === me.tantou && tantouUsable && (
+            <ActionButton
+              label={`この力を使う: ${getCard(me.tantou).ability?.label ?? ""}`}
+              color={colors.tantou}
+              onPress={() => {
+                setDetailCardId(null);
+                doAction({ type: "activateAbility", player: HUMAN });
+              }}
+            />
+          )}
           <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setDetailCardId(null)} />
         </Overlay>
       )}
@@ -815,6 +824,11 @@ function abilityLabelOf(state: GameState, uid: string): string {
 function effectTextOf(state: GameState, uid: string): string {
   const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
   return inst ? (getCard(inst.cardId).effectText ?? "") : "";
+}
+
+function cardIdOf(state: GameState, uid: string): string {
+  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+  return inst ? inst.cardId : "";
 }
 
 function FieldRow({
@@ -1108,6 +1122,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overlayTitle: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center" },
+  menuCardRow: { flexDirection: "row", gap: 10, alignSelf: "stretch", alignItems: "flex-start" },
   menuEffectText: {
     fontSize: 15,
     lineHeight: 22,
@@ -1117,6 +1132,7 @@ const styles = StyleSheet.create({
     padding: 10,
     alignSelf: "stretch",
   },
+  menuEffectFlex: { flex: 1 },
   overlayCards: {
     flexDirection: "row",
     flexWrap: "wrap",
