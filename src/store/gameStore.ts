@@ -30,6 +30,9 @@ interface GameStore {
   lastEvents: GameEvent[];
   aiThinking: boolean;
   aiSpeedMs: number;
+  /** 演出（カード実況）表示中はCPUの次の手を待たせる */
+  presentationBusy: boolean;
+  setPresentationBusy: (v: boolean) => void;
 
   startGame: (opts: {
     playerDeck: DeckList;
@@ -73,13 +76,18 @@ export const useGameStore = create<GameStore>()((set, get) => {
     clearAiTimer();
     aiTimer = setTimeout(() => {
       if (token !== gameToken) return;
+      // 演出表示中は捌けるまで待つ（実況を読み飛ばさないため）
+      if (get().presentationBusy) {
+        scheduleAI();
+        return;
+      }
       const cur = get().state;
       if (!cur || !ai || playerToAct(cur) !== CPU) return;
       const legal = getLegalActions(ctx, cur, CPU);
       if (legal.length === 0) return;
       const action = ai.chooseAction(viewFor(cur, CPU), legal);
       applyAndContinue(action);
-    }, aiSpeedMs);
+    }, get().presentationBusy ? 200 : aiSpeedMs);
   }
 
   /** このアクションで起きたイベントに対応する効果音（重複除去・最大3つ） */
@@ -147,6 +155,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
     lastEvents: [],
     aiThinking: false,
     aiSpeedMs: 600,
+    presentationBusy: false,
+    setPresentationBusy: (presentationBusy) => {
+      set({ presentationBusy });
+      if (!presentationBusy) scheduleAI(); // 演出が終わったらすぐ再開
+    },
 
     startGame: ({ playerDeck, cpuDeck, difficulty, aiSpeedMs = 600, seed }) => {
       gameToken++;
@@ -157,7 +170,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
         seed: realSeed,
         decks: [playerDeck, cpuDeck],
       });
-      set({ state, eventLog: events, lastEvents: events, aiThinking: false, aiSpeedMs });
+      set({
+        state,
+        eventLog: events,
+        lastEvents: events,
+        aiThinking: false,
+        aiSpeedMs,
+        presentationBusy: false,
+      });
       // マリガンはCPUが後から決めても問題ないため、人間の入力を待つ
       scheduleAI();
     },
@@ -179,7 +199,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
       gameToken++;
       clearAiTimer();
       ai = null;
-      set({ state: null, eventLog: [], lastEvents: [], aiThinking: false });
+      set({
+        state: null,
+        eventLog: [],
+        lastEvents: [],
+        aiThinking: false,
+        presentationBusy: false,
+      });
     },
   };
 });

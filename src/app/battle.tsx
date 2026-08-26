@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -147,6 +147,7 @@ export default function BattleScreen() {
   const lastEvents = useGameStore((s) => s.lastEvents);
   const aiThinking = useGameStore((s) => s.aiThinking);
   const startGame = useGameStore((s) => s.startGame);
+  const setPresentationBusy = useGameStore((s) => s.setPresentationBusy);
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -183,18 +184,43 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
 
-  // 実況を1件ずつ表示。溜まっているときは短く表示して追いつく
-  useEffect(() => {
-    if (currentAnn === null && annQueue.length > 0) {
-      const [next, ...rest] = annQueue;
-      setCurrentAnn(next);
-      setAnnQueue(rest);
-      const base = next.cardId ? 1350 : 800;
-      const dur = rest.length > 2 ? 450 : base;
-      const t = setTimeout(() => setCurrentAnn(null), dur);
-      return () => clearTimeout(t);
+  // 実況を1件ずつ表示。表示中はCPUの次の手を待たせる（読み飛ばし防止）
+  // タイマーは ref で持つ（cleanup を返すと再レンダーのたびに消えてしまうため）
+  const annTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dismissAnn = useCallback(() => {
+    if (annTimer.current) {
+      clearTimeout(annTimer.current);
+      annTimer.current = null;
     }
+    setCurrentAnn(null);
+  }, []);
+
+  useEffect(() => {
+    if (currentAnn !== null || annQueue.length === 0) return;
+    const [next, ...rest] = annQueue;
+    setCurrentAnn(next);
+    setAnnQueue(rest);
+    // カード付きの実況はしっかり読める長さで表示（タップで送れる）
+    const dur = next.cardId ? 2400 : 850;
+    if (annTimer.current) clearTimeout(annTimer.current);
+    annTimer.current = setTimeout(() => {
+      annTimer.current = null;
+      setCurrentAnn(null);
+    }, dur);
   }, [currentAnn, annQueue]);
+
+  useEffect(
+    () => () => {
+      if (annTimer.current) clearTimeout(annTimer.current);
+    },
+    []
+  );
+
+  // 実況が残っている間はCPUを待たせる
+  const busy = currentAnn !== null || annQueue.length > 0;
+  useEffect(() => {
+    setPresentationBusy(busy);
+  }, [busy, setPresentationBusy]);
 
   // 対戦中BGM（bgm_battle が無ければ bgm_main）
   useEffect(() => {
@@ -513,29 +539,36 @@ export default function BattleScreen() {
 
       </Animated.View>
 
-      {/* ===== 実況表示（カードはタップで詳細） ===== */}
+      {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
       {currentAnn && (
-        <View style={styles.annLayer} pointerEvents="box-none">
-          <Animated.View
-            key={currentAnn.key}
-            entering={ZoomIn.springify().damping(14)}
-            exiting={ZoomOut.duration(200)}
-            style={[styles.annBox, currentAnn.emph && styles.annBoxEmph]}
-            pointerEvents={currentAnn.cardId ? "auto" : "none"}
-          >
-            {currentAnn.cardId && (
-              <CardFace
-                cardId={currentAnn.cardId}
-                size="lg"
-                onPress={() => setDetailCardId(currentAnn.cardId!)}
-              />
-            )}
-            <Text style={[styles.annText, currentAnn.emph && styles.annTextEmph]}>
-              {currentAnn.text}
-            </Text>
-            {currentAnn.cardId && <Text style={styles.annHint}>カードをタップで詳細</Text>}
-          </Animated.View>
-        </View>
+        <Pressable
+          style={[styles.annLayer, currentAnn.cardId && styles.annLayerDim]}
+          onPress={dismissAnn}
+        >
+          {currentAnn.cardId ? (
+            <Animated.View
+              key={currentAnn.key}
+              entering={ZoomIn.springify().damping(14)}
+              exiting={ZoomOut.duration(200)}
+              style={styles.annCardBox}
+            >
+              <Text style={styles.annCardTitle}>{currentAnn.text}</Text>
+              <CardDetail cardId={currentAnn.cardId} scroll={false} />
+              <Text style={styles.annHint}>タップして次へ</Text>
+            </Animated.View>
+          ) : (
+            <Animated.View
+              key={currentAnn.key}
+              entering={ZoomIn.springify().damping(14)}
+              exiting={ZoomOut.duration(200)}
+              style={[styles.annBox, currentAnn.emph && styles.annBoxEmph]}
+            >
+              <Text style={[styles.annText, currentAnn.emph && styles.annTextEmph]}>
+                {currentAnn.text}
+              </Text>
+            </Animated.View>
+          )}
+        </Pressable>
       )}
 
       {/* ===== オーバーレイ ===== */}
@@ -932,6 +965,31 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
+    padding: 20,
+  },
+  annLayerDim: { backgroundColor: "#00000066" },
+  annCardBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    borderWidth: 3,
+    borderColor: colors.accent,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+    gap: 10,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 10,
+  },
+  annCardTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: colors.primaryDark,
+    textAlign: "center",
   },
   annBox: {
     backgroundColor: "#ffffffee",

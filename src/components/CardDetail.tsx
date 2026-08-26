@@ -13,11 +13,16 @@ const typeLabel: Record<string, string> = {
 /**
  * カードの拡大表示＋読みやすいテキストでの詳細。
  * カード画像の効果文は小さく読みづらいため、転記済みテキストを大きく併記する。
+ * scroll=false のときはスクロールなし（高さが確定しない場所で潰れるのを防ぐ）。
  */
-export function CardDetail({ cardId }: { cardId: string }) {
+export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?: boolean }) {
   const def = getCard(cardId);
+  const Container = scroll ? ScrollView : View;
+  const containerProps = scroll
+    ? { style: styles.scroll, contentContainerStyle: styles.container }
+    : { style: [styles.container, styles.plain] };
   return (
-    <ScrollView style={styles.scroll} contentContainerStyle={styles.container}>
+    <Container {...containerProps}>
       <View style={styles.cardWrap}>
         <CardFace cardId={cardId} size="lg" />
       </View>
@@ -45,13 +50,14 @@ export function CardDetail({ cardId }: { cardId: string }) {
         <Text style={styles.noEffect}>効果なし</Text>
       )}
       {!!def.flavor && <Text style={styles.flavor}>{def.flavor}</Text>}
-    </ScrollView>
+    </Container>
   );
 }
 
 const styles = StyleSheet.create({
   scroll: { alignSelf: "stretch", maxHeight: 480 },
   container: { alignItems: "center", gap: 10, paddingBottom: 4 },
+  plain: { alignSelf: "stretch" },
   cardWrap: { alignItems: "center" },
   headerRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
