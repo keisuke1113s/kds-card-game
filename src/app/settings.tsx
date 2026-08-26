@@ -1,8 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DIFFICULTY_LABELS } from "@/ai/difficulty";
-import { Difficulty } from "@/ai/types";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -19,8 +17,6 @@ export default function SettingsScreen() {
   const inBattle = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
   const [confirmQuit, setConfirmQuit] = useState(false);
   const {
-    difficulty,
-    setDifficulty,
     aiSpeedMs,
     setAiSpeedMs,
     seEnabled,
@@ -31,18 +27,6 @@ export default function SettingsScreen() {
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
-      <Text style={styles.sectionTitle}>CPUの強さ</Text>
-      <View style={styles.row}>
-        {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
-          <Choice
-            key={d}
-            label={DIFFICULTY_LABELS[d]}
-            active={difficulty === d}
-            onPress={() => setDifficulty(d)}
-          />
-        ))}
-      </View>
-
       <Text style={styles.sectionTitle}>CPUの手の速さ</Text>
       <View style={styles.row}>
         {speeds.map((s) => (
@@ -62,8 +46,17 @@ export default function SettingsScreen() {
       </View>
 
       <Text style={styles.note}>
-        設定は次の対戦から反映されます（サウンドは即時）。
+        CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
       </Text>
+
+      {!inBattle && (
+        <Pressable
+          style={[styles.wideButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.wideButtonText}>ホームへもどる</Text>
+        </Pressable>
+      )}
 
       {inBattle && (
         <>

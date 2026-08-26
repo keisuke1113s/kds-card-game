@@ -39,7 +39,7 @@ export default function RootLayout() {
         <Stack.Screen name="deck/[deckId]" options={{ title: "デッキ構築" }} />
         <Stack.Screen name="library/index" options={{ title: "カード図鑑" }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
-        <Stack.Screen name="settings" options={{ title: "設定" }} />
+        <Stack.Screen name="settings" options={{ title: "設定", headerLeft: () => null }} />
       </Stack>
     </>
   );
