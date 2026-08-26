@@ -2,8 +2,14 @@ import { Image } from "expo-image";
 import React, { useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
-import { cardImages } from "@/data/images";
+import { cardImages, cardThumbs } from "@/data/images";
 import { cardSize, CardSizeKey, colors } from "@/theme";
+
+/** 表示サイズに応じた画像（小さい表示はサムネイル。iOS Safariのメモリ対策） */
+function imageFor(key: string, size: CardSizeKey): number | undefined {
+  if (size === "xl") return cardImages[key] ?? cardThumbs[key];
+  return cardThumbs[key] ?? cardImages[key];
+}
 
 // 実カード画像（868×1213）をそのまま描画する。
 // 画像が無いカードはテキストフェイスでフォールバック。
@@ -30,7 +36,7 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
 
   let body: React.ReactNode;
   if (faceDown) {
-    const back = cardImages["cardback"];
+    const back = imageFor("cardback", size);
     body = back ? (
       <Image source={back} style={[styles.image, dims]} contentFit="cover" />
     ) : (
@@ -40,7 +46,7 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
     );
   } else {
     const def = getCard(cardId);
-    const img = imageFailed ? undefined : cardImages[def.image ?? def.id];
+    const img = imageFailed ? undefined : imageFor(def.image ?? def.id, size);
     if (img) {
       body = (
         <Image
