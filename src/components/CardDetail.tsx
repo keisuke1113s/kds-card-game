@@ -25,13 +25,8 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
     : { style: [styles.container, styles.plain] };
   return (
     <Container {...containerProps}>
-      {/* 手に持っているように、後ろから裏面が2枚のぞく。表のカードは真っ直ぐ */}
+      {/* 手に持っているように、後ろから裏面が1枚のぞく。表のカードは真っ直ぐ */}
       <View style={styles.cardWrap}>
-        <Image
-          source={cardThumbs["cardback"]}
-          style={[styles.backCard, styles.backLeft]}
-          contentFit="cover"
-        />
         <Image
           source={cardThumbs["cardback"]}
           style={[styles.backCard, styles.backRight]}
@@ -76,8 +71,8 @@ const styles = StyleSheet.create({
   cardWrap: {
     alignItems: "center",
     justifyContent: "center",
-    width: cardSize.lg.width + 56,
-    height: cardSize.lg.height + 16,
+    width: cardSize.lg.width + 40,
+    height: cardSize.lg.height + 14,
   },
   backCard: {
     position: "absolute",
@@ -86,8 +81,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     ...shadow.card,
   },
-  backLeft: { transform: [{ translateX: -22 }, { rotate: "-9deg" }] },
-  backRight: { transform: [{ translateX: 22 }, { rotate: "9deg" }] },
+  backRight: { transform: [{ translateX: 18 }, { rotate: "8deg" }] },
   frontCard: { ...shadow.overlay },
   headerRow: { flexDirection: "row", alignItems: "baseline", gap: 8 },
   name: { fontSize: 20, fontWeight: "800", color: colors.text },
