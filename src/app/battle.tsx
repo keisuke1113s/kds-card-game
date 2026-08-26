@@ -200,13 +200,17 @@ export default function BattleScreen() {
     const [next, ...rest] = annQueue;
     setCurrentAnn(next);
     setAnnQueue(rest);
-    // カード付きの実況はしっかり読める長さで表示（タップで送れる）
-    const dur = next.cardId ? 2400 : 850;
-    if (annTimer.current) clearTimeout(annTimer.current);
-    annTimer.current = setTimeout(() => {
+    if (annTimer.current) {
+      clearTimeout(annTimer.current);
       annTimer.current = null;
-      setCurrentAnn(null);
-    }, dur);
+    }
+    // カード付きの実況はタップするまで表示したままにする（読み逃し防止）
+    if (!next.cardId) {
+      annTimer.current = setTimeout(() => {
+        annTimer.current = null;
+        setCurrentAnn(null);
+      }, 850);
+    }
   }, [currentAnn, annQueue]);
 
   useEffect(
@@ -553,8 +557,11 @@ export default function BattleScreen() {
               style={styles.annCardBox}
             >
               <Text style={styles.annCardTitle}>{currentAnn.text}</Text>
+              {annQueue.length > 0 && (
+                <Text style={styles.annHint}>あと{annQueue.length}件</Text>
+              )}
               <CardDetail cardId={currentAnn.cardId} scroll={false} />
-              <Text style={styles.annHint}>タップして次へ</Text>
+              <ActionButton label="つぎへ ▶" color={colors.primary} onPress={dismissAnn} />
             </Animated.View>
           ) : (
             <Animated.View
