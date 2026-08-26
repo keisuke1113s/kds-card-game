@@ -3,6 +3,7 @@ import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
+import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -114,11 +115,19 @@ export default function PrematchScreen() {
             onPress={() => setBgmEnabled(!bgmEnabled)}
           />
           <Choice
-            label={`振動 ${hapticsEnabled ? "ON" : "OFF"}`}
-            active={hapticsEnabled}
-            onPress={() => setHapticsEnabled(!hapticsEnabled)}
+            label={HAPTICS_AVAILABLE ? `振動 ${hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
+            active={HAPTICS_AVAILABLE && hapticsEnabled}
+            disabled={!HAPTICS_AVAILABLE}
+            onPress={() => HAPTICS_AVAILABLE && setHapticsEnabled(!hapticsEnabled)}
           />
         </View>
+        {!HAPTICS_AVAILABLE && (
+          <Text style={styles.hapticNote}>
+            ※ iPhoneのブラウザには振動の仕組みが無いため、この端末では振動しません
+            （ホーム画面に追加した場合も同じです）。App Store・TestFlight で配布する
+            アプリ版では振動します。
+          </Text>
+        )}
       </ScrollView>
 
       <View style={styles.footer}>
@@ -134,17 +143,32 @@ function Choice({
   label,
   active,
   onPress,
+  disabled,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.choice, active && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+      disabled={disabled}
+      style={[
+        styles.choice,
+        active && { backgroundColor: colors.primary, borderColor: colors.primary },
+        disabled && styles.choiceDisabled,
+      ]}
     >
-      <Text style={[styles.choiceText, active && { color: "#fff" }]}>{label}</Text>
+      <Text
+        style={[
+          styles.choiceText,
+          active && { color: "#fff" },
+          disabled && { color: colors.textMuted },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -189,6 +213,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   choiceText: { fontWeight: "700", color: colors.text },
+  choiceDisabled: { backgroundColor: colors.background, borderStyle: "dashed" },
+  hapticNote: {
+    fontSize: 12,
+    lineHeight: 18,
+    color: colors.textMuted,
+    marginTop: 4,
+  },
   footer: {
     padding: 12,
     backgroundColor: colors.surface,

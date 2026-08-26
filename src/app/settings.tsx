@@ -1,7 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { hapticsAvailable } from "@/audio/haptics";
+import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -46,16 +46,22 @@ export default function SettingsScreen() {
       <View style={styles.row}>
         <Choice label={`効果音 ${seEnabled ? "ON" : "OFF"}`} active={seEnabled} onPress={() => setSeEnabled(!seEnabled)} />
         <Choice label={`BGM ${bgmEnabled ? "ON" : "OFF"}`} active={bgmEnabled} onPress={() => setBgmEnabled(!bgmEnabled)} />
-        <Choice label={`振動 ${hapticsEnabled ? "ON" : "OFF"}`} active={hapticsEnabled} onPress={() => setHapticsEnabled(!hapticsEnabled)} />
+        <Choice
+          label={HAPTICS_AVAILABLE ? `振動 ${hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
+          active={HAPTICS_AVAILABLE && hapticsEnabled}
+          disabled={!HAPTICS_AVAILABLE}
+          onPress={() => HAPTICS_AVAILABLE && setHapticsEnabled(!hapticsEnabled)}
+        />
       </View>
 
       <Text style={styles.note}>
         CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
       </Text>
-      {!hapticsAvailable() && (
+      {!HAPTICS_AVAILABLE && (
         <Text style={styles.note}>
-          ※ この端末（iPhoneのブラウザ）では振動が使えません。App Store 版・TestFlight 版の
-          アプリでは振動します。
+          ※ iPhoneのブラウザには振動の仕組みが無いため、この端末では振動しません
+          （ホーム画面に追加した場合も同じです）。App Store・TestFlight で配布する
+          アプリ版では振動します。
         </Text>
       )}
 
@@ -117,17 +123,32 @@ function Choice({
   label,
   active,
   onPress,
+  disabled,
 }: {
   label: string;
   active: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Pressable
       onPress={onPress}
-      style={[styles.choice, active && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+      disabled={disabled}
+      style={[
+        styles.choice,
+        active && { backgroundColor: colors.primary, borderColor: colors.primary },
+        disabled && { backgroundColor: colors.background, borderStyle: "dashed" },
+      ]}
     >
-      <Text style={[styles.choiceText, active && { color: "#fff" }]}>{label}</Text>
+      <Text
+        style={[
+          styles.choiceText,
+          active && { color: "#fff" },
+          disabled && { color: colors.textMuted },
+        ]}
+      >
+        {label}
+      </Text>
     </Pressable>
   );
 }

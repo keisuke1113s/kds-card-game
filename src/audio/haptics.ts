@@ -69,13 +69,31 @@ export function haptic(kind: Tap): void {
   }
 }
 
-/** この端末で振動が使えるか（設定画面の案内に使う） */
-export function hapticsAvailable(): boolean {
-  if (Platform.OS !== "web") return true;
+/** この端末で振動が使えるか（読み込み時に1回だけ判定する） */
+function computeHapticsAvailable(): boolean {
+  if (Platform.OS !== "web") return true; // アプリ版は常に使える
   try {
-    const nav = globalThis.navigator as Navigator & { vibrate?: unknown };
+    const nav = globalThis.navigator as Navigator & {
+      vibrate?: unknown;
+      maxTouchPoints?: number;
+    };
+    // iPhone / iPad のブラウザは振動の仕組みを持たない
+    // （iPadOS は Macintosh を名乗るので、タッチ点数でも判定する）
+    const ua = nav?.userAgent ?? "";
+    const isApple =
+      /iPad|iPhone|iPod/.test(ua) ||
+      (ua.includes("Macintosh") && (nav?.maxTouchPoints ?? 0) > 1);
+    if (isApple) return false;
     return typeof nav?.vibrate === "function";
   } catch {
     return false;
   }
+}
+
+/** 端末が振動に対応しているか。画面の表示切り替えに使う */
+export const HAPTICS_AVAILABLE = computeHapticsAvailable();
+
+/** 後方互換のための関数版 */
+export function hapticsAvailable(): boolean {
+  return HAPTICS_AVAILABLE;
 }

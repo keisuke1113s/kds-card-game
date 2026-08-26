@@ -79,6 +79,7 @@ export function AppButton({
   return (
     <Animated.View
       style={[
+        styles.shadowWrap,
         shadow.button,
         animatedStyle,
         fullWidth && styles.fullWidth,
@@ -128,6 +129,8 @@ export function AppButton({
 }
 
 const styles = StyleSheet.create({
+  // 影は角丸に沿わせる（四角い影が角に残らないように）
+  shadowWrap: { borderRadius: radius.md, backgroundColor: "transparent" },
   base: {
     borderRadius: radius.md,
     alignItems: "center",

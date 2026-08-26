@@ -101,7 +101,7 @@ export default function HomeScreen() {
 
           <AppButton
             label="対戦"
-            icon="⚔️"
+            iconNode={<CrossedCards />}
             tone="primary"
             size="lg"
             feel="medium"
@@ -141,7 +141,13 @@ export default function HomeScreen() {
             />
             <AppButton
               label="カード図鑑"
-              icon="🔍"
+              iconNode={
+                <Image
+                  source={cardSmalls["i_shibuya_hana"]}
+                  style={styles.buttonCardIcon}
+                  contentFit="cover"
+                />
+              }
               tone="primary"
               style={styles.flex}
               onPress={() => router.push("/library")}
@@ -159,6 +165,24 @@ export default function HomeScreen() {
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
       </SafeAreaView>
     </LinearGradient>
+  );
+}
+
+/** 対戦ボタン用：自分のカードと相手のカードを交差させたアイコン */
+function CrossedCards() {
+  return (
+    <View style={styles.crossWrap}>
+      <Image
+        source={cardSmalls["i_konno"]}
+        style={[styles.crossCard, styles.crossLeft]}
+        contentFit="cover"
+      />
+      <Image
+        source={cardSmalls["cardback"]}
+        style={[styles.crossCard, styles.crossRight]}
+        contentFit="cover"
+      />
+    </View>
   );
 }
 
@@ -284,6 +308,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#ffffff88",
   },
+  crossWrap: { width: 40, height: 30, alignItems: "center", justifyContent: "center" },
+  crossCard: {
+    position: "absolute",
+    width: 21,
+    height: 29,
+    borderRadius: 3,
+    borderWidth: 1,
+    borderColor: "#ffffffaa",
+  },
+  crossLeft: { transform: [{ translateX: -8 }, { rotate: "-18deg" }] },
+  crossRight: { transform: [{ translateX: 8 }, { rotate: "18deg" }] },
   matchupCard: {
     flexDirection: "row",
     alignItems: "center",
