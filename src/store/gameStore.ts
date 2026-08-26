@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { playSe, SeKey } from "@/audio/sound";
 import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { HeuristicAI } from "@/ai/heuristic";
 import { AIController, Difficulty } from "@/ai/types";
@@ -81,6 +82,47 @@ export const useGameStore = create<GameStore>()((set, get) => {
     }, aiSpeedMs);
   }
 
+  /** このアクションで起きたイベントに対応する効果音（重複除去・最大3つ） */
+  function playEventSounds(events: GameEvent[]) {
+    const keys = new Set<SeKey>();
+    for (const e of events) {
+      switch (e.type) {
+        case "gameEnded":
+          // 勝敗音だけ鳴らす
+          playSe(e.winner === HUMAN ? "win" : "lose");
+          return;
+        case "cardDrawn":
+        case "cardSalvaged":
+          keys.add("draw");
+          break;
+        case "instructorPlayed":
+          keys.add("play");
+          break;
+        case "battleDeclared":
+          keys.add("battle");
+          break;
+        case "instructorRemoved":
+        case "cardDiscarded":
+          keys.add("hit");
+          break;
+        case "trackAdvanced":
+          if (e.amount > 0) keys.add("advance");
+          break;
+        case "supportPlayed":
+        case "abilityActivated":
+        case "instructorBounced":
+          keys.add("support");
+          break;
+        case "jankenPlayed": {
+          const humanWon = (e.owner === HUMAN) === e.won;
+          keys.add(humanWon ? "janken_win" : "janken_lose");
+          break;
+        }
+      }
+    }
+    [...keys].slice(0, 3).forEach((k) => playSe(k));
+  }
+
   function applyAndContinue(action: GameAction) {
     const prev = get().state;
     if (!prev) return;
@@ -91,6 +133,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         lastEvents: events,
         eventLog: [...get().eventLog, ...events],
       });
+      playEventSounds(events);
       scheduleAI();
     } catch (e) {
       // UIは合法手のみを出す設計だが、万一の場合もクラッシュさせない

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
-import { allCards } from "@/data/cards";
+import { allCards, getCard } from "@/data/cards";
 import { colors } from "@/theme";
 
 const sections: { label: string; type: string }[] = [
@@ -34,10 +35,13 @@ export default function LibraryScreen() {
       />
       {selected && (
         <Pressable style={styles.overlayBg} onPress={() => setSelected(null)}>
-          <View style={styles.overlayBox}>
-            <CardFace cardId={selected} size="xl" />
-            <Text style={styles.hint}>タップで閉じる</Text>
-          </View>
+          <Pressable style={styles.overlayBox} onPress={() => {}}>
+            <Text style={styles.overlayTitle}>{getCard(selected).name}</Text>
+            <CardDetail cardId={selected} />
+            <Pressable style={styles.closeButton} onPress={() => setSelected(null)}>
+              <Text style={styles.closeText}>閉じる</Text>
+            </Pressable>
+          </Pressable>
         </Pressable>
       )}
     </View>
@@ -60,7 +64,23 @@ const styles = StyleSheet.create({
     backgroundColor: "#000000aa",
     alignItems: "center",
     justifyContent: "center",
+    padding: 20,
   },
-  overlayBox: { alignItems: "center", gap: 12 },
-  hint: { color: "#fff" },
+  overlayBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 420,
+    gap: 12,
+    alignItems: "center",
+  },
+  overlayTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  closeButton: {
+    backgroundColor: colors.textMuted,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+  },
+  closeText: { color: "#fff", fontWeight: "700" },
 });

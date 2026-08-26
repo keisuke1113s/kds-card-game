@@ -12,7 +12,16 @@ const speeds: { label: string; ms: number }[] = [
 ];
 
 export default function SettingsScreen() {
-  const { difficulty, setDifficulty, aiSpeedMs, setAiSpeedMs } = useSettingsStore();
+  const {
+    difficulty,
+    setDifficulty,
+    aiSpeedMs,
+    setAiSpeedMs,
+    seEnabled,
+    setSeEnabled,
+    bgmEnabled,
+    setBgmEnabled,
+  } = useSettingsStore();
 
   return (
     <ScrollView style={styles.root} contentContainerStyle={styles.content}>
@@ -40,8 +49,14 @@ export default function SettingsScreen() {
         ))}
       </View>
 
+      <Text style={styles.sectionTitle}>サウンド</Text>
+      <View style={styles.row}>
+        <Choice label={`効果音 ${seEnabled ? "ON" : "OFF"}`} active={seEnabled} onPress={() => setSeEnabled(!seEnabled)} />
+        <Choice label={`BGM ${bgmEnabled ? "ON" : "OFF"}`} active={bgmEnabled} onPress={() => setBgmEnabled(!bgmEnabled)} />
+      </View>
+
       <Text style={styles.note}>
-        設定は次の対戦から反映されます。
+        設定は次の対戦から反映されます（サウンドは即時）。
       </Text>
     </ScrollView>
   );

@@ -44,3 +44,6 @@ example
 
 # 印刷用PDF原本（リポジトリには含めない）
 raw-cards/
+
+# BGM原本もリポジトリ管理外
+raw-audio/

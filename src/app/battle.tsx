@@ -9,6 +9,18 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, {
+  BounceIn,
+  FadeIn,
+  FadeInDown,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+  ZoomIn,
+} from "react-native-reanimated";
+import { playBgm, stopBgm } from "@/audio/sound";
+import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, cpuDeck, getCard } from "@/data/cards";
 import { effectiveCombat } from "@/engine/effects";
 import { getLegalActions } from "@/engine/legalActions";
@@ -47,6 +59,19 @@ export default function BattleScreen() {
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
   const [previewHandIndex, setPreviewHandIndex] = useState<number | null>(null);
   const [revealedHand, setRevealedHand] = useState<string[] | null>(null);
+  const [detailCardId, setDetailCardId] = useState<string | null>(null);
+  const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
+
+  // 対戦中BGM（bgm_battle が無ければ bgm_main）
+  useEffect(() => {
+    if (bgmEnabled) {
+      // bgm_battle が無ければ bgm_main にフォールバック
+      if (!playBgm("bgm_battle")) playBgm("bgm_main");
+    } else {
+      stopBgm();
+    }
+    return () => stopBgm();
+  }, [bgmEnabled]);
 
   const legal = useMemo(
     () => (state ? getLegalActions(ctx, state, HUMAN) : []),
@@ -196,6 +221,9 @@ export default function BattleScreen() {
                 attackerUid: targetingUid,
                 defenderUid: uid,
               });
+            } else if (!targetingUid) {
+              const inst = cpu.field.find((f) => f.uid === uid);
+              if (inst) setDetailCardId(inst.cardId);
             }
           }}
         />
@@ -204,12 +232,12 @@ export default function BattleScreen() {
       {/* ===== 中央: 状況とログ ===== */}
       <View style={styles.middle}>
         {battleInfo && (
-          <View style={styles.battleBanner}>
+          <Animated.View entering={ZoomIn.duration(250)} style={styles.battleBanner}>
             <Text style={styles.battleText}>
               ⚔️ {battleInfo.attackerName} {battleInfo.attackerTotal} vs{" "}
               {battleInfo.defenderTotal} {battleInfo.defenderName}
             </Text>
-          </View>
+          </Animated.View>
         )}
         {targetingUid && (
           <View style={styles.battleBanner}>
@@ -247,6 +275,9 @@ export default function BattleScreen() {
             if (instActions(uid).length > 0) {
               setSelectedUid(uid);
               setTargetingUid(null);
+            } else {
+              const inst = me.field.find((f) => f.uid === uid);
+              if (inst) setDetailCardId(inst.cardId);
             }
           }}
         />
@@ -262,6 +293,7 @@ export default function BattleScreen() {
               size="sm"
               onPress={() => {
                 if (tantouUsable) doAction({ type: "activateAbility", player: HUMAN });
+                else setDetailCardId(me.tantou);
               }}
             />
           </View>
@@ -289,14 +321,18 @@ export default function BattleScreen() {
           {me.hand.map((cardId, i) => {
             const playable = handActionFor(i) !== null;
             return (
-              <View key={`${cardId}-${i}`} style={playable ? styles.playableCard : undefined}>
+              <Animated.View
+                key={`${cardId}-${i}`}
+                entering={FadeInDown.duration(250)}
+                style={playable ? styles.playableCard : undefined}
+              >
                 <CardFace
                   cardId={cardId}
                   size="md"
                   dimmed={!playable && (isMyMain || state.phase.type === "battleSupport")}
                   onPress={() => setPreviewHandIndex(i)}
                 />
-              </View>
+              </Animated.View>
             );
           })}
           {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
@@ -334,6 +370,9 @@ export default function BattleScreen() {
           title={`「${nameOf(state, HUMAN, selectedUid)}」の行動`}
           onClose={() => setSelectedUid(null)}
         >
+          {!!effectTextOf(state, selectedUid) && (
+            <Text style={styles.menuEffectText}>{effectTextOf(state, selectedUid)}</Text>
+          )}
           <View style={styles.overlayButtons}>
             {instActions(selectedUid).some(
               (a) => a.type === "instructorAction" && a.action === "skill"
@@ -396,7 +435,7 @@ export default function BattleScreen() {
           title={getCard(me.hand[previewHandIndex]).name}
           onClose={() => setPreviewHandIndex(null)}
         >
-          <CardFace cardId={me.hand[previewHandIndex]} size="lg" />
+          <CardDetail cardId={me.hand[previewHandIndex]} />
           <View style={styles.overlayButtons}>
             {(() => {
               const action = handActionFor(previewHandIndex);
@@ -453,6 +492,13 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
+      {detailCardId && (
+        <Overlay title={getCard(detailCardId).name} onClose={() => setDetailCardId(null)}>
+          <CardDetail cardId={detailCardId} />
+          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setDetailCardId(null)} />
+        </Overlay>
+      )}
+
       {revealedHand && (
         <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
           <View style={styles.overlayCards}>
@@ -465,7 +511,10 @@ export default function BattleScreen() {
       )}
 
       {state.phase.type === "finished" && (
-        <Overlay title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}>
+        <Overlay
+          title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
+          entering="bounce"
+        >
           <Text style={styles.resultText}>
             {state.phase.reason === "deckOut"
               ? state.phase.winner === HUMAN
@@ -514,6 +563,11 @@ function abilityLabelOf(state: GameState, uid: string): string {
   return inst ? (getCard(inst.cardId).ability?.label ?? "") : "";
 }
 
+function effectTextOf(state: GameState, uid: string): string {
+  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+  return inst ? (getCard(inst.cardId).effectText ?? "") : "";
+}
+
 function FieldRow({
   state,
   player,
@@ -542,35 +596,52 @@ function FieldRow({
         const combat = effectiveCombat(ctx, state, player, inst);
         const base = getCard(inst.cardId).combat ?? 0;
         return (
-          <Pressable
+          <Animated.View
             key={inst.uid}
-            onPress={() => onPress(inst.uid)}
-            style={[
-              styles.fieldSlot,
-              highlightUids.has(inst.uid) && {
-                borderColor: highlightColor,
-                borderWidth: 2,
-                borderRadius: 8,
-              },
-              selectedUid === inst.uid && {
-                borderColor: colors.accent,
-                borderWidth: 2,
-                borderRadius: 8,
-              },
-            ]}
+            entering={ZoomIn.duration(250)}
+            exiting={FadeOut.duration(300)}
           >
-            <View style={inst.rested ? styles.restedCard : undefined}>
-              <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
-            </View>
-            <Text style={styles.fieldCaption}>
-              {inst.rested ? "休憩 " : ""}
-              {combat !== base ? `戦${combat}` : ""}
-            </Text>
-          </Pressable>
+            <Pressable
+              onPress={() => onPress(inst.uid)}
+              style={[
+                styles.fieldSlot,
+                highlightUids.has(inst.uid) && {
+                  borderColor: highlightColor,
+                  borderWidth: 2,
+                  borderRadius: 8,
+                },
+                selectedUid === inst.uid && {
+                  borderColor: colors.accent,
+                  borderWidth: 2,
+                  borderRadius: 8,
+                },
+              ]}
+            >
+              <RestRotator rested={inst.rested}>
+                <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+              </RestRotator>
+              <Text style={styles.fieldCaption}>
+                {inst.rested ? "休憩 " : ""}
+                {combat !== base ? `戦${combat}` : ""}
+              </Text>
+            </Pressable>
+          </Animated.View>
         );
       })}
     </ScrollView>
   );
+}
+
+/** 休憩⇄元気の回転アニメーション */
+function RestRotator({ rested, children }: { rested: boolean; children: React.ReactNode }) {
+  const rotation = useSharedValue(rested ? 90 : 0);
+  useEffect(() => {
+    rotation.value = withTiming(rested ? 90 : 0, { duration: 280 });
+  }, [rested, rotation]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 function ActionButton({
@@ -603,18 +674,24 @@ function Overlay({
   title,
   children,
   onClose,
+  entering,
 }: {
   title: string;
   children: React.ReactNode;
   onClose?: () => void;
+  entering?: "bounce" | "zoom";
 }) {
   return (
-    <Pressable style={styles.overlayBg} onPress={onClose}>
-      <Pressable style={styles.overlayBox} onPress={() => {}}>
+    <Animated.View style={styles.overlayBg} entering={FadeIn.duration(150)}>
+      <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+      <Animated.View
+        style={styles.overlayBox}
+        entering={entering === "bounce" ? BounceIn.duration(500) : ZoomIn.duration(200)}
+      >
         <Text style={styles.overlayTitle}>{title}</Text>
         {children}
-      </Pressable>
-    </Pressable>
+      </Animated.View>
+    </Animated.View>
   );
 }
 
@@ -694,6 +771,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overlayTitle: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center" },
+  menuEffectText: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    padding: 10,
+    alignSelf: "stretch",
+  },
   overlayCards: {
     flexDirection: "row",
     flexWrap: "wrap",

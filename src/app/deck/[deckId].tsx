@@ -8,6 +8,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { allCards, cardRegistry } from "@/data/cards";
 import { validateDeck } from "@/engine/deckRules";
@@ -23,6 +24,7 @@ export default function DeckEditScreen() {
   const [name, setName] = useState(existing?.name ?? "マイデッキ");
   const [main, setMain] = useState<string[]>(existing?.list.main ?? []);
   const [tantou, setTantou] = useState<string>(existing?.list.tantou ?? "t_kuji");
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   const errors = useMemo(
     () => validateDeck(cardRegistry, { main, tantou }),
@@ -65,27 +67,69 @@ export default function DeckEditScreen() {
           </Text>
         ))}
 
-        <Text style={styles.sectionTitle}>担当カード（1枚）</Text>
+        <Text style={styles.sectionTitle}>担当カード（1枚・タップで詳細）</Text>
         <View style={styles.grid}>
           {tantouCards.map((c) => (
             <View key={c.id} style={tantou === c.id ? styles.selected : undefined}>
-              <CardFace cardId={c.id} size="md" onPress={() => setTantou(c.id)} />
+              <CardFace cardId={c.id} size="md" onPress={() => setDetailId(c.id)} />
             </View>
           ))}
         </View>
 
-        <Text style={styles.sectionTitle}>メインデッキ（タップで入れる/外す）</Text>
+        <Text style={styles.sectionTitle}>メインデッキ（タップで詳細・追加/除外）</Text>
         <View style={styles.grid}>
           {mainCards.map((c) => {
             const inDeck = main.includes(c.id);
             return (
               <View key={c.id} style={inDeck ? styles.selected : undefined}>
-                <CardFace cardId={c.id} size="md" dimmed={!inDeck} onPress={() => toggle(c.id)} />
+                <CardFace cardId={c.id} size="md" dimmed={!inDeck} onPress={() => setDetailId(c.id)} />
               </View>
             );
           })}
         </View>
       </ScrollView>
+
+      {detailId && (
+        <Pressable style={styles.overlayBg} onPress={() => setDetailId(null)}>
+          <Pressable style={styles.overlayBox} onPress={() => {}}>
+            <CardDetail cardId={detailId} />
+            {cardRegistry[detailId].type === "tantou" ? (
+              <Pressable
+                style={[styles.overlayButton, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  setTantou(detailId);
+                  setDetailId(null);
+                }}
+              >
+                <Text style={styles.overlayButtonText}>
+                  {tantou === detailId ? "担当カードに設定済み" : "担当カードにする"}
+                </Text>
+              </Pressable>
+            ) : (
+              <Pressable
+                style={[
+                  styles.overlayButton,
+                  { backgroundColor: main.includes(detailId) ? colors.danger : colors.primary },
+                ]}
+                onPress={() => {
+                  toggle(detailId);
+                  setDetailId(null);
+                }}
+              >
+                <Text style={styles.overlayButtonText}>
+                  {main.includes(detailId) ? "デッキから外す" : "デッキに入れる"}
+                </Text>
+              </Pressable>
+            )}
+            <Pressable
+              style={[styles.overlayButton, { backgroundColor: colors.textMuted }]}
+              onPress={() => setDetailId(null)}
+            >
+              <Text style={styles.overlayButtonText}>閉じる</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      )}
 
       <View style={styles.footer}>
         <Pressable
@@ -147,4 +191,27 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  overlayBg: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#00000088",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+  },
+  overlayBox: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 420,
+    gap: 10,
+    alignItems: "center",
+  },
+  overlayButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: "center",
+    alignSelf: "stretch",
+  },
+  overlayButtonText: { color: "#fff", fontWeight: "700" },
 });

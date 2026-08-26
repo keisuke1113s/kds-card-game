@@ -1,5 +1,6 @@
-import { useRouter } from "expo-router";
-import React from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import React, { useCallback } from "react";
+import { playBgm } from "@/audio/sound";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
@@ -16,6 +17,14 @@ export default function HomeScreen() {
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
+  const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
+
+  // ホームに戻ってきたらメインBGM（bgm_main が未提供なら何もしない）
+  useFocusEffect(
+    useCallback(() => {
+      if (bgmEnabled) playBgm("bgm_main");
+    }, [bgmEnabled])
+  );
 
   const onStart = () => {
     const deck = resolveActiveDeck(deckState);
