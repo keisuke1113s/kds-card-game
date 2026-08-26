@@ -67,6 +67,13 @@ let annSeq = 0;
 
 const ownerOf = (player: number): Owner => (player === HUMAN ? "self" : "cpu");
 
+/** 選択肢のカードが相手のものかどうか（拡大表示のバッジ用） */
+function choiceOwner(purpose: string): Owner {
+  return ["removeOpp", "bounceOpp", "discardOpp", "debuffTarget"].includes(purpose)
+    ? "cpu"
+    : "self";
+}
+
 /** イベント列から実況表示を組み立てる */
 function announcementsFor(events: GameEvent[]): Announcement[] {
   const out: Announcement[] = [];
@@ -177,6 +184,7 @@ export default function BattleScreen() {
   );
   const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
+  const [choicePreview, setChoicePreview] = useState<number | null>(null);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
@@ -291,6 +299,7 @@ export default function BattleScreen() {
     setSelectedUid(null);
     setTargetingUid(null);
     setPreviewHandIndex(null);
+    setChoicePreview(null);
     dispatch(action);
   };
 
@@ -753,13 +762,16 @@ export default function BattleScreen() {
             </View>
           ) : (
             <View style={styles.overlayCards}>
+              {humanChoice.options.some((o) => o.cardId) && (
+                <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
+              )}
               {humanChoice.options.map((o, i) =>
                 o.cardId ? (
                   <CardFace
                     key={i}
                     cardId={o.cardId}
                     size="md"
-                    onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
+                    onPress={() => setChoicePreview(i)}
                   />
                 ) : (
                   <ActionButton
@@ -772,6 +784,29 @@ export default function BattleScreen() {
               )}
             </View>
           )}
+        </Overlay>
+      )}
+
+      {/* 選択肢のカードを拡大して確認し、そこから選ぶ */}
+      {humanChoice && choicePreview !== null && humanChoice.options[choicePreview]?.cardId && (
+        <Overlay
+          title={getCard(humanChoice.options[choicePreview].cardId!).name}
+          onClose={() => setChoicePreview(null)}
+        >
+          <OwnerBadge owner={choiceOwner(humanChoice.purpose)} />
+          <CardDetail cardId={humanChoice.options[choicePreview].cardId!} />
+          <ActionButton
+            label="このカードを選ぶ"
+            color={colors.primary}
+            onPress={() =>
+              doAction({ type: "resolveChoice", player: HUMAN, optionIndex: choicePreview })
+            }
+          />
+          <ActionButton
+            label="もどる"
+            color={colors.cancel}
+            onPress={() => setChoicePreview(null)}
+          />
         </Overlay>
       )}
 

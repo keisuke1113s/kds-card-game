@@ -77,16 +77,22 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
     );
   } else {
     const def = getCard(cardId);
-    const img = imageFailed ? undefined : imageFor(def.image ?? def.id, size);
+    const key = def.image ?? def.id;
+    const img = imageFailed ? undefined : imageFor(key, size);
+    // 拡大表示では、大きい画像の読み込み中に小さい画像を先に見せる
+    const placeholder = size === "lg" || size === "xl" ? cardSmalls[key] : undefined;
     body = (
       <View style={[styles.slot, dims, dimmed && styles.dimmed]}>
         <TextFace cardId={cardId} size={size} />
         {img && (
           <Image
             source={img}
+            placeholder={placeholder}
+            placeholderContentFit="cover"
             style={StyleSheet.absoluteFill}
             contentFit="cover"
-            transition={100}
+            transition={0}
+            cachePolicy="memory-disk"
             onError={() => setImageFailed(true)}
           />
         )}
