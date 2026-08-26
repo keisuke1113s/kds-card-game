@@ -18,7 +18,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       difficulty: "normal",
-      aiSpeedMs: 600,
+      aiSpeedMs: 1000,
       seEnabled: true,
       bgmEnabled: true,
       setDifficulty: (difficulty) => set({ difficulty }),
@@ -29,6 +29,13 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: "kds-settings",
       storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      migrate: (persisted) => {
+        // v1→v2: 実況表示に合わせてCPUの手の間隔の既定値を引き上げ
+        const s = persisted as Partial<SettingsState>;
+        if (!s.aiSpeedMs || s.aiSpeedMs < 700) s.aiSpeedMs = 1000;
+        return s as SettingsState;
+      },
     }
   )
 );

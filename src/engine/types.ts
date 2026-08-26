@@ -267,6 +267,14 @@ export type GameEvent =
   | { type: "instructorRested"; player: PlayerId; uid: string }
   | { type: "didNothing"; player: PlayerId; uid: string }
   | {
+      // どのインストラクターがどの行動をとったか（実況表示用）
+      type: "instructorActed";
+      player: PlayerId;
+      uid: string;
+      cardId: string;
+      action: "skill" | "academic" | "doNothing";
+    }
+  | {
       type: "trackAdvanced";
       player: PlayerId;
       track: Track;

@@ -22,6 +22,12 @@ export function eventText(e: GameEvent, human: PlayerId): string | null {
       return e.amount > 0
         ? `${who(e.player)}の${TRACK_LABEL[e.track]}が${e.amount}時限進んだ（${e.newValue}）`
         : `${who(e.player)}の${TRACK_LABEL[e.track]}が${-e.amount}時限戻された（${e.newValue}）`;
+    case "instructorActed":
+      if (e.action === "doNothing")
+        return `${who(e.player)}の「${getCard(e.cardId).name}」は様子を見ている`;
+      return `${who(e.player)}の「${getCard(e.cardId).name}」が${
+        e.action === "skill" ? "技能" : "学科"
+      }教習を行った`;
     case "didNothing":
       return null;
     case "battleDeclared":

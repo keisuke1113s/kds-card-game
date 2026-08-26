@@ -6,9 +6,9 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
 const speeds: { label: string; ms: number }[] = [
-  { label: "はやい", ms: 250 },
-  { label: "ふつう", ms: 600 },
-  { label: "ゆっくり", ms: 1100 },
+  { label: "はやい", ms: 700 },
+  { label: "ふつう", ms: 1000 },
+  { label: "ゆっくり", ms: 1600 },
 ];
 
 export default function SettingsScreen() {

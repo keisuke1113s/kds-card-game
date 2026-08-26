@@ -14,14 +14,20 @@ import Animated, {
   FadeIn,
   FadeInDown,
   FadeOut,
+  FlipInEasyY,
+  SlideInLeft,
+  SlideInRight,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withTiming,
   ZoomIn,
+  ZoomOut,
 } from "react-native-reanimated";
 import { playBgm, stopBgm } from "@/audio/sound";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, cpuDeck, getCard } from "@/data/cards";
+import { GameEvent, Track } from "@/engine/types";
 import { effectiveCombat } from "@/engine/effects";
 import { getLegalActions } from "@/engine/legalActions";
 import {
@@ -42,6 +48,90 @@ import { colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
 
+const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
+
+interface Announcement {
+  key: number;
+  text: string;
+  cardId?: string;
+  emph?: boolean;
+}
+
+let annSeq = 0;
+
+/** イベント列から実況表示を組み立てる */
+function announcementsFor(events: GameEvent[]): Announcement[] {
+  const out: Announcement[] = [];
+  const add = (text: string, cardId?: string, emph?: boolean) =>
+    out.push({ key: ++annSeq, text, cardId, emph });
+
+  for (const e of events) {
+    switch (e.type) {
+      case "turnStarted":
+        add(e.player === HUMAN ? "あなたのターン" : "CPUのターン", undefined, true);
+        break;
+      case "instructorPlayed":
+        if (e.player === CPU) add(`CPUが「${getCard(e.cardId).name}」を場に出した！`, e.cardId);
+        break;
+      case "instructorActed":
+        if (e.player === CPU) {
+          if (e.action === "doNothing") {
+            add(`「${getCard(e.cardId).name}」は様子を見ている…`, e.cardId);
+          } else {
+            add(
+              `「${getCard(e.cardId).name}」が${e.action === "skill" ? "技能" : "学科"}教習！`,
+              e.cardId
+            );
+          }
+        }
+        break;
+      case "supportPlayed":
+        if (e.player === CPU) add(`CPUのサポート「${getCard(e.cardId).name}」！`, e.cardId);
+        break;
+      case "abilityActivated":
+        if (e.player === CPU) add(`CPUが「${getCard(e.cardId).name}」の力を使った！`, e.cardId);
+        break;
+      case "battleDeclared":
+        add(e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "バトル開始！", undefined, true);
+        break;
+      case "trackAdvanced":
+        if (e.player === HUMAN && e.amount < 0) {
+          add(`あなたの${TRACK_LABEL[e.track]}が ${-e.amount}時限 戻された！`, undefined, true);
+        }
+        break;
+      case "jankenPlayed": {
+        const humanWon = (e.owner === HUMAN) === e.won;
+        add(humanWon ? "じゃんけんに勝った！" : "じゃんけんに負けた…", undefined, true);
+        break;
+      }
+      case "instructorRemoved":
+        add(`「${getCard(e.cardId).name}」が場外へ！`, e.cardId, true);
+        break;
+      case "instructorBounced":
+        add(`「${getCard(e.cardId).name}」が手札に戻された`, e.cardId);
+        break;
+      case "cardDiscarded":
+        add(
+          e.player === HUMAN
+            ? `あなたの「${getCard(e.cardId).name}」が場外に置かれた！`
+            : `CPUの「${getCard(e.cardId).name}」が場外に置かれた`,
+          e.cardId
+        );
+        break;
+      case "cardSalvaged":
+        if (e.player === CPU) add(`CPUが場外から「${getCard(e.cardId).name}」を回収`, e.cardId);
+        break;
+      case "battleResolved":
+        add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
+        break;
+      case "supportsRecycled":
+        if (e.player === CPU) add(`CPUがサポート${e.count}枚を山札に戻した`);
+        break;
+    }
+  }
+  return out;
+}
+
 export default function BattleScreen() {
   const router = useRouter();
   const state = useGameStore((s) => s.state);
@@ -60,7 +150,45 @@ export default function BattleScreen() {
   const [previewHandIndex, setPreviewHandIndex] = useState<number | null>(null);
   const [revealedHand, setRevealedHand] = useState<string[] | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
+  const [showLog, setShowLog] = useState(false);
+  const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
+  const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
+
+  // 画面シェイク（退場・バトル解決時）
+  const shakeX = useSharedValue(0);
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: shakeX.value }],
+  }));
+
+  // イベント → 実況キュー＋シェイク
+  useEffect(() => {
+    const anns = announcementsFor(lastEvents);
+    if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
+    if (lastEvents.some((e) => e.type === "instructorRemoved" || e.type === "battleResolved")) {
+      shakeX.value = withSequence(
+        withTiming(-9, { duration: 55 }),
+        withTiming(8, { duration: 55 }),
+        withTiming(-6, { duration: 50 }),
+        withTiming(5, { duration: 50 }),
+        withTiming(0, { duration: 45 })
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+
+  // 実況を1件ずつ表示。溜まっているときは短く表示して追いつく
+  useEffect(() => {
+    if (currentAnn === null && annQueue.length > 0) {
+      const [next, ...rest] = annQueue;
+      setCurrentAnn(next);
+      setAnnQueue(rest);
+      const base = next.cardId ? 950 : 720;
+      const dur = rest.length > 2 ? 420 : base;
+      const t = setTimeout(() => setCurrentAnn(null), dur);
+      return () => clearTimeout(t);
+    }
+  }, [currentAnn, annQueue]);
 
   // 対戦中BGM（bgm_battle が無ければ bgm_main）
   useEffect(() => {
@@ -145,6 +273,9 @@ export default function BattleScreen() {
     return {
       attackerName: getCard(atkInst.cardId).name,
       defenderName: getCard(defInst.cardId).name,
+      attackerCardId: atkInst.cardId,
+      defenderCardId: defInst.cardId,
+      attackerIsCpu: b.attackerPlayer === CPU,
       attackerTotal:
         effectiveCombat(ctx, state, b.attackerPlayer, atkInst) + buff(b.attackerPlayer),
       defenderTotal:
@@ -154,10 +285,10 @@ export default function BattleScreen() {
     };
   })();
 
-  const logLines = eventLog
+  const allLogLines = eventLog
     .map((e) => eventText(e, HUMAN))
-    .filter((t): t is string => t !== null)
-    .slice(-4);
+    .filter((t): t is string => t !== null);
+  const logLines = allLogLines.slice(-5);
 
   const humanChoice =
     state.phase.type === "choice" && state.phase.pending.player === HUMAN
@@ -196,6 +327,7 @@ export default function BattleScreen() {
 
   return (
     <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+      <Animated.View style={[styles.shakeWrap, shakeStyle]}>
       {/* ===== 相手エリア ===== */}
       <View style={[styles.zone, { backgroundColor: colors.boardTop }]}>
         <View style={styles.infoRow}>
@@ -233,10 +365,35 @@ export default function BattleScreen() {
       <View style={styles.middle}>
         {battleInfo && (
           <Animated.View entering={ZoomIn.duration(250)} style={styles.battleBanner}>
-            <Text style={styles.battleText}>
-              ⚔️ {battleInfo.attackerName} {battleInfo.attackerTotal} vs{" "}
-              {battleInfo.defenderTotal} {battleInfo.defenderName}
-            </Text>
+            <View style={styles.battleRow}>
+              <Animated.View entering={SlideInLeft.duration(320)} style={styles.battleSide}>
+                <CardFace cardId={battleInfo.attackerCardId} size="md" />
+                <Text style={styles.battleSideLabel}>
+                  {battleInfo.attackerIsCpu ? "CPU" : "あなた"}・アタック
+                </Text>
+                <Animated.Text
+                  key={`a${battleInfo.attackerTotal}`}
+                  entering={ZoomIn.duration(250)}
+                  style={[styles.battleTotal, { color: colors.danger }]}
+                >
+                  {battleInfo.attackerTotal}
+                </Animated.Text>
+              </Animated.View>
+              <Text style={styles.vsText}>VS</Text>
+              <Animated.View entering={SlideInRight.duration(320)} style={styles.battleSide}>
+                <CardFace cardId={battleInfo.defenderCardId} size="md" />
+                <Text style={styles.battleSideLabel}>
+                  {battleInfo.attackerIsCpu ? "あなた" : "CPU"}・ディフェンス
+                </Text>
+                <Animated.Text
+                  key={`d${battleInfo.defenderTotal}`}
+                  entering={ZoomIn.duration(250)}
+                  style={[styles.battleTotal, { color: colors.primary }]}
+                >
+                  {battleInfo.defenderTotal}
+                </Animated.Text>
+              </Animated.View>
+            </View>
           </Animated.View>
         )}
         {targetingUid && (
@@ -257,6 +414,9 @@ export default function BattleScreen() {
               {line}
             </Text>
           ))}
+          <Pressable onPress={() => setShowLog(true)} hitSlop={6}>
+            <Text style={styles.logButton}>すべてのログを見る ▸</Text>
+          </Pressable>
         </View>
       </View>
 
@@ -342,7 +502,39 @@ export default function BattleScreen() {
         </Pressable>
       </View>
 
+      </Animated.View>
+
+      {/* ===== 実況表示 ===== */}
+      {currentAnn && (
+        <View style={styles.annLayer} pointerEvents="none">
+          <Animated.View
+            key={currentAnn.key}
+            entering={ZoomIn.springify().damping(14)}
+            exiting={ZoomOut.duration(200)}
+            style={[styles.annBox, currentAnn.emph && styles.annBoxEmph]}
+          >
+            {currentAnn.cardId && <CardFace cardId={currentAnn.cardId} size="lg" />}
+            <Text style={[styles.annText, currentAnn.emph && styles.annTextEmph]}>
+              {currentAnn.text}
+            </Text>
+          </Animated.View>
+        </View>
+      )}
+
       {/* ===== オーバーレイ ===== */}
+      {showLog && (
+        <Overlay title="対戦ログ" onClose={() => setShowLog(false)}>
+          <ScrollView style={styles.logScroll} contentContainerStyle={{ gap: 4 }}>
+            {allLogLines.map((line, i) => (
+              <Text key={i} style={styles.logFullLine}>
+                {line}
+              </Text>
+            ))}
+          </ScrollView>
+          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setShowLog(false)} />
+        </Overlay>
+      )}
+
       {state.phase.type === "mulligan" && !me.mulliganDecided && (
         <Overlay title="この手札で始めますか？">
           <View style={styles.overlayCards}>
@@ -598,8 +790,8 @@ function FieldRow({
         return (
           <Animated.View
             key={inst.uid}
-            entering={ZoomIn.duration(250)}
-            exiting={FadeOut.duration(300)}
+            entering={FlipInEasyY.duration(400)}
+            exiting={ZoomOut.duration(350)}
           >
             <Pressable
               onPress={() => onPress(inst.uid)}
@@ -697,7 +889,40 @@ function Overlay({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  shakeWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
+  annLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  annBox: {
+    backgroundColor: "#ffffffee",
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    alignItems: "center",
+    gap: 10,
+    maxWidth: 320,
+    borderWidth: 2,
+    borderColor: colors.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  annBoxEmph: { borderColor: colors.accent, backgroundColor: "#fffdf2f5" },
+  annText: { fontSize: 15, fontWeight: "700", color: colors.text, textAlign: "center" },
+  annTextEmph: { fontSize: 19, fontWeight: "900", color: colors.primaryDark },
+  battleRow: { flexDirection: "row", alignItems: "center", gap: 14 },
+  battleSide: { alignItems: "center", gap: 3 },
+  battleSideLabel: { fontSize: 10, color: colors.textMuted, fontWeight: "700" },
+  battleTotal: { fontSize: 26, fontWeight: "900" },
+  vsText: { fontSize: 20, fontWeight: "900", color: colors.accent },
+  logButton: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 2 },
+  logScroll: { alignSelf: "stretch", maxHeight: 380 },
+  logFullLine: { fontSize: 13, color: colors.text, lineHeight: 19 },
   zone: { paddingHorizontal: 10, paddingVertical: 6, gap: 5 },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14 },

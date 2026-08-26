@@ -255,6 +255,14 @@ export function applyAction(ctx: GameContext, prev: GameState, action: GameActio
       // 行動を始めたら、以降このターンはインストラクターを出せない
       state.phase.canPlayInstructor = false;
 
+      events.push({
+        type: "instructorActed",
+        player: action.player,
+        uid: action.uid,
+        cardId: inst.cardId,
+        action: action.action,
+      });
+
       if (action.action === "doNothing") {
         events.push({ type: "didNothing", player: action.player, uid: action.uid });
         break;
