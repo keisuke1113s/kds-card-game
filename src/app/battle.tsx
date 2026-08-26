@@ -66,6 +66,20 @@ let annSeq = 0;
 
 const ownerOf = (player: number): Owner => (player === HUMAN ? "self" : "cpu");
 
+/**
+ * 山札・場外の中身を表示用に並べ替える。
+ * 実際の並び順が分からないよう、種別→名前の順に固定して並べる。
+ */
+function sortedPile(ids: string[]): string[] {
+  const typeOrder: Record<string, number> = { instructor: 0, support: 1, tantou: 2 };
+  return [...ids].sort((a, b) => {
+    const ca = getCard(a);
+    const cb = getCard(b);
+    const t = (typeOrder[ca.type] ?? 9) - (typeOrder[cb.type] ?? 9);
+    return t !== 0 ? t : ca.name.localeCompare(cb.name, "ja");
+  });
+}
+
 /** 選択肢のカードが相手のものかどうか（拡大表示のバッジ用） */
 function choiceOwner(purpose: string): Owner {
   return ["removeOpp", "bounceOpp", "discardOpp", "debuffTarget"].includes(purpose)
@@ -183,6 +197,7 @@ export default function BattleScreen() {
   );
   const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
+  const [pileView, setPileView] = useState<"deck" | "outOfPlay" | null>(null);
   const [choicePreview, setChoicePreview] = useState<number | null>(null);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
@@ -502,8 +517,13 @@ export default function BattleScreen() {
         <TrackBar label="技能" value={me.skill} goal={SKILL_GOAL} color={colors.success} />
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>あなた</Text>
-          <Text style={styles.infoText}>山札 {me.deck.length}枚</Text>
-          <Text style={styles.infoText}>場外 {me.outOfPlay.length}枚</Text>
+          {/* 山札・場外はタップで中身を確認できる */}
+          <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
+            <Text style={styles.infoLink}>山札 {me.deck.length}枚 ▸</Text>
+          </Pressable>
+          <Pressable onPress={() => setPileView("outOfPlay")} hitSlop={6}>
+            <Text style={styles.infoLink}>場外 {me.outOfPlay.length}枚 ▸</Text>
+          </Pressable>
           <View style={tantouUsable ? styles.tantouUsable : undefined}>
             {/* 担当カードはタップすると拡大表示。そこから力を使う */}
             <CardFace
@@ -815,6 +835,42 @@ export default function BattleScreen() {
             ))}
           </View>
           <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
+        </Overlay>
+      )}
+
+      {pileView && (
+        <Overlay
+          title={
+            pileView === "deck"
+              ? `山札の中身（${me.deck.length}枚）`
+              : `場外の中身（${me.outOfPlay.length}枚）`
+          }
+          onClose={() => setPileView(null)}
+        >
+          {pileView === "deck" && (
+            <Text style={styles.pileNote}>
+              ※ カードの種類と枚数を確認できます。ここに並んでいる順番は、実際の山札の並び順とは違います。
+            </Text>
+          )}
+          <ScrollView style={styles.pileScroll} contentContainerStyle={styles.pileContent}>
+            {(pileView === "deck" ? sortedPile(me.deck) : sortedPile(me.outOfPlay)).length === 0 ? (
+              <Text style={styles.infoText}>カードはありません</Text>
+            ) : (
+              <View style={styles.overlayCards}>
+                {(pileView === "deck" ? sortedPile(me.deck) : sortedPile(me.outOfPlay)).map(
+                  (id, i) => (
+                    <CardFace
+                      key={`${id}-${i}`}
+                      cardId={id}
+                      size="md"
+                      onPress={() => setDetailCardId(id, "self")}
+                    />
+                  )
+                )}
+              </View>
+            )}
+          </ScrollView>
+          <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setPileView(null)} />
         </Overlay>
       )}
 
@@ -1137,6 +1193,10 @@ const styles = StyleSheet.create({
   battleTotal: { fontSize: 26, fontWeight: "900" },
   vsText: { fontSize: 20, fontWeight: "900", color: colors.accent },
   logButton: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 2 },
+  infoLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
+  pileNote: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  pileScroll: { alignSelf: "stretch", maxHeight: 380 },
+  pileContent: { paddingBottom: 4 },
   logScroll: { alignSelf: "stretch", maxHeight: 380 },
   logFullLine: { fontSize: 13, color: colors.text, lineHeight: 19 },
   zone: { paddingHorizontal: 10, paddingVertical: 6, gap: 5 },
