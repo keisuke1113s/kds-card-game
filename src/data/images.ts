@@ -1,7 +1,7 @@
 // このファイルは scripts/gen-image-map.js により自動生成される。手で編集しないこと。
 /* eslint-disable @typescript-eslint/no-require-imports */
 
-// 原寸（868×1213）: 詳細表示用
+// 原寸（868×1213）: 詳細表示（xl）用
 export const cardImages: Record<string, number> = {
   "cardback": require("@/assets/cards/cardback.webp"),
   "i_fukumoto": require("@/assets/cards/i_fukumoto.webp"),
@@ -70,7 +70,7 @@ export const cardImages: Record<string, number> = {
   "t_umemoto": require("@/assets/cards/t_umemoto.webp"),
 };
 
-// サムネイル（300px幅）: 一覧・盤面表示用（iOS Safariのメモリ対策）
+// 中サムネイル（300px幅）: 拡大表示（lg）用
 export const cardThumbs: Record<string, number> = {
   "cardback": require("@/assets/cards_thumb/cardback.webp"),
   "i_fukumoto": require("@/assets/cards_thumb/i_fukumoto.webp"),
@@ -137,4 +137,74 @@ export const cardThumbs: Record<string, number> = {
   "t_tokumitsu": require("@/assets/cards_thumb/t_tokumitsu.webp"),
   "t_tomino": require("@/assets/cards_thumb/t_tomino.webp"),
   "t_umemoto": require("@/assets/cards_thumb/t_umemoto.webp"),
+};
+
+// 小サムネイル（150px幅）: 盤面・手札・一覧（sm/md）用。
+// 同時に何十枚も並ぶため、iOS Safariのメモリ制限で描画が落ちないよう軽量にする。
+export const cardSmalls: Record<string, number> = {
+  "cardback": require("@/assets/cards_small/cardback.webp"),
+  "i_fukumoto": require("@/assets/cards_small/i_fukumoto.webp"),
+  "i_hamada": require("@/assets/cards_small/i_hamada.webp"),
+  "i_hirama": require("@/assets/cards_small/i_hirama.webp"),
+  "i_iida": require("@/assets/cards_small/i_iida.webp"),
+  "i_iseki": require("@/assets/cards_small/i_iseki.webp"),
+  "i_ito": require("@/assets/cards_small/i_ito.webp"),
+  "i_kataoka": require("@/assets/cards_small/i_kataoka.webp"),
+  "i_konno": require("@/assets/cards_small/i_konno.webp"),
+  "i_kuji": require("@/assets/cards_small/i_kuji.webp"),
+  "i_maeda": require("@/assets/cards_small/i_maeda.webp"),
+  "i_nagao": require("@/assets/cards_small/i_nagao.webp"),
+  "i_nashimoto": require("@/assets/cards_small/i_nashimoto.webp"),
+  "i_oda": require("@/assets/cards_small/i_oda.webp"),
+  "i_oikawa": require("@/assets/cards_small/i_oikawa.webp"),
+  "i_okumura": require("@/assets/cards_small/i_okumura.webp"),
+  "i_oyanagi": require("@/assets/cards_small/i_oyanagi.webp"),
+  "i_sasaki": require("@/assets/cards_small/i_sasaki.webp"),
+  "i_sato": require("@/assets/cards_small/i_sato.webp"),
+  "i_shibuya": require("@/assets/cards_small/i_shibuya.webp"),
+  "i_shibuya_hana": require("@/assets/cards_small/i_shibuya_hana.webp"),
+  "i_shigaya": require("@/assets/cards_small/i_shigaya.webp"),
+  "i_suwa": require("@/assets/cards_small/i_suwa.webp"),
+  "i_takakura": require("@/assets/cards_small/i_takakura.webp"),
+  "i_takeda": require("@/assets/cards_small/i_takeda.webp"),
+  "i_takimoto": require("@/assets/cards_small/i_takimoto.webp"),
+  "i_tanaka": require("@/assets/cards_small/i_tanaka.webp"),
+  "i_terashima": require("@/assets/cards_small/i_terashima.webp"),
+  "i_tokumitsu": require("@/assets/cards_small/i_tokumitsu.webp"),
+  "i_tomino": require("@/assets/cards_small/i_tomino.webp"),
+  "i_umemoto": require("@/assets/cards_small/i_umemoto.webp"),
+  "i_watanabe_takashi": require("@/assets/cards_small/i_watanabe_takashi.webp"),
+  "i_watanabe_tsutomu": require("@/assets/cards_small/i_watanabe_tsutomu.webp"),
+  "s_crank": require("@/assets/cards_small/s_crank.webp"),
+  "s_honma": require("@/assets/cards_small/s_honma.webp"),
+  "s_iwase": require("@/assets/cards_small/s_iwase.webp"),
+  "s_kobayashi": require("@/assets/cards_small/s_kobayashi.webp"),
+  "s_kokasokutei": require("@/assets/cards_small/s_kokasokutei.webp"),
+  "s_kono": require("@/assets/cards_small/s_kono.webp"),
+  "s_kushiro_yuhi": require("@/assets/cards_small/s_kushiro_yuhi.webp"),
+  "s_morita": require("@/assets/cards_small/s_morita.webp"),
+  "s_nagayama": require("@/assets/cards_small/s_nagayama.webp"),
+  "s_nakamura": require("@/assets/cards_small/s_nakamura.webp"),
+  "s_sato": require("@/assets/cards_small/s_sato.webp"),
+  "s_shirahama": require("@/assets/cards_small/s_shirahama.webp"),
+  "s_sji": require("@/assets/cards_small/s_sji.webp"),
+  "s_ueno": require("@/assets/cards_small/s_ueno.webp"),
+  "s_watanabe": require("@/assets/cards_small/s_watanabe.webp"),
+  "t_fukumoto": require("@/assets/cards_small/t_fukumoto.webp"),
+  "t_hamada": require("@/assets/cards_small/t_hamada.webp"),
+  "t_kuji": require("@/assets/cards_small/t_kuji.webp"),
+  "t_nagao": require("@/assets/cards_small/t_nagao.webp"),
+  "t_oda": require("@/assets/cards_small/t_oda.webp"),
+  "t_sasaki": require("@/assets/cards_small/t_sasaki.webp"),
+  "t_shibuya_hana": require("@/assets/cards_small/t_shibuya_hana.webp"),
+  "t_shibuya_masa": require("@/assets/cards_small/t_shibuya_masa.webp"),
+  "t_shigaya": require("@/assets/cards_small/t_shigaya.webp"),
+  "t_suwa": require("@/assets/cards_small/t_suwa.webp"),
+  "t_takakura": require("@/assets/cards_small/t_takakura.webp"),
+  "t_takeda": require("@/assets/cards_small/t_takeda.webp"),
+  "t_takimoto": require("@/assets/cards_small/t_takimoto.webp"),
+  "t_tanaka": require("@/assets/cards_small/t_tanaka.webp"),
+  "t_tokumitsu": require("@/assets/cards_small/t_tokumitsu.webp"),
+  "t_tomino": require("@/assets/cards_small/t_tomino.webp"),
+  "t_umemoto": require("@/assets/cards_small/t_umemoto.webp"),
 };
