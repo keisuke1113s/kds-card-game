@@ -19,6 +19,7 @@ import Animated, {
   useAnimatedStyle,
   useSharedValue,
   withDelay,
+  withRepeat,
   withSequence,
   withSpring,
   withTiming,
@@ -394,15 +395,34 @@ export default function BattleScreen() {
       ? state.phase.pending
       : null;
 
-  const statusText = (() => {
-    if (state.phase.type === "finished") return "対戦終了";
-    if (actor === CPU || aiThinking) return "CPUが考えています…";
-    if (state.phase.type === "mulligan") return "手札を確認してください";
-    if (state.phase.type === "battleSupport")
-      return battleInfo?.myPriority ? "サポートカードや担当の力を使えます" : "";
-    if (state.phase.type === "choice") return "選択してください";
-    if (isMyMain) return "あなたのターン";
-    return "";
+  /** 誰の番か・何をすべきかを、色つきの帯で示す */
+  const status = (() => {
+    if (state.phase.type === "finished") {
+      return { who: "対戦終了", detail: "", mine: false, waiting: false };
+    }
+    if (actor === CPU || aiThinking) {
+      return { who: "CPUの番", detail: "考えています…", mine: false, waiting: true };
+    }
+    if (state.phase.type === "mulligan") {
+      return { who: "あなたの番", detail: "手札を確認してください", mine: true, waiting: false };
+    }
+    if (state.phase.type === "battleSupport") {
+      return battleInfo?.myPriority
+        ? {
+            who: "あなたの番",
+            detail: "サポートカードや担当の力を使えます",
+            mine: true,
+            waiting: false,
+          }
+        : { who: "CPUの番", detail: "相手の応答を待っています", mine: false, waiting: true };
+    }
+    if (state.phase.type === "choice") {
+      return { who: "あなたの番", detail: "カードを選んでください", mine: true, waiting: false };
+    }
+    if (isMyMain) {
+      return { who: "あなたの番", detail: "行動を選びましょう", mine: true, waiting: false };
+    }
+    return null;
   })();
 
   const rematch = () => {
@@ -510,7 +530,31 @@ export default function BattleScreen() {
             <Text style={styles.hintBody}>{hint.body}</Text>
           </Animated.View>
         )}
-        {!!statusText && <Text style={styles.statusText}>{statusText}</Text>}
+        {status && (
+          <View
+            style={[
+              styles.statusBar,
+              status.mine ? styles.statusBarMine : styles.statusBarOpponent,
+            ]}
+          >
+            <View
+              style={[
+                styles.statusDot,
+                { backgroundColor: status.mine ? colors.success : colors.danger },
+              ]}
+            />
+            <Text
+              style={[
+                styles.statusWho,
+                { color: status.mine ? colors.success : colors.danger },
+              ]}
+            >
+              {status.who}
+            </Text>
+            {!!status.detail && <Text style={styles.statusDetail}>{status.detail}</Text>}
+            {status.waiting && <ThinkingDots />}
+          </View>
+        )}
         <View style={styles.log}>
           {/* ボタンを先頭に置き、ログが増えても隠れないようにする */}
           <Pressable onPress={() => setShowLog(true)} hitSlop={6} style={styles.logButtonRow}>
@@ -1056,6 +1100,21 @@ function FieldRow({
   );
 }
 
+/** CPUの思考中を示す、ゆっくり明滅する点 */
+function ThinkingDots() {
+  const o = useSharedValue(0.25);
+  useEffect(() => {
+    o.value = withRepeat(
+      withSequence(withTiming(1, { duration: 520 }), withTiming(0.25, { duration: 520 })),
+      -1,
+      false
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({ opacity: o.value }));
+  return <Animated.Text style={[styles.thinkingDots, style]}>●●●</Animated.Text>;
+}
+
 /** 最新ログ: 大きく飛び出してから元のサイズに収まり、ハイライトが消える */
 function LatestLogLine({ text }: { text: string }) {
   const scale = useSharedValue(1.35);
@@ -1289,7 +1348,23 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   battleText: { fontWeight: "700", color: colors.text },
-  statusText: { textAlign: "center", color: colors.primaryDark, fontWeight: "700" },
+  statusBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    maxWidth: "100%",
+  },
+  statusBarMine: { backgroundColor: "#eaf7ee", borderColor: colors.success },
+  statusBarOpponent: { backgroundColor: "#fdecec", borderColor: colors.danger },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
+  statusWho: { fontSize: 14, fontWeight: "900" },
+  statusDetail: { fontSize: 12, color: colors.text, flexShrink: 1 },
+  thinkingDots: { fontSize: 9, color: colors.danger, letterSpacing: 1 },
   bannerText: { fontSize: 16, fontWeight: "700", color: colors.text },
   log: { gap: 1 },
   logLine: { fontSize: 11, color: colors.textMuted },
