@@ -35,20 +35,20 @@ export default function HomeScreen() {
       <View style={styles.menu}>
         {inProgress && (
           <MenuButton
-            label="対戦にもどる"
+            label="対戦に戻る"
             color={colors.accent}
             onPress={() => router.push("/battle")}
           />
         )}
         <MenuButton
-          label="たいせん"
+          label="対戦"
           color={colors.primary}
           onPress={onStart}
         />
         <Text style={styles.matchup}>
           あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck, deckState.builtinOverrides).name}
         </Text>
-        <MenuButton label="デッキこうちく" color={colors.success} onPress={() => router.push("/deck")} />
+        <MenuButton label="デッキ構築" color={colors.success} onPress={() => router.push("/deck")} />
         <MenuButton label="カード図鑑" color={colors.instructor} onPress={() => router.push("/library")} />
         <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
       </View>

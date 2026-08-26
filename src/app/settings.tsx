@@ -54,7 +54,7 @@ export default function SettingsScreen() {
           style={[styles.wideButton, { backgroundColor: colors.primary }]}
           onPress={() => router.replace("/")}
         >
-          <Text style={styles.wideButtonText}>ホームへもどる</Text>
+          <Text style={styles.wideButtonText}>ホームに戻る</Text>
         </Pressable>
       )}
 
@@ -65,7 +65,7 @@ export default function SettingsScreen() {
             style={[styles.wideButton, { backgroundColor: colors.primary }]}
             onPress={() => router.back()}
           >
-            <Text style={styles.wideButtonText}>対戦にもどる</Text>
+            <Text style={styles.wideButtonText}>対戦に戻る</Text>
           </Pressable>
           <Pressable
             style={[styles.wideButton, { backgroundColor: colors.danger }]}
@@ -88,13 +88,13 @@ export default function SettingsScreen() {
                 router.replace("/");
               }}
             >
-              <Text style={styles.wideButtonText}>やめてホームへ</Text>
+              <Text style={styles.wideButtonText}>対戦をやめてホームに戻る</Text>
             </Pressable>
             <Pressable
               style={[styles.wideButton, { backgroundColor: colors.cancel }]}
               onPress={() => setConfirmQuit(false)}
             >
-              <Text style={styles.wideButtonText}>つづける</Text>
+              <Text style={styles.wideButtonText}>対戦を続ける</Text>
             </Pressable>
           </Pressable>
         </Pressable>

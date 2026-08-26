@@ -554,7 +554,7 @@ export default function BattleScreen() {
         </ScrollView>
         {/* 設定画面へ（対戦をやめる操作もそこから行う） */}
         <Pressable onPress={() => router.push("/settings")} style={styles.quitButton}>
-          <Text style={styles.quitText}>⚙️{"\n"}せってい</Text>
+          <Text style={styles.quitText}>⚙️{"\n"}設定</Text>
         </Pressable>
       </View>
 
@@ -579,7 +579,7 @@ export default function BattleScreen() {
                 <Text style={styles.annHint}>あと{annQueue.length}件</Text>
               )}
               <CardDetail cardId={currentAnn.cardId} scroll={false} />
-              <ActionButton label="つぎへ ▶" color={colors.primary} onPress={dismissAnn} />
+              <ActionButton label="次へ ▶" color={colors.primary} onPress={dismissAnn} />
             </Animated.View>
           ) : (
             <Animated.View
@@ -625,7 +625,7 @@ export default function BattleScreen() {
           </View>
           <View style={styles.overlayButtons}>
             <ActionButton
-              label="このままでOK"
+              label="この手札で始める"
               color={colors.primary}
               onPress={() => doAction({ type: "mulligan", player: HUMAN, redraw: false })}
             />
@@ -794,7 +794,7 @@ export default function BattleScreen() {
             }
           />
           <ActionButton
-            label="もどる"
+            label="戻る"
             color={colors.cancel}
             onPress={() => setChoicePreview(null)}
           />
@@ -852,7 +852,7 @@ export default function BattleScreen() {
                 : "CPUが先に教習を修了しました"}
           </Text>
           <View style={styles.overlayButtons}>
-            <ActionButton label="もう一度あそぶ" color={colors.primary} onPress={rematch} />
+            <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
             <ActionButton
               label="ホームへ"
               color={colors.textMuted}

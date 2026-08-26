@@ -85,10 +85,10 @@ export default function DeckListScreen() {
           );
         })}
         <Pressable onPress={newDeck} style={styles.newButton}>
-          <Text style={styles.newButtonText}>＋ 新しいデッキをつくる</Text>
+          <Text style={styles.newButtonText}>＋ 新しいデッキを作る</Text>
         </Pressable>
         <Pressable onPress={newRandomDeck} style={styles.newButton}>
-          <Text style={styles.newButtonText}>🎲 ランダムでデッキをつくる</Text>
+          <Text style={styles.newButtonText}>🎲 ランダムでデッキを作る</Text>
         </Pressable>
         <Text style={styles.note}>
           組み込みの2つのデッキも「中身を変える」から編集できます（「最初の構成に戻す」で元に戻せます）。
