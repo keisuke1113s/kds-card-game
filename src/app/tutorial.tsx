@@ -49,10 +49,12 @@ export default function TutorialScreen() {
 
           {lesson.cardIds && (
             <View style={styles.cardRow}>
-              {lesson.cardIds.map((id) => (
+              {lesson.cardIds.map((id, i) => (
                 <View key={id} style={styles.cardItem}>
                   <CardFace cardId={id} size="md" onPress={() => setDetailCardId(id)} />
-                  <Text style={styles.cardName}>{getCard(id).name}</Text>
+                  <Text style={styles.cardName} numberOfLines={2}>
+                    {lesson.cardLabels?.[i] ?? getCard(id).name}
+                  </Text>
                 </View>
               ))}
             </View>
@@ -128,9 +130,9 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 16,
   },
-  cardRow: { flexDirection: "row", gap: 12, marginBottom: 16, flexWrap: "wrap" },
-  cardItem: { alignItems: "center", gap: 4 },
-  cardName: { fontSize: 11, color: colors.textMuted, fontWeight: "700" },
+  cardRow: { flexDirection: "row", gap: 8, marginBottom: 16, flexWrap: "wrap", justifyContent: "center" },
+  cardItem: { alignItems: "center", gap: 4, width: 96 },
+  cardName: { fontSize: 11, color: colors.text, fontWeight: "800", textAlign: "center", lineHeight: 15 },
   body: { fontSize: 16, lineHeight: 27, color: colors.text, marginBottom: 12 },
   tipBox: {
     backgroundColor: "#fff8e1",
