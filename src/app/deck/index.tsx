@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -21,18 +21,15 @@ export default function DeckListScreen() {
   const decks = allDecks(customDecks);
   const [viewing, setViewing] = useState<SavedDeck | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<SavedDeck | null>(null);
 
   const newDeck = () => {
     const id = `deck-${Date.now()}`;
     router.push(`/deck/${id}`);
   };
 
-  const confirmDelete = (deck: SavedDeck) => {
-    Alert.alert(`「${deck.name}」を削除しますか？`, "", [
-      { text: "キャンセル", style: "cancel" },
-      { text: "削除", style: "destructive", onPress: () => deleteDeck(deck.id) },
-    ]);
-  };
+  // Web では Alert.alert が動かないため、確認は自前のオーバーレイで行う
+  const confirmDelete = (deck: SavedDeck) => setDeleting(deck);
 
   return (
     <View style={styles.root}>
@@ -124,6 +121,26 @@ export default function DeckListScreen() {
             </ScrollView>
             <Pressable style={styles.closeButton} onPress={() => setViewing(null)}>
               <Text style={styles.closeText}>閉じる</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      )}
+
+      {deleting && (
+        <Pressable style={styles.overlayBg} onPress={() => setDeleting(null)}>
+          <Pressable style={styles.overlayBox} onPress={() => {}}>
+            <Text style={styles.overlayTitle}>「{deleting.name}」を削除しますか？</Text>
+            <Pressable
+              style={[styles.confirmButton, { backgroundColor: colors.danger }]}
+              onPress={() => {
+                deleteDeck(deleting.id);
+                setDeleting(null);
+              }}
+            >
+              <Text style={styles.closeText}>削除する</Text>
+            </Pressable>
+            <Pressable style={styles.closeButton} onPress={() => setDeleting(null)}>
+              <Text style={styles.closeText}>キャンセル</Text>
             </Pressable>
           </Pressable>
         </Pressable>
@@ -233,6 +250,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 24,
+  },
+  confirmButton: {
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: "stretch",
+    alignItems: "center",
   },
   closeText: { color: "#fff", fontWeight: "700" },
 });

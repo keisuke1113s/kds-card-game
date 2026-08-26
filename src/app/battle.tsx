@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -185,6 +184,7 @@ export default function BattleScreen() {
   const detailCardId = detail?.cardId ?? null;
   const [showLog, setShowLog] = useState(false);
   const [choicePreview, setChoicePreview] = useState<number | null>(null);
+  const [confirmQuit, setConfirmQuit] = useState(false);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
@@ -370,19 +370,9 @@ export default function BattleScreen() {
     return "";
   })();
 
-  const quit = () => {
-    Alert.alert("対戦をやめますか？", "この対局は失われます。", [
-      { text: "つづける", style: "cancel" },
-      {
-        text: "やめる",
-        style: "destructive",
-        onPress: () => {
-          quitGame();
-          router.replace("/");
-        },
-      },
-    ]);
-  };
+  // Web（ホーム画面に追加した場合も含む）では Alert.alert が動かないため、
+  // 確認は自前のオーバーレイで行う
+  const quit = () => setConfirmQuit(true);
 
   const rematch = () => {
     const deck = resolveActiveDeck(deckState);
@@ -830,6 +820,28 @@ export default function BattleScreen() {
             ))}
           </View>
           <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setRevealedHand(null)} />
+        </Overlay>
+      )}
+
+      {confirmQuit && (
+        <Overlay title="対戦をやめますか？" onClose={() => setConfirmQuit(false)}>
+          <Text style={styles.resultText}>この対局は失われます。</Text>
+          <View style={styles.overlayButtons}>
+            <ActionButton
+              label="つづける"
+              color={colors.primary}
+              onPress={() => setConfirmQuit(false)}
+            />
+            <ActionButton
+              label="やめてホームへ"
+              color={colors.danger}
+              onPress={() => {
+                setConfirmQuit(false);
+                quitGame();
+                router.replace("/");
+              }}
+            />
+          </View>
         </Overlay>
       )}
 
