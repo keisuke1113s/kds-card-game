@@ -2,7 +2,8 @@ import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
-import { colors } from "@/theme";
+import { haptic } from "@/audio/haptics";
+import { colors, radius } from "@/theme";
 
 /**
  * ヘッダー左のホームボタン。
@@ -12,8 +13,16 @@ import { colors } from "@/theme";
 function HomeButton() {
   const router = useRouter();
   return (
-    <Pressable onPress={() => router.replace("/")} hitSlop={10} style={styles.homeButton}>
-      <Text style={styles.homeButtonText}>‹ ホーム</Text>
+    <Pressable
+      onPress={() => {
+        haptic("light");
+        router.replace("/");
+      }}
+      hitSlop={10}
+      style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}
+    >
+      <Text style={styles.homeButtonIcon}>🏠</Text>
+      <Text style={styles.homeButtonText}>ホーム</Text>
     </Pressable>
   );
 }
@@ -47,6 +56,20 @@ export default function RootLayout() {
 }
 
 const styles = StyleSheet.create({
-  homeButton: { paddingVertical: 4, paddingRight: 16 },
-  homeButtonText: { color: "#fff", fontWeight: "700", fontSize: 16 },
+  // ヘッダーと同じ青に埋もれないよう、白フチのボタンとして見せる
+  homeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    marginRight: 12,
+    borderRadius: radius.pill,
+    backgroundColor: "#ffffff26",
+    borderWidth: 1.5,
+    borderColor: "#ffffffaa",
+  },
+  homeButtonPressed: { backgroundColor: "#ffffff44", borderColor: "#ffffff" },
+  homeButtonIcon: { fontSize: 13 },
+  homeButtonText: { color: "#fff", fontWeight: "800", fontSize: 14 },
 });
