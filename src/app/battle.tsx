@@ -379,7 +379,7 @@ export default function BattleScreen() {
   const allLogLines = eventLog
     .map((e) => eventText(e, HUMAN))
     .filter((t): t is string => t !== null);
-  const logLines = allLogLines.slice(-5);
+  const logLines = allLogLines.slice(-4);
 
   // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
   const hint = useMemo(() => {
@@ -512,6 +512,10 @@ export default function BattleScreen() {
         )}
         {!!statusText && <Text style={styles.statusText}>{statusText}</Text>}
         <View style={styles.log}>
+          {/* ボタンを先頭に置き、ログが増えても隠れないようにする */}
+          <Pressable onPress={() => setShowLog(true)} hitSlop={6} style={styles.logButtonRow}>
+            <Text style={styles.logButton}>すべてのログを見る ▸</Text>
+          </Pressable>
           {logLines.slice(0, -1).map((line, i) => (
             <Text key={`${i}-${line}`} style={styles.logLine} numberOfLines={1}>
               {line}
@@ -520,9 +524,6 @@ export default function BattleScreen() {
           {logLines.length > 0 && (
             <LatestLogLine key={allLogLines.length} text={logLines[logLines.length - 1]} />
           )}
-          <Pressable onPress={() => setShowLog(true)} hitSlop={6}>
-            <Text style={styles.logButton}>すべてのログを見る ▸</Text>
-          </Pressable>
         </View>
       </View>
 
@@ -1227,7 +1228,8 @@ const styles = StyleSheet.create({
   battleSideLabel: { fontSize: 10, color: colors.textMuted, fontWeight: "700" },
   battleTotal: { fontSize: 26, fontWeight: "900" },
   vsText: { fontSize: 20, fontWeight: "900", color: colors.accent },
-  logButton: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 2 },
+  logButton: { fontSize: 11, color: colors.primary, fontWeight: "800" },
+  logButtonRow: { alignSelf: "flex-start", paddingVertical: 2 },
   hintBox: {
     backgroundColor: "#fff8e1",
     borderRadius: 12,
