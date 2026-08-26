@@ -4,8 +4,7 @@ import { stopBgm } from "@/audio/sound";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
-import { cpuDeck } from "@/data/cards";
-import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -25,11 +24,13 @@ export default function HomeScreen() {
     }, [])
   );
 
+  const activeDeck = resolveActiveDeck(deckState);
+
   const onStart = () => {
-    const deck = resolveActiveDeck(deckState);
+    const deck = activeDeck;
     startGame({
       playerDeck: deck.list,
-      cpuDeck,
+      cpuDeck: cpuDeckFor(deck).list,
       difficulty,
       aiSpeedMs,
     });
@@ -57,6 +58,9 @@ export default function HomeScreen() {
           color={colors.primary}
           onPress={onStart}
         />
+        <Text style={styles.matchup}>
+          あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck).name}
+        </Text>
         <MenuButton label="デッキこうちく" color={colors.success} onPress={() => router.push("/deck")} />
         <MenuButton label="カードずかん" color={colors.instructor} onPress={() => router.push("/library")} />
         <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
@@ -98,6 +102,13 @@ const styles = StyleSheet.create({
   title: { fontSize: 32, fontWeight: "800", color: colors.text },
   subtitle: { marginTop: 8, color: colors.textMuted },
   menu: { gap: 12 },
+  matchup: {
+    textAlign: "center",
+    color: colors.textMuted,
+    fontSize: 12,
+    marginTop: -6,
+    marginBottom: 2,
+  },
   button: {
     borderRadius: 14,
     paddingVertical: 16,

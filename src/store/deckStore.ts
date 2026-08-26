@@ -65,3 +65,11 @@ export function resolveActiveDeck(state: DeckState): SavedDeck {
     allDecks(state.customDecks).find((d) => d.id === state.activeDeckId) ?? builtinDeck;
   return validateDeck(cardRegistry, deck.list).length === 0 ? deck : builtinDeck;
 }
+
+/**
+ * CPUが使うデッキ。プレイヤーと同じ内容にならないよう、
+ * チャレンジャーデッキを選んだときはCPUがスタンダードデッキを使う。
+ */
+export function cpuDeckFor(playerDeck: SavedDeck): SavedDeck {
+  return playerDeck.id === builtinDeck2.id ? builtinDeck : builtinDeck2;
+}

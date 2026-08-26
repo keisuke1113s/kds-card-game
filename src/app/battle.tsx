@@ -28,7 +28,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { playBgm, stopBgm } from "@/audio/sound";
 import { CardDetail } from "@/components/CardDetail";
-import { cardRegistry, cpuDeck, getCard } from "@/data/cards";
+import { cardRegistry, getCard } from "@/data/cards";
 import { GameEvent, Track } from "@/engine/types";
 import { effectiveCombat } from "@/engine/effects";
 import { getLegalActions } from "@/engine/legalActions";
@@ -43,7 +43,7 @@ import { playerToAct } from "@/engine/reducer";
 import { CardFace } from "@/components/CardFace";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
-import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
@@ -386,7 +386,12 @@ export default function BattleScreen() {
 
   const rematch = () => {
     const deck = resolveActiveDeck(deckState);
-    startGame({ playerDeck: deck.list, cpuDeck, difficulty, aiSpeedMs });
+    startGame({
+      playerDeck: deck.list,
+      cpuDeck: cpuDeckFor(deck).list,
+      difficulty,
+      aiSpeedMs,
+    });
   };
 
   return (
@@ -562,8 +567,9 @@ export default function BattleScreen() {
           })}
           {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
         </ScrollView>
+        {/* 対戦を中断してホームへ戻る */}
         <Pressable onPress={quit} style={styles.quitButton}>
-          <Text style={styles.quitText}>やめる</Text>
+          <Text style={styles.quitText}>対戦{"\n"}をやめる</Text>
         </Pressable>
       </View>
 
@@ -1194,8 +1200,15 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 1,
   },
-  quitButton: { padding: 8 },
-  quitText: { color: colors.textMuted, fontSize: 12 },
+  quitButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  quitText: { color: colors.textMuted, fontSize: 11, textAlign: "center", lineHeight: 14 },
   actionButton: {
     borderRadius: 10,
     paddingVertical: 12,
