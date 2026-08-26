@@ -1,4 +1,4 @@
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
@@ -17,6 +17,8 @@ const speeds: { label: string; ms: number }[] = [
 /** 対戦開始前に条件を確認・変更してから始める画面 */
 export default function PrematchScreen() {
   const router = useRouter();
+  const { tutorial } = useLocalSearchParams<{ tutorial?: string }>();
+  const isTutorial = tutorial === "1";
   const startGame = useGameStore((s) => s.startGame);
   const deckState = useDeckStore();
   const {
@@ -37,8 +39,10 @@ export default function PrematchScreen() {
     startGame({
       playerDeck: playerDeck.list,
       cpuDeck: opponentDeck.list,
-      difficulty,
-      aiSpeedMs,
+      // 練習対戦はいちばん弱いCPU・ゆっくりの手で固定する
+      difficulty: isTutorial ? "easy" : difficulty,
+      aiSpeedMs: isTutorial ? 1600 : aiSpeedMs,
+      tutorial: isTutorial,
     });
     router.replace("/battle");
   };
@@ -57,29 +61,43 @@ export default function PrematchScreen() {
           <Text style={styles.deckLinkText}>デッキを変える ▸</Text>
         </Pressable>
 
-        <Text style={styles.sectionTitle}>CPUの強さ</Text>
-        <View style={styles.row}>
-          {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
-            <Choice
-              key={d}
-              label={DIFFICULTY_LABELS[d]}
-              active={difficulty === d}
-              onPress={() => setDifficulty(d)}
-            />
-          ))}
-        </View>
+        {isTutorial && (
+          <View style={styles.tutorialNote}>
+            <Text style={styles.tutorialNoteTitle}>練習対戦</Text>
+            <Text style={styles.tutorialNoteText}>
+              画面に「次に何をすればいいか」のヒントが出ます。相手はいちばん弱いCPUなので、
+              失敗しても大丈夫です。
+            </Text>
+          </View>
+        )}
 
-        <Text style={styles.sectionTitle}>CPUの手の速さ</Text>
-        <View style={styles.row}>
-          {speeds.map((s) => (
-            <Choice
-              key={s.ms}
-              label={s.label}
-              active={aiSpeedMs === s.ms}
-              onPress={() => setAiSpeedMs(s.ms)}
-            />
-          ))}
-        </View>
+        {!isTutorial && <Text style={styles.sectionTitle}>CPUの強さ</Text>}
+        {!isTutorial && (
+          <View style={styles.row}>
+            {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
+              <Choice
+                key={d}
+                label={DIFFICULTY_LABELS[d]}
+                active={difficulty === d}
+                onPress={() => setDifficulty(d)}
+              />
+            ))}
+          </View>
+        )}
+
+        {!isTutorial && <Text style={styles.sectionTitle}>CPUの手の速さ</Text>}
+        {!isTutorial && (
+          <View style={styles.row}>
+            {speeds.map((s) => (
+              <Choice
+                key={s.ms}
+                label={s.label}
+                active={aiSpeedMs === s.ms}
+                onPress={() => setAiSpeedMs(s.ms)}
+              />
+            ))}
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>サウンド</Text>
         <View style={styles.row}>
@@ -98,7 +116,7 @@ export default function PrematchScreen() {
 
       <View style={styles.footer}>
         <Pressable style={styles.startButton} onPress={start}>
-          <Text style={styles.startText}>この設定で対戦する</Text>
+          <Text style={styles.startText}>{isTutorial ? "練習対戦を始める" : "この設定で対戦する"}</Text>
         </Pressable>
       </View>
     </View>
@@ -142,6 +160,17 @@ const styles = StyleSheet.create({
   deckLink: { alignSelf: "center", paddingVertical: 6 },
   deckLinkText: { color: colors.primary, fontWeight: "700" },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 10 },
+  tutorialNote: {
+    backgroundColor: "#fff8e1",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    padding: 14,
+    gap: 4,
+    marginTop: 4,
+  },
+  tutorialNoteTitle: { fontSize: 13, fontWeight: "800", color: colors.accent },
+  tutorialNoteText: { fontSize: 14, lineHeight: 21, color: colors.text },
   row: { flexDirection: "row", gap: 10 },
   choice: {
     flex: 1,

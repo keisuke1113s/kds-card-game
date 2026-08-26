@@ -42,6 +42,8 @@ import { playerToAct } from "@/engine/reducer";
 import { CardFace } from "@/components/CardFace";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
+import { hintFor } from "@/tutorial/hints";
+import { viewFor } from "@/engine/view";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -182,6 +184,7 @@ export default function BattleScreen() {
   const aiThinking = useGameStore((s) => s.aiThinking);
   const startGame = useGameStore((s) => s.startGame);
   const setPresentationBusy = useGameStore((s) => s.setPresentationBusy);
+  const tutorial = useGameStore((s) => s.tutorial);
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -368,6 +371,14 @@ export default function BattleScreen() {
     .filter((t): t is string => t !== null);
   const logLines = allLogLines.slice(-5);
 
+  // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
+  const hint = useMemo(() => {
+    if (!tutorial || !state) return null;
+    const view = viewFor(state, HUMAN);
+    const myTurnCount = Math.ceil(state.turnNumber / 2);
+    return hintFor(cardRegistry, view, legal, { myTurnCount });
+  }, [tutorial, state, legal]);
+
   const humanChoice =
     state.phase.type === "choice" && state.phase.pending.player === HUMAN
       ? state.phase.pending
@@ -477,6 +488,17 @@ export default function BattleScreen() {
               onPress={() => setTargetingUid(null)}
             />
           </View>
+        )}
+        {hint && (
+          <Animated.View
+            key={hint.title}
+            entering={FadeIn.duration(200)}
+            style={styles.hintBox}
+          >
+            <Text style={styles.hintLabel}>ヒント</Text>
+            <Text style={styles.hintTitle}>{hint.title}</Text>
+            <Text style={styles.hintBody}>{hint.body}</Text>
+          </Animated.View>
         )}
         {!!statusText && <Text style={styles.statusText}>{statusText}</Text>}
         <View style={styles.log}>
@@ -1196,6 +1218,18 @@ const styles = StyleSheet.create({
   battleTotal: { fontSize: 26, fontWeight: "900" },
   vsText: { fontSize: 20, fontWeight: "900", color: colors.accent },
   logButton: { fontSize: 11, color: colors.primary, fontWeight: "700", marginTop: 2 },
+  hintBox: {
+    backgroundColor: "#fff8e1",
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.accent,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    gap: 3,
+  },
+  hintLabel: { fontSize: 10, fontWeight: "800", color: colors.accent },
+  hintTitle: { fontSize: 15, fontWeight: "800", color: colors.text },
+  hintBody: { fontSize: 13, lineHeight: 19, color: colors.text },
   infoLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   pileNote: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   pileScroll: { alignSelf: "stretch", maxHeight: 380 },

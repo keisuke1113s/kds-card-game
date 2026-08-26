@@ -32,6 +32,8 @@ interface GameStore {
   aiSpeedMs: number;
   /** 演出（カード実況）表示中はCPUの次の手を待たせる */
   presentationBusy: boolean;
+  /** 練習対戦（チュートリアル）中かどうか。ヒント表示に使う */
+  tutorial: boolean;
   setPresentationBusy: (v: boolean) => void;
 
   startGame: (opts: {
@@ -40,6 +42,7 @@ interface GameStore {
     difficulty: Difficulty;
     aiSpeedMs?: number;
     seed?: number;
+    tutorial?: boolean;
   }) => void;
   /** 人間のアクションを適用する。不正な手は無視（UIは合法手のみ出す前提の保険） */
   dispatch: (action: GameAction) => void;
@@ -177,12 +180,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
     aiThinking: false,
     aiSpeedMs: 600,
     presentationBusy: false,
+    tutorial: false,
     setPresentationBusy: (presentationBusy) => {
       set({ presentationBusy });
       if (!presentationBusy) scheduleAI(); // 演出が終わったらすぐ再開
     },
 
-    startGame: ({ playerDeck, cpuDeck, difficulty, aiSpeedMs = 600, seed }) => {
+    startGame: ({ playerDeck, cpuDeck, difficulty, aiSpeedMs = 600, seed, tutorial = false }) => {
       gameToken++;
       clearAiTimer();
       const realSeed = seed ?? randomSeed();
@@ -198,6 +202,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         aiThinking: false,
         aiSpeedMs,
         presentationBusy: false,
+        tutorial,
       });
       // マリガンはCPUが後から決めても問題ないため、人間の入力を待つ
       scheduleAI();
@@ -226,6 +231,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         lastEvents: [],
         aiThinking: false,
         presentationBusy: false,
+        tutorial: false,
       });
     },
   };

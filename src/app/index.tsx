@@ -41,6 +41,11 @@ export default function HomeScreen() {
           />
         )}
         <MenuButton
+          label="はじめての方へ（遊び方）"
+          color={colors.accent}
+          onPress={() => router.push("/tutorial")}
+        />
+        <MenuButton
           label="対戦"
           color={colors.primary}
           onPress={onStart}
