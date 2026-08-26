@@ -26,6 +26,7 @@ import Animated, {
   ZoomOut,
 } from "react-native-reanimated";
 import { playBgm, stopBgm } from "@/audio/sound";
+import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
 import { GameEvent, Track } from "@/engine/types";
@@ -216,6 +217,15 @@ export default function BattleScreen() {
   useEffect(() => {
     const anns = announcementsFor(lastEvents);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
+    // 出来事に応じて振動で手応えを返す
+    for (const e of lastEvents) {
+      if (e.type === "gameEnded") haptic(e.winner === HUMAN ? "success" : "error");
+      else if (e.type === "instructorRemoved") haptic("heavy");
+      else if (e.type === "battleDeclared") haptic("heavy");
+      else if (e.type === "instructorPlayed") haptic("medium");
+      else if (e.type === "jankenPlayed") haptic((e.owner === HUMAN) === e.won ? "success" : "warning");
+      else if (e.type === "trackAdvanced" && e.player === HUMAN && e.amount < 0) haptic("warning");
+    }
     if (lastEvents.some((e) => e.type === "instructorRemoved" || e.type === "battleResolved")) {
       shakeX.value = withSequence(
         withTiming(-9, { duration: 55 }),
@@ -409,7 +419,7 @@ export default function BattleScreen() {
     <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <Animated.View style={[styles.shakeWrap, shakeStyle]}>
       {/* ===== 相手エリア ===== */}
-      <View style={[styles.zone, { backgroundColor: colors.boardTop }]}>
+      <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
           <Text style={styles.infoText}>手札 {cpu.hand.length}枚</Text>
@@ -517,7 +527,7 @@ export default function BattleScreen() {
       </View>
 
       {/* ===== 自分エリア ===== */}
-      <View style={[styles.zone, { backgroundColor: colors.boardBottom }]}>
+      <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
         <FieldRow
           state={state}
           player={HUMAN}
@@ -1236,16 +1246,37 @@ const styles = StyleSheet.create({
   pileContent: { paddingBottom: 4 },
   logScroll: { alignSelf: "stretch", maxHeight: 380 },
   logFullLine: { fontSize: 13, color: colors.text, lineHeight: 19 },
-  zone: { paddingHorizontal: 10, paddingVertical: 6, gap: 5 },
+  zone: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 5,
+    borderBottomWidth: 2,
+    borderTopWidth: 2,
+    borderColor: "transparent",
+  },
   infoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
   playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14 },
   infoText: { color: colors.textMuted, fontSize: 12 },
   fieldRow: { gap: 8, paddingVertical: 4, alignItems: "center", minHeight: 92 },
-  fieldSlot: { alignItems: "center", padding: 2 },
+  fieldSlot: {
+    alignItems: "center",
+    padding: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ffffff55",
+    backgroundColor: "#ffffff30",
+  },
   restedCard: { transform: [{ rotate: "90deg" }] },
   fieldCaption: { fontSize: 9, color: colors.textMuted, marginTop: 2, minHeight: 11 },
   emptyField: { color: colors.textMuted, fontSize: 12, paddingVertical: 24 },
-  middle: { flex: 1, paddingHorizontal: 12, paddingVertical: 4, justifyContent: "center", gap: 4 },
+  middle: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: colors.boardCenter,
+  },
   battleBanner: {
     backgroundColor: colors.surface,
     borderRadius: 8,

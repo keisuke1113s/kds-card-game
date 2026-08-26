@@ -1,11 +1,14 @@
+import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
-import { stopBgm } from "@/audio/sound";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import Animated, { FadeInDown } from "react-native-reanimated";
+import { stopBgm } from "@/audio/sound";
+import { AppButton } from "@/components/AppButton";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
-import { colors } from "@/theme";
+import { colors, radius, shadow, spacing } from "@/theme";
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -20,96 +23,170 @@ export default function HomeScreen() {
   );
 
   const activeDeck = resolveActiveDeck(deckState);
-
-  // 対戦条件（CPUの強さ・速さ・サウンド）を確認する画面へ
-  const onStart = () => router.push("/prematch");
+  const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
 
   return (
-    <SafeAreaView style={styles.root}>
-      <View style={styles.titleBox}>
-        <Text style={styles.kicker}>KDS</Text>
-        <Text style={styles.title}>カードゲーム</Text>
-        <Text style={styles.subtitle}>学科10時限・技能19時限をめざせ！</Text>
-      </View>
+    <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
+      <SafeAreaView style={styles.safe}>
+        <Animated.View entering={FadeInDown.duration(400)} style={styles.titleBox}>
+          <View style={styles.logoRow}>
+            <Text style={styles.logo}>KDS</Text>
+            <View style={styles.logoBadge}>
+              <Text style={styles.logoBadgeText}>a GO! GO!</Text>
+            </View>
+          </View>
+          <Text style={styles.title}>カードゲーム</Text>
+          <View style={styles.goalRow}>
+            <GoalChip label="学科" value="10時限" color={colors.primary} />
+            <GoalChip label="技能" value="19時限" color={colors.success} />
+          </View>
+        </Animated.View>
 
-      <View style={styles.menu}>
-        {inProgress && (
-          <MenuButton
-            label="対戦に戻る"
-            color={colors.accent}
-            onPress={() => router.push("/battle")}
+        <Animated.View entering={FadeInDown.duration(400).delay(80)} style={styles.menu}>
+          {inProgress && (
+            <AppButton
+              label="対戦に戻る"
+              icon="▶"
+              tone="accent"
+              size="lg"
+              fullWidth
+              onPress={() => router.push("/battle")}
+            />
+          )}
+
+          <AppButton
+            label="対戦"
+            icon="⚔️"
+            tone="primary"
+            size="lg"
+            feel="medium"
+            fullWidth
+            onPress={() => router.push("/prematch")}
           />
-        )}
-        <MenuButton
-          label="はじめての方へ（遊び方）"
-          color={colors.accent}
-          onPress={() => router.push("/tutorial")}
-        />
-        <MenuButton
-          label="対戦"
-          color={colors.primary}
-          onPress={onStart}
-        />
-        <Text style={styles.matchup}>
-          あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck, deckState.builtinOverrides).name}
-        </Text>
-        <MenuButton label="デッキ構築" color={colors.success} onPress={() => router.push("/deck")} />
-        <MenuButton label="カード図鑑" color={colors.instructor} onPress={() => router.push("/library")} />
-        <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
-      </View>
-      <Text style={styles.footer}>KDSカードゲーム（非公式デジタル版・開発中）</Text>
-    </SafeAreaView>
+          <View style={styles.matchupCard}>
+            <Text style={styles.matchupSide} numberOfLines={1}>
+              {activeDeck.name}
+            </Text>
+            <Text style={styles.matchupVs}>VS</Text>
+            <Text style={styles.matchupSide} numberOfLines={1}>
+              {opponentDeck.name}
+            </Text>
+          </View>
+
+          <AppButton
+            label="はじめての方へ（遊び方）"
+            icon="📖"
+            tone="accent"
+            fullWidth
+            onPress={() => router.push("/tutorial")}
+          />
+          <View style={styles.row}>
+            <AppButton
+              label="デッキ構築"
+              icon="🃏"
+              tone="success"
+              style={styles.flex}
+              onPress={() => router.push("/deck")}
+            />
+            <AppButton
+              label="カード図鑑"
+              icon="🔍"
+              tone="primary"
+              style={styles.flex}
+              onPress={() => router.push("/library")}
+            />
+          </View>
+          <AppButton
+            label="ルール"
+            icon="📋"
+            tone="ghost"
+            fullWidth
+            onPress={() => router.push("/rules")}
+          />
+        </Animated.View>
+
+        <Text style={styles.footer}>KDSカードゲーム（非公式デジタル版）</Text>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
-function MenuButton({
-  label,
-  color,
-  onPress,
-}: {
-  label: string;
-  color: string;
-  onPress: () => void;
-}) {
+function GoalChip({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.button, { backgroundColor: color }, pressed && { opacity: 0.8 }]}
-    >
-      <Text style={styles.buttonText}>{label}</Text>
-    </Pressable>
+    <View style={[styles.goalChip, { borderColor: color }]}>
+      <Text style={[styles.goalLabel, { color }]}>{label}</Text>
+      <Text style={styles.goalValue}>{value}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background, padding: 24 },
-  titleBox: { alignItems: "center", marginTop: 48, marginBottom: 32 },
-  kicker: {
-    fontSize: 40,
+  root: { flex: 1 },
+  safe: { flex: 1, paddingHorizontal: spacing.xl },
+  titleBox: { alignItems: "center", marginTop: spacing.xxl, marginBottom: spacing.xl },
+  logoRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  logo: {
+    fontSize: 46,
     fontWeight: "900",
     color: colors.primary,
-    letterSpacing: 8,
+    letterSpacing: 6,
+    textShadowColor: "#ffffff",
+    textShadowRadius: 6,
   },
-  title: { fontSize: 32, fontWeight: "800", color: colors.text },
-  subtitle: { marginTop: 8, color: colors.textMuted },
-  menu: { gap: 12 },
-  matchup: {
-    textAlign: "center",
-    color: colors.textMuted,
-    fontSize: 12,
-    marginTop: -6,
-    marginBottom: 2,
+  logoBadge: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    transform: [{ rotate: "-6deg" }],
+    ...shadow.card,
   },
-  button: {
-    borderRadius: 14,
-    paddingVertical: 16,
+  logoBadgeText: { color: "#fff", fontWeight: "900", fontSize: 12, letterSpacing: 0.5 },
+  title: {
+    fontSize: 32,
+    fontWeight: "900",
+    color: colors.primaryDark,
+    marginTop: spacing.xs,
+    letterSpacing: 1,
+  },
+  goalRow: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.md },
+  goalChip: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 6,
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 5,
+    ...shadow.card,
   },
-  buttonText: { color: "#fff", fontSize: 18, fontWeight: "700" },
+  goalLabel: { fontSize: 12, fontWeight: "800" },
+  goalValue: { fontSize: 13, fontWeight: "800", color: colors.text },
+  menu: { gap: spacing.md },
+  row: { flexDirection: "row", gap: spacing.md },
+  flex: { flex: 1 },
+  matchupCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    marginTop: -spacing.xs,
+  },
+  matchupSide: { fontSize: 12, fontWeight: "600", color: colors.textMuted, flexShrink: 1 },
+  matchupVs: { fontSize: 11, fontWeight: "900", color: colors.accent },
   footer: {
     marginTop: "auto",
+    marginBottom: spacing.md,
     textAlign: "center",
     color: colors.textMuted,
-    fontSize: 12,
+    fontSize: 10,
+    fontWeight: "700",
   },
 });

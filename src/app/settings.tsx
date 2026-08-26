@@ -23,6 +23,8 @@ export default function SettingsScreen() {
     setSeEnabled,
     bgmEnabled,
     setBgmEnabled,
+    hapticsEnabled,
+    setHapticsEnabled,
   } = useSettingsStore();
 
   return (
@@ -43,6 +45,7 @@ export default function SettingsScreen() {
       <View style={styles.row}>
         <Choice label={`効果音 ${seEnabled ? "ON" : "OFF"}`} active={seEnabled} onPress={() => setSeEnabled(!seEnabled)} />
         <Choice label={`BGM ${bgmEnabled ? "ON" : "OFF"}`} active={bgmEnabled} onPress={() => setBgmEnabled(!bgmEnabled)} />
+        <Choice label={`振動 ${hapticsEnabled ? "ON" : "OFF"}`} active={hapticsEnabled} onPress={() => setHapticsEnabled(!hapticsEnabled)} />
       </View>
 
       <Text style={styles.note}>

@@ -30,6 +30,8 @@ export default function PrematchScreen() {
     setSeEnabled,
     bgmEnabled,
     setBgmEnabled,
+    hapticsEnabled,
+    setHapticsEnabled,
   } = useSettingsStore();
 
   const playerDeck = resolveActiveDeck(deckState);
@@ -110,6 +112,11 @@ export default function PrematchScreen() {
             label={`BGM ${bgmEnabled ? "ON" : "OFF"}`}
             active={bgmEnabled}
             onPress={() => setBgmEnabled(!bgmEnabled)}
+          />
+          <Choice
+            label={`振動 ${hapticsEnabled ? "ON" : "OFF"}`}
+            active={hapticsEnabled}
+            onPress={() => setHapticsEnabled(!hapticsEnabled)}
           />
         </View>
       </ScrollView>
