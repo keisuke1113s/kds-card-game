@@ -25,6 +25,26 @@ describe("セットアップ", () => {
     expect(a.state.players[0].hand).not.toEqual(before);
   });
 
+  it("対戦ごとにデッキがシャッフルされる（両プレイヤーとも）", () => {
+    const hands = new Set<string>();
+    for (let seed = 1; seed <= 20; seed++) {
+      const { state } = createGame(ctx, { seed, decks: [defaultDeck, cpuDeck] });
+      // デッキリストの並び順のままではないこと
+      expect(state.players[0].hand).not.toEqual(defaultDeck.main.slice(0, 5));
+      expect(state.players[1].hand).not.toEqual(cpuDeck.main.slice(0, 5));
+      hands.add(state.players[0].hand.join(",") + "|" + state.players[1].hand.join(","));
+    }
+    // 20回の初期手札がすべて異なる
+    expect(hands.size).toBe(20);
+  });
+
+  it("同じシードなら同じシャッフル結果（テスト・リプレイ用）", () => {
+    const a = createGame(ctx, { seed: 12345, decks: [defaultDeck, cpuDeck] });
+    const b = createGame(ctx, { seed: 12345, decks: [defaultDeck, cpuDeck] });
+    expect(a.state.players[0].deck).toEqual(b.state.players[0].deck);
+    expect(a.state.players[1].deck).toEqual(b.state.players[1].deck);
+  });
+
   it("不正なデッキ（20枚未満）は開始できない", () => {
     expect(() =>
       createGame(ctx, {

@@ -612,9 +612,15 @@ export default function BattleScreen() {
 
       {state.phase.type === "mulligan" && !me.mulliganDecided && (
         <Overlay title="この手札で始めますか？">
+          <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
             {me.hand.map((id, i) => (
-              <CardFace key={i} cardId={id} size="md" />
+              <CardFace
+                key={i}
+                cardId={id}
+                size="md"
+                onPress={() => setDetailCardId(id, "self")}
+              />
             ))}
           </View>
           <View style={styles.overlayButtons}>

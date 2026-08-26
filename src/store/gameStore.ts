@@ -47,6 +47,27 @@ interface GameStore {
   quitGame: () => void;
 }
 
+/**
+ * 対戦ごとの乱数の種。デッキのシャッフル順はここから決まるため、
+ * 毎回必ず違う値になるよう暗号学的乱数を優先して使う
+ * （時刻だけだと、連続で開始したときに同じ種になりうる）。
+ */
+function randomSeed(): number {
+  try {
+    const g = globalThis as {
+      crypto?: { getRandomValues?: (a: Uint32Array) => Uint32Array };
+    };
+    if (g.crypto?.getRandomValues) {
+      const arr = new Uint32Array(1);
+      g.crypto.getRandomValues(arr);
+      return arr[0] | 0;
+    }
+  } catch {
+    // 利用できない環境では下のフォールバックを使う
+  }
+  return (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
+}
+
 let ai: AIController | null = null;
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
 let gameToken = 0; // 対局をまたいだ古いタイマーの発火防止
@@ -164,7 +185,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
     startGame: ({ playerDeck, cpuDeck, difficulty, aiSpeedMs = 600, seed }) => {
       gameToken++;
       clearAiTimer();
-      const realSeed = seed ?? (Date.now() % 2147483647);
+      const realSeed = seed ?? randomSeed();
       ai = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS[difficulty], realSeed ^ 0x55aa);
       const { state, events } = createGame(ctx, {
         seed: realSeed,
