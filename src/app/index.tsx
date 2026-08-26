@@ -49,7 +49,7 @@ export default function HomeScreen() {
           あなた: {activeDeck.name} ／ CPU: {cpuDeckFor(activeDeck, deckState.builtinOverrides).name}
         </Text>
         <MenuButton label="デッキこうちく" color={colors.success} onPress={() => router.push("/deck")} />
-        <MenuButton label="カードずかん" color={colors.instructor} onPress={() => router.push("/library")} />
+        <MenuButton label="カード図鑑" color={colors.instructor} onPress={() => router.push("/library")} />
         <MenuButton label="ルール" color={colors.tantou} onPress={() => router.push("/rules")} />
       </View>
       <Text style={styles.footer}>KDSカードゲーム（非公式デジタル版・開発中）</Text>
