@@ -50,9 +50,12 @@ export default function SettingsScreen() {
           通算 {record.wins}勝 {record.losses}敗
           {record.streak >= 2 ? `（${record.streak}連勝中）` : ""}
         </Text>
-        <Pressable style={styles.recordReset} onPress={() => record.reset()} hitSlop={6}>
-          <Text style={styles.recordResetText}>成績をリセット</Text>
-        </Pressable>
+        {/* 成績のリセットは正式版には無い機能。開発中の動作確認用にだけ出す */}
+        {IS_DEV_BUILD && (
+          <Pressable style={styles.recordReset} onPress={() => record.reset()} hitSlop={6}>
+            <Text style={styles.recordResetText}>成績をリセット（テスト用）</Text>
+          </Pressable>
+        )}
       </View>
 
       <Text style={styles.sectionTitle}>CPUの手の速さ</Text>
