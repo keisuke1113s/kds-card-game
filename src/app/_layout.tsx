@@ -83,7 +83,7 @@ export default function RootLayout() {
           name="battle"
           options={{ headerShown: false, gestureEnabled: false, animation: "fade" }}
         />
-        <Stack.Screen name="online" options={{ title: "オンライン対戦（開発版）" }} />
+        <Stack.Screen name="online" options={{ title: "オンライン対戦" }} />
         <Stack.Screen name="tutorial" options={{ title: "遊び方" }} />
         <Stack.Screen name="prematch" options={{ title: "対戦の準備" }} />
         <Stack.Screen name="deck/index" options={{ title: "デッキ" }} />

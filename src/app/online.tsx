@@ -12,7 +12,7 @@ import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 /**
- * オンライン対戦（開発版）。
+ * オンライン対戦。
  * 合言葉（部屋コード）を作る／入力して入る／ランダムマッチの3通り。
  * サーバーアドレスは開発中は手入力（本番では固定にする予定）。
  */

@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
@@ -23,6 +23,12 @@ import { useRecordStore } from "@/store/recordStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
+
+/** 開発版デモ（GitHub Pages の /dev/ 配下）で開いているか */
+const IS_DEV_DEMO =
+  Platform.OS === "web" &&
+  typeof window !== "undefined" &&
+  window.location.pathname.includes("/dev/");
 
 /** カード実物のロゴから採色した色 */
 const brand = {
@@ -64,10 +70,12 @@ export default function HomeScreen() {
           <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
 
-        {/* この画面がオンライン対戦の開発版であることの目印 */}
-        <View style={styles.devBadge}>
-          <Text style={styles.devBadgeText}>🔧 オンライン対戦 開発版（動作確認用）</Text>
-        </View>
+        {/* 開発版デモ（/dev/）のときだけ目印を出す。本番デモとネイティブでは出さない */}
+        {IS_DEV_DEMO && (
+          <View style={styles.devBadge}>
+            <Text style={styles.devBadgeText}>🔧 開発版（動作確認用）</Text>
+          </View>
+        )}
 
         {/* タイトル：カード裏面を扇状に並べた上にロゴを置く */}
         <View style={styles.hero}>
@@ -146,7 +154,7 @@ export default function HomeScreen() {
             onPress={() => router.push("/prematch")}
           />
           <AppButton
-            label="オンライン対戦（開発版）"
+            label="オンライン対戦"
             icon="🌐"
             tone="accent"
             fullWidth
