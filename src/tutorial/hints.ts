@@ -39,9 +39,16 @@ export function hintFor(
   }
 
   if (phase.type === "mulligan") {
+    const instructors = view.self.hand.filter((id) => defs[id]?.type === "instructor").length;
+    if (instructors === 0) {
+      return {
+        title: "手札を引き直しましょう",
+        body: "場に出せるインストラクターが1人もいません。「引き直す」を押して配り直してもらいましょう（1回だけできます）。",
+      };
+    }
     return {
       title: "はじめの手札を確認しましょう",
-      body: "インストラクターが1枚も無いときは引き直すのがおすすめです。今回はそのまま始めて大丈夫です。",
+      body: `インストラクターが${instructors}人いるので、この手札で始めて大丈夫です。カードをタップすると内容を確認できます。`,
     };
   }
 
@@ -76,7 +83,18 @@ export function hintFor(
     };
   }
 
-  if (phase.type !== "main" || view.turnPlayer !== view.playerId) return null;
+  if (phase.type !== "main") return null;
+
+  if (view.turnPlayer !== view.playerId) {
+    // 序盤だけ、相手の番に何が起きるかを案内する（毎回出すとうるさいため）
+    if (opts.myTurnCount <= 2) {
+      return {
+        title: "相手の番です",
+        body: "CPUの動きを見てみましょう。出したカードや教習の進みは実況で流れ、上の盤面にも反映されます。",
+      };
+    }
+    return null;
+  }
 
   // --- 自分のメインフェイズ ---
 
@@ -104,11 +122,45 @@ export function hintFor(
   if (readyInstructors.length > 0) {
     const remainAcademic = TRACK_GOALS.academic - view.self.academic;
     const remainSkill = TRACK_GOALS.skill - view.self.skill;
+    const oppRemain = Math.max(
+      0,
+      Math.min(
+        TRACK_GOALS.academic - view.opponent.academic,
+        TRACK_GOALS.skill - view.opponent.skill
+      )
+    );
 
+    // 相手が達成間近なら、バトルでじゃまをすることを教える
+    if (canBattle && oppRemain <= 3) {
+      return {
+        title: "相手がもうすぐ達成します！",
+        body: "バトルで相手の休憩中のインストラクターを場外に送れば、教習の勢いを止められます。攻めどきです。",
+      };
+    }
     if (canBattle && opts.myTurnCount >= 3) {
       return {
         title: "バトルもできます",
         body: "相手の休憩中（横向き）のインストラクターを場外に送れます。教習を優先するか、じゃまをするか選びましょう。",
+      };
+    }
+    // 「なにもしない」で守る戦術は、慣れてきた4ターン目に一度だけ教える
+    if (opts.myTurnCount === 4) {
+      return {
+        title: "「なにもしない」で守れます",
+        body: "行動せず元気なまま残したインストラクターには、相手はバトルを仕掛けられません。狙われたくない人は「なにもしない」を選びましょう。",
+      };
+    }
+    // 片方が終わっていれば、残りに集中させる
+    if (remainAcademic <= 0 && remainSkill > 0) {
+      return {
+        title: "学科は修了！あとは技能だけ",
+        body: `技能をあと${remainSkill}時限進めれば勝ちです。「技能を進める」を選びましょう。`,
+      };
+    }
+    if (remainSkill <= 0 && remainAcademic > 0) {
+      return {
+        title: "技能は修了！あとは学科だけ",
+        body: `学科をあと${remainAcademic}時限進めれば勝ちです。「学科を進める」を選びましょう。`,
       };
     }
     if (remainSkill > remainAcademic) {
@@ -134,6 +186,18 @@ export function hintFor(
   }
 
   // 5. やることが終わった
+  if (view.self.deckCount <= 3) {
+    return {
+      title: "山札が残りわずかです！",
+      body: `山札はあと${view.self.deckCount}枚。自分の番のはじめに引けないと負けです。急いで教習を終わらせましょう。`,
+    };
+  }
+  if (opts.myTurnCount <= 1) {
+    return {
+      title: "ターンを終わりましょう",
+      body: "教習をしたカードは横向きの「休憩」になります。次の自分の番で元気に戻るので安心してください。右下の「ターン終了」を押しましょう。",
+    };
+  }
   return {
     title: "ターンを終わりましょう",
     body: "右下の「ターン終了」を押すと相手の番になります。",
