@@ -8,7 +8,7 @@ import { createGame } from "@/engine/createGame";
 import { DeckList } from "@/engine/deckRules";
 import { getLegalActions } from "@/engine/legalActions";
 import { applyAction, playerToAct } from "@/engine/reducer";
-import { viewFor } from "@/engine/view";
+import { redactEventsFor, viewFor } from "@/engine/view";
 import { useRecordStore } from "@/store/recordStore";
 import {
   GameAction,
@@ -179,10 +179,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
     if (!prev) return;
     try {
       const { state, events } = applyAction(ctx, prev, action);
+      // UI に渡すイベントは、人間視点の秘匿処理を必ず通す。
+      // オンラインで相手に送るものと同じ形にしておくことで、
+      // 「通信に載せたら漏れる」バグをオフライン開発中に再現できる
+      const visible = redactEventsFor(events, HUMAN);
       set({
         state,
-        lastEvents: events,
-        eventLog: [...get().eventLog, ...events],
+        lastEvents: visible,
+        eventLog: [...get().eventLog, ...visible],
       });
       // 決着したら成績に記録する（途中でやめた対局は数えない）
       for (const e of events) {
@@ -238,10 +242,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
         decks: [playerDeck, cpuDeck],
         firstPlayer,
       });
+      const visible = redactEventsFor(events, HUMAN);
       set({
         state,
-        eventLog: events,
-        lastEvents: events,
+        eventLog: visible,
+        lastEvents: visible,
         aiThinking: false,
         aiSpeedMs,
         presentationBusy: false,

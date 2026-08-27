@@ -302,7 +302,14 @@ export type GameEvent =
   | { type: "handRevealed"; player: PlayerId; cardIds: string[] } // player = 手札を見られた側
   | { type: "supportsRecycled"; player: PlayerId; count: number }
   | { type: "choiceRequired"; player: PlayerId }
-  | { type: "cardsRevealed"; player: PlayerId; cardIds: string[] } // searchTop の公開
+  | {
+      // searchTop の公開。中身（cardIds）を知る資格があるのは効果の持ち主だけ。
+      // 相手に送るときは redactEventsFor が cardIds を落とし、count だけが残る
+      type: "cardsRevealed";
+      player: PlayerId;
+      count: number;
+      cardIds?: string[];
+    }
   | { type: "turnEnded"; player: PlayerId }
   | { type: "gameEnded"; winner: PlayerId | null; reason: GameEndReason };
 

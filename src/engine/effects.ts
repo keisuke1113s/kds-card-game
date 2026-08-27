@@ -300,7 +300,7 @@ function applyOp(
     case "searchTop": {
       const revealed = me.deck.splice(0, op.count);
       if (revealed.length === 0) break;
-      events.push({ type: "cardsRevealed", player: owner, cardIds: revealed });
+      events.push({ type: "cardsRevealed", player: owner, count: revealed.length, cardIds: revealed });
       const matching = revealed
         .map((id, i) => ({ id, i }))
         .filter(({ id }) => ctx.defs[id].type === op.filterType);
