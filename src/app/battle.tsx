@@ -285,6 +285,16 @@ export default function BattleScreen() {
 
   // イベント → 実況キュー＋シェイク
   useEffect(() => {
+    // 決着したら、たまっていた実況・演出をすべて捨てて勝敗の演出だけを見せる
+    if (lastEvents.some((e) => e.type === "gameEnded")) {
+      setAnnQueue([]);
+      dismissAnn();
+      setPendingDraw(null);
+      setDrawFx(null);
+      setPendingOuts([]);
+      setOutFx(null);
+      return;
+    }
     const anns = announcementsFor(lastEvents, state);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
     // 出来事に応じて振動で手応えを返す
@@ -791,13 +801,18 @@ export default function BattleScreen() {
           <Pressable onPress={() => setShowLog(true)} hitSlop={6} style={styles.logButtonRow}>
             <Text style={styles.logButton}>すべてのログを見る ▸</Text>
           </Pressable>
-          {logLines.slice(0, -1).map((line, i) => (
-            <Text key={`${i}-${line}`} style={styles.logLine} numberOfLines={1}>
-              {line}
-            </Text>
-          ))}
-          {logLines.length > 0 && (
-            <LatestLogLine key={allLogLines.length} text={logLines[logLines.length - 1]} />
+          {/* バトル表示・相手選択の表示中は場所が足りないため、ログの行は出さない（記録は残る） */}
+          {!battleInfo && !targetingUid && (
+            <>
+              {logLines.slice(0, -1).map((line, i) => (
+                <Text key={`${i}-${line}`} style={styles.logLine} numberOfLines={1}>
+                  {line}
+                </Text>
+              ))}
+              {logLines.length > 0 && (
+                <LatestLogLine key={allLogLines.length} text={logLines[logLines.length - 1]} />
+              )}
+            </>
           )}
         </View>
       </View>
@@ -939,7 +954,7 @@ export default function BattleScreen() {
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
-      {currentAnn && (
+      {currentAnn && state.phase.type !== "finished" && (
         <Pressable
           style={[
             styles.annLayer,
