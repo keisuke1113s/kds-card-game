@@ -31,7 +31,7 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from "react-native-reanimated";
-import { playBgm, stopBgm } from "@/audio/sound";
+import { playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -78,12 +78,20 @@ const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能"
 /** カードの持ち主（拡大表示のバッジに使う） */
 type Owner = "self" | "cpu";
 
+/**
+ * 中央に出す演出は種類が違っても必ずこのキューを通す。
+ * 別々のタイマーで動かすと、ターン帯・実況・教習が同時に出て読めなくなるため。
+ */
 interface Announcement {
   key: number;
+  /** "turn" は画面を横切る帯、"text" は実況（カード付きはタップ待ち） */
+  kind: "text" | "turn";
   text: string;
   cardId?: string;
   emph?: boolean;
   owner?: Owner;
+  /** kind === "turn" のとき、自分の番かどうか */
+  mine?: boolean;
 }
 
 let annSeq = 0;
@@ -115,12 +123,17 @@ function choiceOwner(purpose: string): Owner {
 function announcementsFor(events: GameEvent[]): Announcement[] {
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
-    out.push({ key: ++annSeq, text, cardId, emph, owner });
+    out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
 
   for (const e of events) {
     switch (e.type) {
       case "turnStarted":
-        add(e.player === HUMAN ? "あなたのターン" : "CPUのターン", undefined, true);
+        out.push({
+          key: ++annSeq,
+          kind: "turn",
+          text: e.player === HUMAN ? "あなたのターン" : "CPUのターン",
+          mine: e.player === HUMAN,
+        });
         break;
       // 誰の行動かはバッジで示すので、文章では繰り返さない
       case "instructorPlayed":
@@ -234,14 +247,6 @@ export default function BattleScreen() {
     transform: [{ translateX: shakeX.value }],
   }));
 
-  // 教習が進んだ瞬間の演出（中央に大きく出る）
-  const [lessonFx, setLessonFx] = useState<
-    { key: number; track: Track; amount: number; mine: boolean } | null
-  >(null);
-
-  // ターンが変わった瞬間、画面を横切る大きな帯
-  const [turnFx, setTurnFx] = useState<{ key: number; mine: boolean } | null>(null);
-
   // バトル解決・退場のときに画面全体を一瞬光らせる
   const flash = useSharedValue(0);
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
@@ -250,27 +255,6 @@ export default function BattleScreen() {
   useEffect(() => {
     const anns = announcementsFor(lastEvents);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
-    // 教習が進んだら中央に大きく表示する
-    const advance = lastEvents.find(
-      (e) => e.type === "trackAdvanced" && e.amount !== 0
-    );
-    if (advance && advance.type === "trackAdvanced") {
-      setLessonFx({
-        key: Date.now(),
-        track: advance.track,
-        amount: advance.amount,
-        mine: advance.player === HUMAN,
-      });
-      setTimeout(() => setLessonFx(null), 1100);
-    }
-
-    // ターンの切り替わりを大きな帯で知らせる
-    const turnEv = lastEvents.find((e) => e.type === "turnStarted");
-    if (turnEv && turnEv.type === "turnStarted") {
-      setTurnFx({ key: Date.now(), mine: turnEv.player === HUMAN });
-      setTimeout(() => setTurnFx(null), 1150);
-    }
-
     // 出来事に応じて振動で手応えを返す
     for (const e of lastEvents) {
       if (e.type === "gameEnded") haptic(e.winner === HUMAN ? "success" : "error");
@@ -319,10 +303,13 @@ export default function BattleScreen() {
     }
     // カード付きの実況はタップするまで表示したままにする（読み逃し防止）
     if (!next.cardId) {
-      annTimer.current = setTimeout(() => {
-        annTimer.current = null;
-        setCurrentAnn(null);
-      }, 850);
+      annTimer.current = setTimeout(
+        () => {
+          annTimer.current = null;
+          setCurrentAnn(null);
+        },
+        next.kind === "turn" ? 750 : 850
+      );
     }
   }, [currentAnn, annQueue]);
 
@@ -354,6 +341,19 @@ export default function BattleScreen() {
     () => (state ? getLegalActions(ctx, state, HUMAN) : []),
     [state]
   );
+
+  // 開幕（と引き直し）に、山札から手札を配る演出
+  const [dealing, setDealing] = useState<{ key: number; cards: string[] } | null>(null);
+  const dealtRef = useRef("");
+  useEffect(() => {
+    if (!state || state.phase.type !== "mulligan") return;
+    const me = state.players[HUMAN];
+    if (me.mulliganDecided) return;
+    const sig = me.hand.join(",");
+    if (dealtRef.current === sig) return;
+    dealtRef.current = sig;
+    setDealing({ key: Date.now(), cards: [...me.hand] });
+  }, [state]);
 
   // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
   const hint = useMemo(() => {
@@ -587,7 +587,7 @@ export default function BattleScreen() {
             />
           </View>
         )}
-        {hint && (
+        {hint && !currentAnn && (
           <Animated.View
             key={hint.title}
             entering={FadeIn.duration(200)}
@@ -727,61 +727,38 @@ export default function BattleScreen() {
       {/* 衝撃の白フラッシュ（バトル解決・退場） */}
       <Animated.View style={[styles.flashLayer, flashStyle]} pointerEvents="none" />
 
-      {/* ターンの切り替わりを知らせる帯 */}
-      {turnFx && (
-        <View style={styles.turnFxLayer} pointerEvents="none">
-          <Animated.View
-            key={turnFx.key}
-            entering={SlideInLeft.duration(280)}
-            exiting={SlideOutRight.duration(260)}
-            style={[
-              styles.turnFxBand,
-              { backgroundColor: turnFx.mine ? colors.success : colors.danger },
-            ]}
-          >
-            <Text style={styles.turnFxText}>
-              {turnFx.mine ? "あなたのターン" : "CPUのターン"}
-            </Text>
-          </Animated.View>
-        </View>
-      )}
-
-      {/* 教習が進んだ瞬間の演出 */}
-      {lessonFx && (
-        <View style={styles.lessonFxLayer} pointerEvents="none">
-          <Animated.View
-            key={lessonFx.key}
-            entering={ZoomIn.springify().damping(10)}
-            exiting={FadeOut.duration(300)}
-            style={[
-              styles.lessonFxBox,
-              {
-                borderColor: lessonFx.amount > 0 ? colors.success : colors.danger,
-                backgroundColor: lessonFx.amount > 0 ? "#eaf7eeee" : "#fdecece6",
-              },
-            ]}
-          >
-            <Text style={styles.lessonFxWho}>{lessonFx.mine ? "あなた" : "CPU"}</Text>
-            <Text
-              style={[
-                styles.lessonFxAmount,
-                { color: lessonFx.amount > 0 ? colors.success : colors.danger },
-              ]}
-            >
-              {TRACK_LABEL[lessonFx.track]} {lessonFx.amount > 0 ? `＋${lessonFx.amount}` : lessonFx.amount}
-            </Text>
-            <Text style={styles.lessonFxUnit}>時限</Text>
-          </Animated.View>
-        </View>
+      {/* ===== 手札を配る演出（開幕・引き直し） ===== */}
+      {dealing && (
+        <OpeningDeal
+          key={dealing.key}
+          cards={dealing.cards}
+          onDone={() => setDealing(null)}
+        />
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
       {currentAnn && (
         <Pressable
-          style={[styles.annLayer, currentAnn.cardId && styles.annLayerDim]}
+          style={[
+            styles.annLayer,
+            currentAnn.kind === "turn" && styles.annLayerBand,
+            currentAnn.cardId && styles.annLayerDim,
+          ]}
           onPress={dismissAnn}
         >
-          {currentAnn.cardId ? (
+          {currentAnn.kind === "turn" ? (
+            <Animated.View
+              key={currentAnn.key}
+              entering={SlideInLeft.duration(260)}
+              exiting={SlideOutRight.duration(240)}
+              style={[
+                styles.turnFxBand,
+                { backgroundColor: currentAnn.mine ? colors.success : colors.danger },
+              ]}
+            >
+              <Text style={styles.turnFxText}>{currentAnn.text}</Text>
+            </Animated.View>
+          ) : currentAnn.cardId ? (
             <Animated.View
               key={currentAnn.key}
               entering={ZoomIn.springify().damping(14)}
@@ -825,7 +802,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "mulligan" && !me.mulliganDecided && (
+      {state.phase.type === "mulligan" && !me.mulliganDecided && !dealing && (
         <Overlay title="この手札で始めますか？">
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
@@ -1253,6 +1230,98 @@ function LatestLogLine({ text }: { text: string }) {
   );
 }
 
+/** 配るテンポ（ミリ秒） */
+const DEAL_INTERVAL = 230;
+
+/**
+ * 開幕に、山札から手札を1枚ずつ配る演出。
+ * カードは弧を描いて飛び、手前で表にめくれて扇状に並ぶ。
+ */
+function OpeningDeal({ cards, onDone }: { cards: string[]; onDone: () => void }) {
+  useEffect(() => {
+    // 最後の1枚がめくり終わるのを待ってから確認画面に渡す
+    const t = setTimeout(onDone, (cards.length - 1) * DEAL_INTERVAL + 1150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <View style={styles.dealLayer} pointerEvents="none">
+      <Animated.Text entering={FadeIn.duration(300)} style={styles.dealTitle}>
+        手札を配っています…
+      </Animated.Text>
+      <View style={styles.dealStage}>
+        {/* 配り元の山札 */}
+        <View style={styles.dealDeck}>
+          <CardFace cardId="cardback" size="sm" faceDown />
+        </View>
+        {cards.map((id, i) => (
+          <DealtCard key={i} cardId={id} index={i} total={cards.length} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function DealtCard({
+  cardId,
+  index,
+  total,
+}: {
+  cardId: string;
+  index: number;
+  total: number;
+}) {
+  const fly = useSharedValue(0); // 山札 → 手札の位置
+  const flip = useSharedValue(0); // 0=裏 1=表
+
+  const center = (total - 1) / 2;
+  const targetX = (index - center) * 54;
+  const targetY = 128;
+  const targetRot = (index - center) * 7;
+
+  useEffect(() => {
+    const delay = index * DEAL_INTERVAL;
+    fly.value = withDelay(delay, withSpring(1, { damping: 15, stiffness: 120 }));
+    flip.value = withDelay(delay + 250, withTiming(1, { duration: 300 }));
+    const t = setTimeout(() => {
+      playSe("draw");
+      haptic("light");
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const wrap = useAnimatedStyle(() => ({
+    opacity: fly.value > 0.02 ? 1 : 0,
+    transform: [
+      { translateX: fly.value * targetX },
+      // 途中で少し持ち上げて、弧を描かせる
+      { translateY: fly.value * targetY - Math.sin(fly.value * Math.PI) * 44 },
+      { rotate: `${fly.value * targetRot}deg` },
+      { scale: 0.82 + fly.value * 0.18 },
+    ],
+  }));
+
+  const back = useAnimatedStyle(() => ({
+    transform: [{ perspective: 700 }, { rotateY: `${flip.value * 180}deg` }],
+  }));
+  const front = useAnimatedStyle(() => ({
+    transform: [{ perspective: 700 }, { rotateY: `${flip.value * 180 - 180}deg` }],
+  }));
+
+  return (
+    <Animated.View style={[styles.dealCard, wrap]}>
+      <Animated.View style={[styles.dealFace, back]}>
+        <CardFace cardId="cardback" size="sm" faceDown />
+      </Animated.View>
+      <Animated.View style={[styles.dealFace, styles.dealFront, front]}>
+        <CardFace cardId={cardId} size="sm" />
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 /**
  * 使えるカードをゆっくり浮き沈みさせる。
  * `offset` をずらすことで、手札が波打つように見える。
@@ -1465,13 +1534,28 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   annLayerDim: { backgroundColor: "#00000066" },
+  // ターンの帯は画面の端から端まで流すので余白を消す
+  annLayerBand: { padding: 0, alignItems: "stretch" },
   flashLayer: { ...StyleSheet.absoluteFill, backgroundColor: "#fff" },
-  confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
-  turnFxLayer: {
+  dealLayer: {
     ...StyleSheet.absoluteFill,
-    alignItems: "stretch",
+    backgroundColor: "#0b1f4aee",
+    alignItems: "center",
     justifyContent: "center",
+    gap: 10,
   },
+  dealTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
+  dealStage: { width: "100%", height: 260, alignItems: "center", justifyContent: "flex-start" },
+  dealDeck: { position: "absolute", top: 0 },
+  dealCard: { position: "absolute", top: 0 },
+  dealFace: { backfaceVisibility: "hidden" },
+  dealFront: { ...StyleSheet.absoluteFill },
+  confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
   turnFxBand: {
     paddingVertical: 12,
     alignItems: "center",
@@ -1490,28 +1574,6 @@ const styles = StyleSheet.create({
     textShadowColor: "#0006",
     textShadowRadius: 6,
   },
-  lessonFxLayer: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  lessonFxBox: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 22,
-    borderRadius: 999,
-    borderWidth: 3,
-    shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
-  },
-  lessonFxWho: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
-  lessonFxAmount: { fontSize: 30, fontWeight: "900" },
-  lessonFxUnit: { fontSize: 14, fontWeight: "800", color: colors.textMuted },
   annCardBox: {
     backgroundColor: colors.surface,
     borderRadius: 16,

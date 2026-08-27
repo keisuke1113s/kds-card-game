@@ -71,6 +71,7 @@ export function TrackBar({ label, value, goal, color }: Props) {
             style={[styles.delta, { color: delta.amount > 0 ? colors.success : colors.danger }]}
           >
             {delta.amount > 0 ? `＋${delta.amount}` : `−${-delta.amount}`}
+            <Text style={styles.deltaUnit}>時限</Text>
           </Animated.Text>
         )}
       </View>
@@ -135,14 +136,16 @@ const styles = StyleSheet.create({
   label: { width: 30, fontSize: 11, fontWeight: "700", color: colors.text },
   segments: { flex: 1, flexDirection: "row", gap: 2 },
   segment: { flex: 1, height: 10, borderRadius: 2 },
+  // 中央の実況と重ならないよう、教習が進んだことはこのバーの上で伝えきる
   delta: {
     position: "absolute",
-    right: 4,
-    top: -16,
-    fontSize: 17,
+    right: 2,
+    top: -20,
+    fontSize: 24,
     fontWeight: "900",
     textShadowColor: "#fff",
-    textShadowRadius: 5,
+    textShadowRadius: 8,
   },
+  deltaUnit: { fontSize: 12, fontWeight: "800" },
   count: { width: 38, fontSize: 11, color: colors.textMuted, textAlign: "right" },
 });

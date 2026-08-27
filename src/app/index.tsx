@@ -20,6 +20,7 @@ import { cardSmalls } from "@/data/images";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
+import { InstallPrompt } from "@/components/InstallPrompt";
 
 /** カード実物のロゴから採色した色 */
 const brand = {
@@ -100,7 +101,7 @@ export default function HomeScreen() {
           )}
 
           <AppButton
-            label="対戦"
+            label="CPU対戦"
             iconNode={<CrossedCards />}
             tone="primary"
             size="lg"
@@ -160,6 +161,9 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/rules")}
           />
+
+          {/* ホーム画面に追加できる環境でだけ出る案内 */}
+          <InstallPrompt />
         </Animated.View>
 
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>

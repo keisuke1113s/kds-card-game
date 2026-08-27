@@ -46,6 +46,33 @@ export default function Root({ children }: { children: React.ReactNode }) {
 
         {/* React Native Web の ScrollView を正しく表示するための既定スタイル */}
         <ScrollViewStyleReset />
+
+        {/*
+         * Android の Chrome に「インストールできるアプリ」だと認めてもらうための登録。
+         * これがあると、こちらから OS 標準のインストールダイアログを出せる。
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('${asset("sw.js")}', { scope: '${BASE}/' })
+      .catch(function () { /* 対応していない環境では何もしない */ });
+  });
+}
+// インストールダイアログを出す権利は一度きりなので、拾って取っておく
+window.addEventListener('beforeinstallprompt', function (e) {
+  e.preventDefault();
+  window.__installPrompt = e;
+  window.dispatchEvent(new Event('kds-installable'));
+});
+window.addEventListener('appinstalled', function () {
+  window.__installPrompt = null;
+  window.dispatchEvent(new Event('kds-installed'));
+});
+`,
+          }}
+        />
       </head>
       <body>{children}</body>
     </html>
