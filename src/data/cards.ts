@@ -173,7 +173,7 @@ export const realCards: CardDef[] = [
   },
   {
     id: "i_kataoka", name: "片岡", type: "instructor", combat: 3, lesson: 2,
-    effectText: "【登場時】カードを1枚引く。その後、じゃんけんをして勝った場合は、このカードをもう1枚引く。",
+    effectText: "【登場時】カードを1枚引く。その後、じゃんけんをして勝った場合は、カードをもう1枚引く。",
     flavor: "趣味はマラソンです",
     effects: [{
       trigger: "onPlay",
