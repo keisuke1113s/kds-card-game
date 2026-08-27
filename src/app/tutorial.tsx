@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeIn, FadeOut, SlideInRight } from "react-native-reanimated";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, runOnJS } from "react-native-reanimated";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { getCard } from "@/data/cards";
@@ -19,10 +20,28 @@ export default function TutorialScreen() {
   const lesson = lessons[safeIndex];
   const isLast = safeIndex === lessons.length - 1;
 
+  // スライドの入り方向（次へ=右から、戻る=左から）
+  const [dir, setDir] = useState<"fwd" | "back">("fwd");
+
   const next = () => {
+    setDir("fwd");
     if (isLast) router.replace("/prematch?tutorial=1");
     else setIndex((i) => Math.min(i + 1, lessons.length - 1));
   };
+  const prev = () => {
+    setDir("back");
+    setIndex((i) => Math.max(i - 1, 0));
+  };
+
+  // 横スワイプでも前後に移動できるようにする。
+  // 縦のスクロールを邪魔しないよう、横に大きく動いたときだけ反応する
+  const swipe = Gesture.Pan()
+    .activeOffsetX([-24, 24])
+    .failOffsetY([-16, 16])
+    .onEnd((e) => {
+      if (e.translationX < -60) runOnJS(next)();
+      else if (e.translationX > 60 && safeIndex > 0) runOnJS(prev)();
+    });
 
   return (
     <View style={styles.root}>
@@ -40,8 +59,12 @@ export default function TutorialScreen() {
         ))}
       </View>
 
+      <GestureDetector gesture={swipe}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Animated.View key={safeIndex} entering={SlideInRight.duration(250)}>
+        <Animated.View
+          key={safeIndex}
+          entering={(dir === "fwd" ? SlideInRight : SlideInLeft).duration(250)}
+        >
           <Text style={styles.stepLabel}>
             {safeIndex + 1} / {lessons.length}
           </Text>
@@ -74,10 +97,15 @@ export default function TutorialScreen() {
           )}
         </Animated.View>
       </ScrollView>
+      </GestureDetector>
+
+      {safeIndex === 0 && (
+        <Text style={styles.swipeHint}>← 画面を横にスワイプしても進めます →</Text>
+      )}
 
       <View style={styles.footer}>
         {safeIndex > 0 ? (
-          <Pressable style={styles.backButton} onPress={() => setIndex((i) => Math.max(i - 1, 0))}>
+          <Pressable style={styles.backButton} onPress={prev}>
             <Text style={styles.backText}>戻る</Text>
           </Pressable>
         ) : (
@@ -145,6 +173,13 @@ const styles = StyleSheet.create({
   },
   tipLabel: { fontSize: 12, fontWeight: "800", color: colors.accent },
   tipText: { fontSize: 14, lineHeight: 22, color: colors.text },
+  swipeHint: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "700",
+    color: colors.textMuted,
+    paddingBottom: 6,
+  },
   footer: {
     flexDirection: "row",
     gap: 10,
