@@ -35,8 +35,15 @@ export function legacyQrPayloadFor(cardId: string): string {
   return `${LEGACY_PREFIX}${cardId}:${sigFor(cardId, 16)}`;
 }
 
-/** 読み込んだQRの中身を検証する。正しければカードIDを返し、違えば null */
-export function verifyQrPayload(raw: string): string | null {
+/** QRの検証結果 */
+export type QrCheck =
+  | { status: "ok"; cardId: string }
+  /** 署名は本物だが、このアプリのバージョンにまだ入っていないカード */
+  | { status: "unknownCard"; cardId: string }
+  | { status: "invalid" };
+
+/** 読み込んだQRの中身を検証する */
+export function checkQrPayload(raw: string): QrCheck {
   const text = raw.trim();
   let sigLen: number;
   let rest: string;
@@ -47,14 +54,21 @@ export function verifyQrPayload(raw: string): string | null {
     rest = text.slice(LEGACY_PREFIX.length);
     sigLen = 16;
   } else {
-    return null;
+    return { status: "invalid" };
   }
   const sep = rest.lastIndexOf(":");
-  if (sep <= 0) return null;
+  if (sep <= 0) return { status: "invalid" };
   const cardId = rest.slice(0, sep);
   const sig = rest.slice(sep + 1);
-  if (!allCards.some((c) => c.id === cardId)) return null;
-  return sig === sigFor(cardId, sigLen) ? cardId : null;
+  if (sig !== sigFor(cardId, sigLen)) return { status: "invalid" };
+  if (!allCards.some((c) => c.id === cardId)) return { status: "unknownCard", cardId };
+  return { status: "ok", cardId };
+}
+
+/** 正しいQRならカードIDを返し、違えば null（テスト・互換用の簡易版） */
+export function verifyQrPayload(raw: string): string | null {
+  const r = checkQrPayload(raw);
+  return r.status === "ok" ? r.cardId : null;
 }
 
 /**

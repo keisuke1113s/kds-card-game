@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
+import { ensureInitialSet } from "@/store/unlockStore";
 import { colors, radius } from "@/theme";
 
 /**
@@ -33,6 +34,11 @@ export default function RootLayout() {
   // カードの絵を先に読み込み、そろってから起動画面を消す。
   // 絵が後から出てくる（一瞬文字だけになる）のを防ぐため。
   // 一覧用（150px）と拡大用（300px）の全カードぶんをここで読み込む。
+  // 初回起動なら、ランダムな22枚（デッキ1つ分）をこの端末の初期セットとして配る
+  useEffect(() => {
+    ensureInitialSet();
+  }, []);
+
   useEffect(() => {
     let alive = true;
     const hideBoot = () => {

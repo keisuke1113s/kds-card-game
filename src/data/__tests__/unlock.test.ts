@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { allCards, cardRegistry } from "@/data/cards";
 import {
+  checkQrPayload,
   DEFAULT_OPEN_CARDS,
   legacyQrPayloadFor,
   qrPayloadFor,
@@ -31,6 +32,15 @@ describe("カード開放のQRコード", () => {
     // 別カードの署名を流用してもだめ
     const sigOfOther = qrPayloadFor(allCards[1].id).split(":").pop()!;
     expect(verifyQrPayload(`KC1:${allCards[0].id}:${sigOfOther}`)).toBeNull();
+  });
+
+  it("署名は本物だが未実装のカードは「アプリ更新が必要」と判定される", () => {
+    // 新規カードのQRを先に発行して、アプリ実装前に読み込んだ場合
+    const future = qrPayloadFor("i_mirai_no_card");
+    const check = checkQrPayload(future);
+    expect(check.status).toBe("unknownCard");
+    // 署名が違えば unknownCard ではなく invalid
+    expect(checkQrPayload("KC1:i_mirai_no_card:00000000").status).toBe("invalid");
   });
 
   it("配布時開示セットは実在カードだけで、内蔵デッキが遊べる分を含む", () => {

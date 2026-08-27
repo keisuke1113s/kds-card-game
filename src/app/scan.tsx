@@ -4,7 +4,7 @@ import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-na
 import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { getCard } from "@/data/cards";
-import { verifyQrPayload } from "@/data/unlock";
+import { checkQrPayload } from "@/data/unlock";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
 import { colors, radius, spacing } from "@/theme";
@@ -17,6 +17,7 @@ import { colors, radius, spacing } from "@/theme";
 type ScanOutcome =
   | { kind: "unlocked"; cardId: string }
   | { kind: "already"; cardId: string }
+  | { kind: "needsUpdate" }
   | { kind: "invalid" };
 
 export default function ScanScreen() {
@@ -30,12 +31,19 @@ export default function ScanScreen() {
 
   const handlePayload = (raw: string) => {
     if (pausedRef.current) return;
-    const cardId = verifyQrPayload(raw);
-    if (!cardId) {
+    const check = checkQrPayload(raw);
+    if (check.status === "invalid") {
       haptic("light");
       setOutcome({ kind: "invalid" });
       return;
     }
+    if (check.status === "unknownCard") {
+      // 本物のQRだが、このバージョンのアプリにまだ入っていない新カード
+      haptic("light");
+      setOutcome({ kind: "needsUpdate" });
+      return;
+    }
+    const cardId = check.cardId;
     const already = unlockedSet(useUnlockStore.getState()).has(cardId);
     if (already) {
       haptic("light");
@@ -91,6 +99,14 @@ export default function ScanScreen() {
                 <Text style={styles.resultTitle}>このQRコードは使えません</Text>
                 <Text style={styles.resultSub}>
                   KDSカードゲームの正しいQRコードか確認してください
+                </Text>
+              </>
+            ) : outcome.kind === "needsUpdate" ? (
+              <>
+                <Text style={styles.resultEmoji}>🆕</Text>
+                <Text style={styles.resultTitle}>新しいカードのQRコードです</Text>
+                <Text style={styles.resultSub}>
+                  アプリを最新版に更新すると、このカードを登録できるようになります
                 </Text>
               </>
             ) : (
