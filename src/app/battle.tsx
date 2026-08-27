@@ -271,7 +271,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
         break;
       case "supportsRecycled":
-        if (e.player === OPP) add(`CPUがサポート${e.count}枚を山札に戻した`);
+        if (e.player === OPP) add(`${oppLabel}がサポート${e.count}枚を山札に戻した`);
         break;
     }
   }
@@ -680,7 +680,7 @@ export default function BattleScreen() {
   })();
 
   const allLogLines = eventLog
-    .map((e) => eventText(e, ME))
+    .map((e) => eventText(e, ME, oppLabel))
     .filter((t): t is string => t !== null);
   // 中央エリアは高さが限られるので、直近3件だけ出す（全文は「すべてのログを見る」）
   const logLines = allLogLines.slice(-3);

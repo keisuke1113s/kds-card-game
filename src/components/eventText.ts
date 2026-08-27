@@ -3,9 +3,9 @@ import { GameEvent, PlayerId } from "@/engine/types";
 
 const TRACK_LABEL = { academic: "学科", skill: "技能" } as const;
 
-/** イベントをログ表示用の日本語にする。null は表示しない */
-export function eventText(e: GameEvent, human: PlayerId): string | null {
-  const who = (p: PlayerId) => (p === human ? "あなた" : "CPU");
+/** イベントをログ表示用の日本語にする。null は表示しない。opp は相手の呼び名（CPU／オンラインの相手名） */
+export function eventText(e: GameEvent, human: PlayerId, opp = "CPU"): string | null {
+  const who = (p: PlayerId) => (p === human ? "あなた" : opp);
   switch (e.type) {
     case "gameStarted":
       return `対戦開始！ 先攻は${who(e.firstPlayer)}`;
@@ -59,19 +59,19 @@ export function eventText(e: GameEvent, human: PlayerId): string | null {
     case "supportsRecycled":
       return `${who(e.player)}が場外のサポート${e.count}枚を山札に戻した`;
     case "cardsRevealed":
-      return e.player === human ? null : `CPUが山札の上を確認した`;
+      return e.player === human ? null : `${opp}が山札の上を確認した`;
     case "choiceRequired":
     case "turnEnded":
       return null;
     case "gameEnded":
       if (e.reason === "deckOut") {
         return e.winner === human
-          ? "CPUの山札が切れた！あなたの勝ち！"
+          ? `${opp}の山札が切れた！あなたの勝ち！`
           : "山札が切れた…あなたの負け…";
       }
       return e.winner === human
         ? "学科と技能を両方達成！あなたの勝ち！"
-        : "CPUが両方達成…あなたの負け…";
+        : `${opp}が両方達成…あなたの負け…`;
     default:
       return null;
   }
