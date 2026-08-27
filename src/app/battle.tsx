@@ -76,6 +76,10 @@ interface Announcement {
   owner?: Owner;
   /** kind === "turn" のとき、自分の番かどうか */
   mine?: boolean;
+  /** kind === "battle" のとき、ぶつかり合う2枚 */
+  atkCardId?: string;
+  defCardId?: string;
+  atkIsCpu?: boolean;
 }
 
 let annSeq = 0;
@@ -103,8 +107,8 @@ function choiceOwner(purpose: string): Owner {
     : "self";
 }
 
-/** イベント列から実況表示を組み立てる */
-function announcementsFor(events: GameEvent[]): Announcement[] {
+/** イベント列から実況表示を組み立てる。state はバトルの2枚を引くのに使う */
+function announcementsFor(events: GameEvent[], state: GameState | null): Announcement[] {
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
     out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
@@ -151,13 +155,22 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
         if (e.player === CPU)
           add(`「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
-      case "battleDeclared":
+      case "battleDeclared": {
+        // 宣言直後は両者とも場にいるので、uid からカードを引ける
+        const atk = state?.players[e.attackerPlayer].field.find((f) => f.uid === e.attackerUid);
+        const def = state?.players[1 - e.attackerPlayer].field.find(
+          (f) => f.uid === e.defenderUid
+        );
         out.push({
           key: ++annSeq,
           kind: "battle",
           text: e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "あなたのバトル！",
+          atkCardId: atk?.cardId,
+          defCardId: def?.cardId,
+          atkIsCpu: e.attackerPlayer === CPU,
         });
         break;
+      }
       case "trackAdvanced":
         if (e.player === HUMAN && e.amount < 0) {
           add(`あなたの${TRACK_LABEL[e.track]}が ${-e.amount}時限 戻された！`, undefined, true);
@@ -243,7 +256,7 @@ export default function BattleScreen() {
 
   // イベント → 実況キュー＋シェイク
   useEffect(() => {
-    const anns = announcementsFor(lastEvents);
+    const anns = announcementsFor(lastEvents, state);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
     // 出来事に応じて振動で手応えを返す
     for (const e of lastEvents) {
@@ -299,7 +312,15 @@ export default function BattleScreen() {
           annTimer.current = null;
           setCurrentAnn(null);
         },
-        next.kind === "turn" ? 750 : next.kind === "battle" ? 1250 : next.cardId ? 1600 : 850
+        next.kind === "turn"
+          ? 900
+          : next.kind === "battle"
+            ? 2400
+            : next.cardId
+              ? 1600
+              : next.emph
+                ? 1300
+                : 850
       );
     }
   }, [currentAnn, annQueue, autoPlay]);
@@ -641,7 +662,15 @@ export default function BattleScreen() {
         <Pressable
           onPress={() => {
             haptic("light");
-            setAutoPlay(!autoPlay);
+            const next = !autoPlay;
+            setAutoPlay(next);
+            // タップ待ちの実況が残っていたら、自動送りに切り替える
+            if (next && currentAnn?.cardId && !annTimer.current) {
+              annTimer.current = setTimeout(() => {
+                annTimer.current = null;
+                setCurrentAnn(null);
+              }, 1200);
+            }
           }}
           hitSlop={8}
           style={[styles.autoButton, autoPlay && styles.autoButtonOn]}
@@ -878,12 +907,19 @@ export default function BattleScreen() {
             styles.annLayer,
             currentAnn.kind === "turn" && styles.annLayerBand,
             currentAnn.kind === "battle" && styles.annLayerBattle,
+            currentAnn.kind === "text" && currentAnn.emph && styles.annLayerEmph,
             currentAnn.cardId && styles.annLayerDim,
           ]}
           onPress={dismissAnn}
         >
           {currentAnn.kind === "battle" ? (
-            <BattleCutIn key={currentAnn.key} subtitle={currentAnn.text} />
+            <BattleCutIn
+              key={currentAnn.key}
+              subtitle={currentAnn.text}
+              atkCardId={currentAnn.atkCardId}
+              defCardId={currentAnn.defCardId}
+              atkIsCpu={currentAnn.atkIsCpu ?? false}
+            />
           ) : currentAnn.kind === "turn" ? (
             <Animated.View
               key={currentAnn.key}
@@ -911,16 +947,22 @@ export default function BattleScreen() {
               <CardDetail cardId={currentAnn.cardId} scroll={false} />
               <ActionButton label="次へ ▶" color={colors.primary} onPress={dismissAnn} />
             </Animated.View>
+          ) : currentAnn.emph ? (
+            <Animated.View
+              key={currentAnn.key}
+              entering={ZoomIn.springify().damping(10)}
+              exiting={ZoomOut.duration(200)}
+            >
+              <Text style={styles.annBigText}>{currentAnn.text}</Text>
+            </Animated.View>
           ) : (
             <Animated.View
               key={currentAnn.key}
               entering={ZoomIn.springify().damping(14)}
               exiting={ZoomOut.duration(200)}
-              style={[styles.annBox, currentAnn.emph && styles.annBoxEmph]}
+              style={styles.annBox}
             >
-              <Text style={[styles.annText, currentAnn.emph && styles.annTextEmph]}>
-                {currentAnn.text}
-              </Text>
+              <Text style={styles.annText}>{currentAnn.text}</Text>
             </Animated.View>
           )}
         </Pressable>
@@ -1667,55 +1709,110 @@ function PulseRing({
 }
 
 /**
- * バトル宣言のカットイン。
- * 暗転した画面に赤い斜め帯が交差し、「いざ、勝負！」が飛び出す。
+ * バトル宣言のカットイン（全画面）。
+ * 暗転した画面に赤い斜め帯が交差し、対戦する2枚のカードが
+ * 左右から飛び込んでぶつかり、「いざ、勝負！」が飛び出す。
  */
-function BattleCutIn({ subtitle }: { subtitle: string }) {
+function BattleCutIn({
+  subtitle,
+  atkCardId,
+  defCardId,
+  atkIsCpu,
+}: {
+  subtitle: string;
+  atkCardId?: string;
+  defCardId?: string;
+  atkIsCpu: boolean;
+}) {
   const slashA = useSharedValue(0);
   const slashB = useSharedValue(0);
+  const cardL = useSharedValue(0);
+  const cardR = useSharedValue(0);
   const pop = useSharedValue(0);
+  const clash = useSharedValue(0);
 
   useEffect(() => {
     playSe("battle");
-    slashA.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
-    slashB.value = withDelay(90, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
-    pop.value = withDelay(180, withSpring(1, { damping: 10, stiffness: 180 }));
+    slashA.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
+    slashB.value = withDelay(90, withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) }));
+    // カードが左右から飛び込む
+    cardL.value = withDelay(180, withSpring(1, { damping: 14, stiffness: 130 }));
+    cardR.value = withDelay(260, withSpring(1, { damping: 14, stiffness: 130 }));
+    // ぶつかった衝撃で全体が揺れる
+    clash.value = withDelay(
+      560,
+      withSequence(
+        withTiming(1, { duration: 60 }),
+        withTiming(-0.7, { duration: 60 }),
+        withTiming(0.4, { duration: 55 }),
+        withTiming(0, { duration: 50 })
+      )
+    );
+    pop.value = withDelay(620, withSpring(1, { damping: 9, stiffness: 160 }));
+    const t = setTimeout(() => haptic("heavy"), 560);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const slashAStyle = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: "-12deg" },
-      { translateX: (1 - slashA.value) * -500 },
-    ],
-    opacity: slashA.value,
+    transform: [{ rotate: "-12deg" }, { translateX: (1 - slashA.value) * -600 }],
+    opacity: slashA.value * 0.85,
   }));
   const slashBStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: "8deg" }, { translateX: (1 - slashB.value) * 600 }],
+    opacity: slashB.value * 0.85,
+  }));
+  const cardLStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, cardL.value * 2),
     transform: [
-      { rotate: "8deg" },
-      { translateX: (1 - slashB.value) * 500 },
+      { translateX: (1 - cardL.value) * -320 + clash.value * 8 },
+      { rotate: `${-8 + (1 - cardL.value) * -14}deg` },
     ],
-    opacity: slashB.value,
+  }));
+  const cardRStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, cardR.value * 2),
+    transform: [
+      { translateX: (1 - cardR.value) * 320 - clash.value * 8 },
+      { rotate: `${8 + (1 - cardR.value) * 14}deg` },
+    ],
+  }));
+  const shakeStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: clash.value * 10 }],
   }));
   const popStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, pop.value * 2),
-    transform: [
-      { scale: 0.3 + pop.value * 0.7 },
-      { rotate: `${(1 - pop.value) * 14 - 4}deg` },
-    ],
+    transform: [{ scale: 0.3 + pop.value * 0.7 }, { rotate: `${(1 - pop.value) * 14 - 4}deg` }],
   }));
 
+  // 左に攻撃側、右に守備側を置く
+  const leftLabel = atkIsCpu ? "CPU・アタック" : "あなた・アタック";
+  const rightLabel = atkIsCpu ? "あなた・ディフェンス" : "CPU・ディフェンス";
+
   return (
-    <View style={styles.cutinWrap} pointerEvents="none">
+    <Animated.View style={[styles.cutinWrap, shakeStyle]} pointerEvents="none">
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashA, slashAStyle]} />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashB, slashBStyle]} />
-      <Animated.View style={popStyle}>
+
+      {atkCardId && defCardId && (
+        <View style={styles.cutinCards}>
+          <Animated.View style={[styles.cutinCard, cardLStyle]}>
+            <CardFace cardId={atkCardId} size="lg" />
+            <Text style={[styles.cutinLabel, styles.cutinLabelAtk]}>{leftLabel}</Text>
+          </Animated.View>
+          <Animated.View style={[styles.cutinCard, styles.cutinCardRight, cardRStyle]}>
+            <CardFace cardId={defCardId} size="lg" />
+            <Text style={[styles.cutinLabel, styles.cutinLabelDef]}>{rightLabel}</Text>
+          </Animated.View>
+        </View>
+      )}
+
+      <Animated.View style={[styles.cutinTitleWrap, popStyle]}>
         <Text style={styles.cutinTitle} allowFontScaling={false}>
           いざ、勝負！
         </Text>
         <Text style={styles.cutinSub}>{subtitle}</Text>
       </Animated.View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -1959,7 +2056,20 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   annLayerDim: { backgroundColor: "#00000066" },
-  annLayerBattle: { backgroundColor: "#000000bb", padding: 0, alignItems: "stretch" },
+  annLayerBattle: { backgroundColor: "#0b1024ee", padding: 0, alignItems: "stretch" },
+  // 強調実況（じゃんけん勝敗・教習戻され・バトル解決）は全画面暗転で大きく
+  annLayerEmph: { backgroundColor: "#0b1024cc" },
+  annBigText: {
+    color: "#fff",
+    fontSize: 30,
+    fontWeight: "900",
+    textAlign: "center",
+    letterSpacing: 1,
+    lineHeight: 42,
+    paddingHorizontal: 16,
+    textShadowColor: colors.accent,
+    textShadowRadius: 16,
+  },
   cutinWrap: {
     flex: 1,
     alignItems: "center",
@@ -1974,16 +2084,36 @@ const styles = StyleSheet.create({
     backgroundColor: colors.danger,
     opacity: 0.9,
   },
-  cutinSlashA: { top: "34%" },
-  cutinSlashB: { top: "52%" },
+  cutinSlashA: { top: "26%" },
+  cutinSlashB: { top: "68%" },
+  // 2枚のカードが中央で向かい合う。カードは少し重ねてぶつかり感を出す
+  cutinCards: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  cutinCard: { alignItems: "center", gap: 8, marginHorizontal: -12 },
+  cutinCardRight: { marginTop: 46 },
+  cutinLabel: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#fff",
+    paddingVertical: 3,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    overflow: "hidden",
+  },
+  cutinLabelAtk: { backgroundColor: colors.danger },
+  cutinLabelDef: { backgroundColor: colors.primary },
+  cutinTitleWrap: { position: "absolute", alignSelf: "center" },
   cutinTitle: {
     color: "#fff",
-    fontSize: 44,
+    fontSize: 46,
     fontWeight: "900",
     letterSpacing: 4,
     textAlign: "center",
     textShadowColor: colors.danger,
-    textShadowRadius: 18,
+    textShadowRadius: 20,
   },
   cutinSub: {
     color: "#ffffffdd",
@@ -1991,9 +2121,15 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     textAlign: "center",
     marginTop: 8,
+    textShadowColor: "#000",
+    textShadowRadius: 8,
   },
-  // ターンの帯は画面の端から端まで流すので余白を消す
-  annLayerBand: { padding: 0, alignItems: "stretch" },
+  // ターンの帯は全画面を暗転させ、端から端まで流す
+  annLayerBand: {
+    padding: 0,
+    alignItems: "stretch",
+    backgroundColor: "#0b1024cc",
+  },
   flashLayer: { ...StyleSheet.absoluteFill, backgroundColor: "#fff" },
   dealLayer: {
     ...StyleSheet.absoluteFill,
@@ -2031,7 +2167,7 @@ const styles = StyleSheet.create({
   },
   rainCard: { position: "absolute", top: 0 },
   turnFxBand: {
-    paddingVertical: 12,
+    paddingVertical: 22,
     alignItems: "center",
     justifyContent: "center",
     shadowColor: "#000",
@@ -2042,7 +2178,7 @@ const styles = StyleSheet.create({
   },
   turnFxText: {
     color: "#fff",
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: "900",
     letterSpacing: 2,
     textShadowColor: "#0006",
@@ -2093,9 +2229,7 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     elevation: 8,
   },
-  annBoxEmph: { borderColor: colors.accent, backgroundColor: "#fffdf2f5" },
   annText: { fontSize: 15, fontWeight: "700", color: colors.text, textAlign: "center" },
-  annTextEmph: { fontSize: 19, fontWeight: "900", color: colors.primaryDark },
   annHint: { fontSize: 10, color: colors.textMuted },
   logLatest: {
     fontSize: 14,
