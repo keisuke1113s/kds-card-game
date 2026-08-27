@@ -1,8 +1,13 @@
 name: Deploy to GitHub Pages
 
+# 安定版（main）と開発版（online）を1つの GitHub Pages に載せる。
+#   /      … main（複数人で動作チェック中の安定版）
+#   /dev/  … online ブランチ（オンライン対戦の開発版）
+# どちらのブランチに push しても、両方をビルドして丸ごとデプロイする。
+
 on:
   push:
-    branches: [main]
+    branches: [main, online]
   workflow_dispatch:
 
 permissions:
@@ -18,18 +23,50 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # ---- 安定版（main） ----
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: stable
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npx expo export -p web
-      - run: touch dist/.nojekyll
+          cache-dependency-path: stable/package-lock.json
+      - name: Build stable (main)
+        working-directory: stable
+        run: |
+          npm ci
+          npx expo export -p web
+      # ---- 開発版（online） ----
+      - uses: actions/checkout@v4
+        with:
+          ref: online
+          path: dev
+      - name: Build dev (online)
+        working-directory: dev
+        run: |
+          npm ci
+          # 開発版は /kds-card-game/dev/ 配下で動くよう baseUrl を書き換える
+          node -e "
+            const fs = require('fs');
+            const c = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+            c.expo.experiments.baseUrl = '/kds-card-game/dev';
+            fs.writeFileSync('app.json', JSON.stringify(c, null, 2));
+          "
+          npx expo export -p web
+      # ---- 合成してデプロイ ----
+      - name: Merge outputs
+        run: |
+          mkdir -p site
+          cp -r stable/dist/. site/
+          mkdir -p site/dev
+          cp -r dev/dist/. site/dev/
+          touch site/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build
