@@ -91,6 +91,14 @@ interface GameStore {
   jankenHand: JankenHand | null;
   jankenResult: { myHand: JankenHand; oppHand: JankenHand; result: "win" | "lose" | "tie" } | null;
   sendJanken: (hand: JankenHand) => void;
+  /** 再戦（オンライン）。両者が希望するとじゃんけんからやり直す */
+  rematchRequested: boolean;
+  rematchOffered: boolean;
+  requestRematch: () => void;
+  /** 定型スタンプ */
+  incomingStamp: string | null;
+  myStamp: string | null;
+  sendStamp: (id: string) => void;
 
   startGame: (opts: {
     playerDeck: DeckList;
@@ -167,6 +175,10 @@ let matchMeta: {
   replayFirst: PlayerId | null;
   replayActions: GameAction[];
 } | null = null;
+
+/** スタンプ表示を自動で消すタイマー */
+let stampTimer: ReturnType<typeof setTimeout> | null = null;
+let myStampTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** リプレイ再生用のタイマーと残り手順 */
 let replayTimer: ReturnType<typeof setTimeout> | null = null;
@@ -469,6 +481,26 @@ export const useGameStore = create<GameStore>()((set, get) => {
       });
       scheduleReplayStep();
     },
+    rematchRequested: false,
+    rematchOffered: false,
+    requestRematch: () => {
+      if (get().rematchRequested) return;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "rematch" }));
+      set({ rematchRequested: true });
+    },
+    incomingStamp: null,
+    myStamp: null,
+    sendStamp: (id) => {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "stamp", id }));
+      if (myStampTimer) clearTimeout(myStampTimer);
+      set({ myStamp: id });
+      myStampTimer = setTimeout(() => {
+        myStampTimer = null;
+        set({ myStamp: null });
+      }, 3000);
+    },
     jankenActive: false,
     jankenHand: null,
     jankenResult: null,
@@ -697,7 +729,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
                 clearTimeout(jankenTimer);
                 jankenTimer = null;
               }
-              set({ jankenActive: true, jankenHand: null, jankenResult: null });
+              set({
+                jankenActive: true,
+                jankenHand: null,
+                jankenResult: null,
+                rematchRequested: false,
+                rematchOffered: false,
+              });
               break;
             case "jankenResult": {
               const hands = msg.hands;
@@ -769,6 +807,20 @@ export const useGameStore = create<GameStore>()((set, get) => {
               // 秘匿はサーバー側で済んでいる。演出中はためて順に流す
               pendingUpdates.push({ view, events });
               drainUpdates();
+              break;
+            }
+            case "rematchOffered":
+              set({ rematchOffered: true });
+              break;
+            case "stamp": {
+              const id = (msg as { id?: string }).id ?? null;
+              if (!id) break;
+              if (stampTimer) clearTimeout(stampTimer);
+              set({ incomingStamp: id });
+              stampTimer = setTimeout(() => {
+                stampTimer = null;
+                set({ incomingStamp: null });
+              }, 3000);
               break;
             }
             case "opponentLeft":
@@ -874,6 +926,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
         jankenHand: null,
         jankenResult: null,
         replayActive: false,
+        rematchRequested: false,
+        rematchOffered: false,
+        incomingStamp: null,
+        myStamp: null,
       });
       ai = null;
       set({

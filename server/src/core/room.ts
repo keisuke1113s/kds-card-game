@@ -40,7 +40,14 @@ export type ServerMessage =
   | { type: "matchStart"; seat: PlayerId }
   | { type: "update"; seq: number; view: PlayerView; events: GameEvent[] }
   | { type: "opponentLeft" }
+  /** 相手が再戦を希望した */
+  | { type: "rematchOffered" }
+  /** 相手からの定型スタンプ */
+  | { type: "stamp"; id: string }
   | { type: "error"; message: string };
+
+/** 送り合える定型スタンプ（自由入力は無し＝モデレーション不要） */
+export const STAMP_IDS = ["yoroshiku", "nice", "yaruna", "arigatou"] as const;
 
 export interface Seat {
   name: string;
@@ -123,6 +130,10 @@ export class RoomCore {
   private jankenActive = false;
   private jankenHands: (JankenHand | null)[] = [null, null];
   private jankenTimer: ReturnType<typeof setTimeout> | null = null;
+  /** 再戦の希望（両者そろったらじゃんけんからやり直す） */
+  private rematchWants: [boolean, boolean] = [false, false];
+  /** スタンプの連打防止（席ごとの最終送信時刻） */
+  private lastStampAt: [number, number] = [0, 0];
   private readonly setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
   private readonly clearTimer: (t: ReturnType<typeof setTimeout>) => void;
 
@@ -333,6 +344,35 @@ export class RoomCore {
     const { state, events } = applyAction(this.ctx, this.state, a);
     this.state = state;
     this.broadcast(events);
+  }
+
+  /**
+   * 再戦の希望。終局後のみ受け付け、両者がそろったら
+   * じゃんけんからやり直して新しい対局を始める
+   */
+  handleRematch(seatIndex: PlayerId): void {
+    const seat = this.seats[seatIndex];
+    if (!seat) return;
+    if (!this.state || this.state.phase.type !== "finished") return;
+    if (this.rematchWants[seatIndex]) return;
+    this.rematchWants[seatIndex] = true;
+    const other = this.seats[1 - seatIndex];
+    other?.send({ type: "rematchOffered" });
+    if (this.rematchWants[0] && this.rematchWants[1]) {
+      // 対局をリセットして、先攻決めのじゃんけんから
+      this.state = null;
+      this.rematchWants = [false, false];
+      this.beginJanken();
+    }
+  }
+
+  /** 定型スタンプを相手に中継する（1.5秒に1回まで） */
+  handleStamp(seatIndex: PlayerId, id: string): void {
+    if (!(STAMP_IDS as readonly string[]).includes(id)) return;
+    const now = Date.now();
+    if (now - this.lastStampAt[seatIndex] < 1500) return;
+    this.lastStampAt[seatIndex] = now;
+    this.seats[1 - seatIndex]?.send({ type: "stamp", id });
   }
 
   /** 投了。相手の勝ちで終局させる */

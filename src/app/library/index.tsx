@@ -1,7 +1,10 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import { PackReveal } from "@/app/scan";
+import { evaluateAchievements } from "@/store/achievementStore";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { LockedCard } from "@/components/LockedCard";
@@ -19,6 +22,13 @@ const sections: { label: string; type: string }[] = [
 /** 図鑑の表示絞り込み */
 type LibraryFilter = "all" | "unlocked" | "locked";
 
+/** 開発版だけの機能を出す条件（本番・ストア版では出ない） */
+const IS_DEV_BUILD =
+  (typeof __DEV__ !== "undefined" && __DEV__) ||
+  (Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    window.location.pathname.includes("/dev/"));
+
 const FILTERS: { key: LibraryFilter; label: string }[] = [
   { key: "all", label: "すべて" },
   { key: "unlocked", label: "あつめた" },
@@ -28,7 +38,9 @@ const FILTERS: { key: LibraryFilter; label: string }[] = [
 export default function LibraryScreen() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
-  const [lockedTapped, setLockedTapped] = useState(false);
+  const [lockedTapped, setLockedTapped] = useState<string | null>(null);
+  // 開発版のテスト開放でパック開封演出を見せる
+  const [devRevealed, setDevRevealed] = useState<string | null>(null);
   const [filter, setFilter] = useState<LibraryFilter>("all");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
@@ -114,7 +126,7 @@ export default function LibraryScreen() {
                   unlocked.has(c.id) ? (
                     <CardFace key={c.id} cardId={c.id} size="md" onPress={() => setSelected(c.id)} />
                   ) : (
-                    <LockedCard key={c.id} size="md" onPress={() => setLockedTapped(true)} />
+                    <LockedCard key={c.id} size="md" onPress={() => setLockedTapped(c.id)} />
                   )
                 )}
               </View>
@@ -135,7 +147,7 @@ export default function LibraryScreen() {
         </Pressable>
       )}
       {lockedTapped && (
-        <Pressable style={styles.overlayBg} onPress={() => setLockedTapped(false)}>
+        <Pressable style={styles.overlayBg} onPress={() => setLockedTapped(null)}>
           <Pressable style={styles.overlayBox} onPress={() => {}}>
             <Text style={styles.lockedEmoji}>🔒</Text>
             <Text style={styles.overlayTitle}>まだ開放されていないカードです</Text>
@@ -145,13 +157,41 @@ export default function LibraryScreen() {
             <Pressable
               style={[styles.closeButton, { backgroundColor: colors.primary }]}
               onPress={() => {
-                setLockedTapped(false);
+                setLockedTapped(null);
                 router.push("/scan");
               }}
             >
               <Text style={styles.closeText}>📷 QRコードを読み込む</Text>
             </Pressable>
-            <Pressable style={styles.closeButton} onPress={() => setLockedTapped(false)}>
+            {IS_DEV_BUILD && (
+              <Pressable
+                style={[styles.closeButton, { backgroundColor: colors.danger }]}
+                onPress={() => {
+                  const id = lockedTapped;
+                  setLockedTapped(null);
+                  unlockState.unlock(id);
+                  evaluateAchievements();
+                  setDevRevealed(id);
+                }}
+              >
+                <Text style={styles.closeText}>🔧 テスト開放（QRの代わり）</Text>
+              </Pressable>
+            )}
+            <Pressable style={styles.closeButton} onPress={() => setLockedTapped(null)}>
+              <Text style={styles.closeText}>閉じる</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      )}
+      {devRevealed && (
+        <Pressable style={styles.overlayBg} onPress={() => setDevRevealed(null)}>
+          <Pressable style={styles.overlayBox} onPress={() => {}}>
+            <Text style={styles.lockedEmoji}>🎉</Text>
+            <Text style={styles.overlayTitle}>
+              「{getCard(devRevealed).name}」を開放しました！（テスト）
+            </Text>
+            <PackReveal cardId={devRevealed} />
+            <Pressable style={styles.closeButton} onPress={() => setDevRevealed(null)}>
               <Text style={styles.closeText}>閉じる</Text>
             </Pressable>
           </Pressable>

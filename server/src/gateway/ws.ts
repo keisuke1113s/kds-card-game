@@ -155,6 +155,14 @@ export function startServer(port: number): http.Server {
           if (conn.room && conn.seat !== null) conn.room.resign(conn.seat);
           break;
 
+        case "rematch":
+          if (conn.room && conn.seat !== null) conn.room.handleRematch(conn.seat);
+          break;
+
+        case "stamp":
+          if (conn.room && conn.seat !== null) conn.room.handleStamp(conn.seat, msg.id);
+          break;
+
         case "leave":
           if (conn.room && conn.seat !== null) conn.room.leave(conn.seat);
           conn.room = null;

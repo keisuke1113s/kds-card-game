@@ -54,6 +54,7 @@ import { CardFace } from "@/components/CardFace";
 import { OnlineJanken } from "@/components/OnlineJanken";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
+import { STAMPS, stampOf } from "@/data/stamps";
 import { hintFor } from "@/tutorial/hints";
 import {
   cpuDeckFor,
@@ -301,6 +302,12 @@ export default function BattleScreen() {
   const matchFound = useGameStore((s) => s.matchFound);
   const clearMatchFound = useGameStore((s) => s.clearMatchFound);
   const opponentTitle = useGameStore((s) => s.opponentTitle);
+  const rematchRequested = useGameStore((s) => s.rematchRequested);
+  const rematchOffered = useGameStore((s) => s.rematchOffered);
+  const requestRematch = useGameStore((s) => s.requestRematch);
+  const incomingStamp = useGameStore((s) => s.incomingStamp);
+  const myStamp = useGameStore((s) => s.myStamp);
+  const sendStamp = useGameStore((s) => s.sendStamp);
   const replayActive = useGameStore((s) => s.replayActive);
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
@@ -878,6 +885,37 @@ export default function BattleScreen() {
         >
           <Text style={styles.settingsText}>⚙️ 設定</Text>
         </Pressable>
+        {/* オンライン: 定型スタンプの送信ボタンと吹き出し */}
+        {isOnline && (
+          <View style={styles.stampRow}>
+            {STAMPS.map((s) => (
+              <Pressable
+                key={s.id}
+                style={styles.stampButton}
+                onPress={() => {
+                  haptic("light");
+                  sendStamp(s.id);
+                }}
+              >
+                <Text style={styles.stampButtonEmoji}>{s.emoji}</Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        {incomingStamp && stampOf(incomingStamp) && (
+          <View style={[styles.stampBubble, styles.stampBubbleOpp]} pointerEvents="none">
+            <Text style={styles.stampBubbleText}>
+              {stampOf(incomingStamp)!.emoji} {stampOf(incomingStamp)!.label}
+            </Text>
+          </View>
+        )}
+        {myStamp && stampOf(myStamp) && (
+          <View style={[styles.stampBubble, styles.stampBubbleMine]} pointerEvents="none">
+            <Text style={styles.stampBubbleText}>
+              {stampOf(myStamp)!.emoji} {stampOf(myStamp)!.label}
+            </Text>
+          </View>
+        )}
         {/* ランダムマッチの相手を探しながらCPU対戦しているときの目印 */}
         {queueActive && !isOnline && (
           <View style={styles.queueBadge} pointerEvents="none">
@@ -1660,6 +1698,32 @@ export default function BattleScreen() {
               <Text style={styles.recordStreak}>🔥 {record.streak}連勝中！</Text>
             )}
           </View>
+          {/* オンライン: 再戦の申し込み */}
+          {isOnline && (
+            <View style={{ gap: 6, alignSelf: "stretch", alignItems: "center" }}>
+              {rematchOffered && !rematchRequested && (
+                <Text style={styles.rematchOfferText}>
+                  🔔 {oppLabel} さんが再戦を希望しています！
+                </Text>
+              )}
+              {rematchRequested ? (
+                <Text style={styles.rematchWaitText}>
+                  {rematchOffered
+                    ? "まもなく再戦が始まります…"
+                    : `再戦を申し込みました。${oppLabel} さんの返事を待っています…`}
+                </Text>
+              ) : (
+                <ActionButton
+                  label={rematchOffered ? "🔥 再戦を受ける！" : "もう一度対戦を申し込む"}
+                  color={colors.primary}
+                  onPress={() => {
+                    haptic("medium");
+                    requestRematch();
+                  }}
+                />
+              )}
+            </View>
+          )}
           <View style={styles.overlayButtons}>
             {replayActive && (
               <ActionButton
@@ -3207,6 +3271,44 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  rematchOfferText: { fontSize: 14, fontWeight: "900", color: "#c9971b", textAlign: "center" },
+  rematchWaitText: { fontSize: 13, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
+  stampRow: {
+    position: "absolute",
+    left: 6,
+    bottom: 6,
+    flexDirection: "row",
+    gap: 6,
+    zIndex: 8,
+  },
+  stampButton: {
+    backgroundColor: "#ffffffdd",
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    width: 34,
+    height: 34,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stampButtonEmoji: { fontSize: 17 },
+  stampBubble: {
+    position: "absolute",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    borderWidth: 2,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    zIndex: 9,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 5,
+  },
+  stampBubbleOpp: { top: 4, left: 10, borderColor: colors.danger },
+  stampBubbleMine: { bottom: 46, right: 10, borderColor: colors.success },
+  stampBubbleText: { fontSize: 15, fontWeight: "900", color: colors.text },
   titleBadge: {
     backgroundColor: "#c9971b",
     borderRadius: 999,

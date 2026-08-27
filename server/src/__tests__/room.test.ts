@@ -243,6 +243,34 @@ describe("RoomCore（サーバーの権威ロジック）", () => {
       expect(a.view.phase.winner).toBe(b.seat);
     }
   });
+
+  it("両者が再戦を希望すると、じゃんけんからやり直して新しい対局が始まる", () => {
+    const { room, a, b } = setupMatch();
+    room.resign(a.seat!);
+    // 対局中の rematch は無視される前提はここでは略。終局後に両者希望
+    room.handleRematch(a.seat!);
+    expect(b.received.some((m) => m.type === "rematchOffered")).toBe(true);
+    expect(room.started).toBe(true); // まだ古い対局のまま
+    room.handleRematch(b.seat!);
+    // じゃんけんが再開している
+    const starts = a.received.filter((m) => m.type === "jankenStart").length;
+    expect(starts).toBeGreaterThanOrEqual(2);
+    room.handleJanken(0, "rock");
+    room.handleJanken(1, "scissors");
+    expect(room.started).toBe(true);
+    expect(a.view?.phase.type).not.toBe("finished");
+  });
+
+  it("スタンプは相手に中継され、連打は抑止される", () => {
+    const { room, a, b } = setupMatch();
+    room.handleStamp(a.seat!, "nice");
+    expect(b.received.some((m) => m.type === "stamp" && m.id === "nice")).toBe(true);
+    const before = b.received.filter((m) => m.type === "stamp").length;
+    room.handleStamp(a.seat!, "nice"); // 1.5秒以内の連打
+    expect(b.received.filter((m) => m.type === "stamp").length).toBe(before);
+    room.handleStamp(a.seat!, "でたらめ" as never);
+    expect(b.received.filter((m) => m.type === "stamp").length).toBe(before);
+  });
 });
 
 describe("Matchmaker（部屋の管理）", () => {

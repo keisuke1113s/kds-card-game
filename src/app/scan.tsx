@@ -169,8 +169,9 @@ export default function ScanScreen() {
 /**
  * パック開封風の演出。
  * カード裏面が光りながら揺れ、めくれて表が現れる。まわりに紙吹雪が舞う
+ * （図鑑の開発用テスト開放からも使う）
  */
-function PackReveal({ cardId }: { cardId: string }) {
+export function PackReveal({ cardId }: { cardId: string }) {
   const flip = useSharedValue(0); // 0=裏 1=表
   const glow = useSharedValue(0);
   const wobble = useSharedValue(0);

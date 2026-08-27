@@ -45,6 +45,11 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("action"), action: z.unknown() }),
   z.object({ type: z.literal("resign") }),
+  z.object({ type: z.literal("rematch") }),
+  z.object({
+    type: z.literal("stamp"),
+    id: z.enum(["yoroshiku", "nice", "yaruna", "arigatou"]),
+  }),
   z.object({ type: z.literal("leave") }),
   z.object({ type: z.literal("ping") }),
 ]);
