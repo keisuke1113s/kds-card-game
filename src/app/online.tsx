@@ -24,15 +24,24 @@ interface OnlinePrefs {
   setServerUrl: (v: string) => void;
 }
 
+/** 本番サーバー（Fly.io 東京）。GitHub Pages からは wss が必須 */
+export const DEFAULT_SERVER_URL = "wss://kds-taisen.fly.dev";
+
 const useOnlinePrefs = create<OnlinePrefs>()(
   persist(
     (set) => ({
       name: "",
-      serverUrl: "ws://192.168.50.57:8790",
+      serverUrl: DEFAULT_SERVER_URL,
       setName: (name) => set({ name }),
       setServerUrl: (serverUrl) => set({ serverUrl }),
     }),
-    { name: "kds-online-prefs", storage: createJSONStorage(() => AsyncStorage) }
+    {
+      name: "kds-online-prefs",
+      storage: createJSONStorage(() => AsyncStorage),
+      version: 1,
+      // 旧バージョンで保存された開発用アドレスを本番サーバーに置き換える
+      migrate: (state) => ({ ...(state as OnlinePrefs), serverUrl: DEFAULT_SERVER_URL }),
+    }
   )
 );
 
@@ -213,7 +222,7 @@ export default function OnlineScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>サーバーアドレス（開発用）</Text>
+        <Text style={styles.sectionTitle}>サーバーアドレス</Text>
         <TextInput
           style={styles.input}
           value={prefs.serverUrl}
@@ -222,8 +231,13 @@ export default function OnlineScreen() {
           autoCorrect={false}
         />
         <Text style={styles.hint}>
-          同じWi-Fiの中で遊ぶときは、サーバーを起動しているMacのアドレスを入れてください。
+          ふだんは変更しないでください。開発時のみ、ローカルサーバーのアドレスに変更できます。
         </Text>
+        {prefs.serverUrl.trim() !== DEFAULT_SERVER_URL && (
+          <Pressable onPress={() => prefs.setServerUrl(DEFAULT_SERVER_URL)}>
+            <Text style={styles.resetLink}>▸ 標準のサーバーに戻す</Text>
+          </Pressable>
+        )}
       </ScrollView>
     </ScreenEnter>
   );
@@ -321,4 +335,5 @@ const styles = StyleSheet.create({
   },
   errorText: { color: colors.danger, fontWeight: "800" },
   hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
+  resetLink: { fontSize: 13, color: colors.primary, fontWeight: "700", paddingVertical: 4 },
 });

@@ -1,0 +1,34 @@
+# KDS対戦サーバーの Fly.io 設定。
+# デプロイ: リポジトリルートで `fly deploy`
+# build context はルート（src/engine をサーバーが参照するため）
+app = "kds-taisen"
+primary_region = "nrt" # 東京
+
+[build]
+  dockerfile = "server/Dockerfile"
+
+[env]
+  # GitHub Pages のデモ（本番/開発版とも同一オリジン）からの接続だけを許可する。
+  # ネイティブアプリは Origin ヘッダーを送らないため、この設定の影響を受けない
+  KDS_ALLOWED_ORIGINS = "https://keisuke1113s.github.io"
+  KDS_MODE = "closed"
+
+[http_service]
+  internal_port = 8790
+  force_https = true
+  # 対戦の状態（部屋・切断猶予タイマー）はメモリ上にあるため、
+  # マシンを自動停止させず常時1台動かしておく
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
