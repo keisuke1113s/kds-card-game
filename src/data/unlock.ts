@@ -13,26 +13,48 @@ import { allCards, cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
 /** 署名の種。印刷後に変えると既存のQRがすべて無効になるので変更しないこと */
 const QR_SECRET = "kds-agogo-2026-himitsu-no-tane";
 
-const QR_PREFIX = "KDSCARD:v1:";
+/**
+ * QRの中身はできるだけ短くする（短いほどQRのマス目が減り、小さく印刷できる）。
+ * 現行形式: `KC1:<カードID>:<署名8桁>` … 25〜40文字 → 25×25〜29×29マス程度
+ */
+const QR_PREFIX = "KC1:";
+/** 初期に使っていた長い形式（互換のため読み込みだけ対応） */
+const LEGACY_PREFIX = "KDSCARD:v1:";
+
+function sigFor(cardId: string, length: number): string {
+  return sha256(`${QR_SECRET}:${cardId}`).slice(0, length);
+}
 
 /** カード1種類ぶんのQRコードの中身（同じ種類のカードはすべて同じコード） */
 export function qrPayloadFor(cardId: string): string {
-  const sig = sha256(`${QR_SECRET}:${cardId}`).slice(0, 16);
-  return `${QR_PREFIX}${cardId}:${sig}`;
+  return `${QR_PREFIX}${cardId}:${sigFor(cardId, 8)}`;
+}
+
+/** 旧形式（テスト用） */
+export function legacyQrPayloadFor(cardId: string): string {
+  return `${LEGACY_PREFIX}${cardId}:${sigFor(cardId, 16)}`;
 }
 
 /** 読み込んだQRの中身を検証する。正しければカードIDを返し、違えば null */
 export function verifyQrPayload(raw: string): string | null {
   const text = raw.trim();
-  if (!text.startsWith(QR_PREFIX)) return null;
-  const rest = text.slice(QR_PREFIX.length);
+  let sigLen: number;
+  let rest: string;
+  if (text.startsWith(QR_PREFIX)) {
+    rest = text.slice(QR_PREFIX.length);
+    sigLen = 8;
+  } else if (text.startsWith(LEGACY_PREFIX)) {
+    rest = text.slice(LEGACY_PREFIX.length);
+    sigLen = 16;
+  } else {
+    return null;
+  }
   const sep = rest.lastIndexOf(":");
   if (sep <= 0) return null;
   const cardId = rest.slice(0, sep);
   const sig = rest.slice(sep + 1);
   if (!allCards.some((c) => c.id === cardId)) return null;
-  const expected = sha256(`${QR_SECRET}:${cardId}`).slice(0, 16);
-  return sig === expected ? cardId : null;
+  return sig === sigFor(cardId, sigLen) ? cardId : null;
 }
 
 /**

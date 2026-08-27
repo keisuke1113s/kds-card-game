@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -16,41 +16,69 @@ import { colors, radius, spacing } from "@/theme";
  * - 動作確認用のリセット
  */
 
+const ADMIN_ID = "kds-admin";
 const ADMIN_PASSWORD = "946946";
 
 export default function AdminScreen() {
   const [authed, setAuthed] = useState(false);
+  const [adminId, setAdminId] = useState("");
   const [password, setPassword] = useState("");
+  const [failed, setFailed] = useState(false);
   const [tab, setTab] = useState<"open" | "qr">("open");
 
-  if (!authed) {
+  // 管理画面はブラウザ専用（アプリにはメニューも無く、この画面自体も開けない）
+  if (Platform.OS !== "web") {
     return (
       <ScreenEnter style={styles.root}>
         <View style={styles.gateBox}>
           <Text style={styles.gateTitle}>カード管理</Text>
-          <Text style={styles.gateSub}>管理者パスワードを入力してください</Text>
+          <Text style={styles.gateSub}>この画面は管理者がブラウザから利用します</Text>
+        </View>
+      </ScreenEnter>
+    );
+  }
+
+  if (!authed) {
+    const tryLogin = () => {
+      if (adminId.trim() === ADMIN_ID && password === ADMIN_PASSWORD) {
+        haptic("medium");
+        setAuthed(true);
+      } else {
+        haptic("light");
+        setFailed(true);
+        setPassword("");
+      }
+    };
+    return (
+      <ScreenEnter style={styles.root}>
+        <View style={styles.gateBox}>
+          <Text style={styles.gateTitle}>カード管理</Text>
+          <Text style={styles.gateSub}>管理者IDとパスワードを入力してください</Text>
+          <TextInput
+            style={[styles.gateInput, { letterSpacing: 0, fontSize: 15 }]}
+            value={adminId}
+            onChangeText={setAdminId}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="管理者ID"
+          />
           <TextInput
             style={styles.gateInput}
             value={password}
             onChangeText={setPassword}
             secureTextEntry
-            keyboardType="number-pad"
             placeholder="パスワード"
-            onSubmitEditing={() => password === ADMIN_PASSWORD && setAuthed(true)}
+            onSubmitEditing={tryLogin}
           />
+          {failed && <Text style={styles.gateError}>IDまたはパスワードが違います</Text>}
           <Pressable
-            style={[styles.gateButton, password.length === 0 && { opacity: 0.4 }]}
-            onPress={() => {
-              if (password === ADMIN_PASSWORD) {
-                haptic("medium");
-                setAuthed(true);
-              } else {
-                haptic("light");
-                setPassword("");
-              }
-            }}
+            style={[
+              styles.gateButton,
+              (adminId.length === 0 || password.length === 0) && { opacity: 0.4 },
+            ]}
+            onPress={tryLogin}
           >
-            <Text style={styles.gateButtonText}>開く</Text>
+            <Text style={styles.gateButtonText}>ログイン</Text>
           </Pressable>
         </View>
       </ScreenEnter>
@@ -155,12 +183,14 @@ function QrList() {
     <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.note}>
         実物カードの裏面などに印刷するQRコードです。同じ種類のカードはすべて同じコードです。{"\n"}
+        小さく印刷できるよう短いコード（25×25〜29×29マス）にしています。印刷サイズは
+        12mm角以上（推奨15mm角）を目安に、周囲に白い余白を残してください。{"\n"}
         パソコンのブラウザで開いてこのページを印刷するか、スクリーンショットで書き出してください。
       </Text>
       <View style={styles.qrGrid}>
         {allCards.map((c) => (
           <View key={c.id} style={styles.qrItem}>
-            <QRCode value={qrPayloadFor(c.id)} size={120} />
+            <QRCode value={qrPayloadFor(c.id)} size={120} ecl="L" quietZone={6} />
             <Text style={styles.qrName}>{c.name}</Text>
             <Text style={styles.qrId}>{c.id}</Text>
           </View>
@@ -203,6 +233,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   gateButtonText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+  gateError: { color: colors.danger, fontSize: 13, fontWeight: "800", textAlign: "center" },
   tabRow: {
     flexDirection: "row",
     gap: spacing.sm,

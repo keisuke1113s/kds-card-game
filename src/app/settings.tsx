@@ -83,21 +83,12 @@ export default function SettingsScreen() {
       )}
 
       {!inBattle && (
-        <>
-          <Text style={styles.sectionTitle}>管理者向け</Text>
-          <Pressable
-            style={[styles.wideButton, { backgroundColor: colors.textMuted }]}
-            onPress={() => router.push("/admin")}
-          >
-            <Text style={styles.wideButtonText}>🗂 カード管理（パスワードが必要）</Text>
-          </Pressable>
-          <Pressable
-            style={[styles.wideButton, { backgroundColor: colors.primary }]}
-            onPress={() => router.replace("/")}
-          >
-            <Text style={styles.wideButtonText}>ホームに戻る</Text>
-          </Pressable>
-        </>
+        <Pressable
+          style={[styles.wideButton, { backgroundColor: colors.primary }]}
+          onPress={() => router.replace("/")}
+        >
+          <Text style={styles.wideButtonText}>ホームに戻る</Text>
+        </Pressable>
       )}
 
       {inBattle && (
