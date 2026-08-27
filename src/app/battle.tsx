@@ -1388,17 +1388,6 @@ export default function BattleScreen() {
           </View>
           <View style={styles.overlayButtons}>
             {instActions(selectedUid).some(
-              (a) => a.type === "instructorAction" && a.action === "skill"
-            ) && (
-              <ActionButton
-                label={`技能を進める（+${lessonOf(view, selectedUid)}）`}
-                color={colors.success}
-                onPress={() =>
-                  doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "skill" })
-                }
-              />
-            )}
-            {instActions(selectedUid).some(
               (a) => a.type === "instructorAction" && a.action === "academic"
             ) && (
               <ActionButton
@@ -1406,6 +1395,17 @@ export default function BattleScreen() {
                 color={colors.primary}
                 onPress={() =>
                   doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "academic" })
+                }
+              />
+            )}
+            {instActions(selectedUid).some(
+              (a) => a.type === "instructorAction" && a.action === "skill"
+            ) && (
+              <ActionButton
+                label={`技能を進める（+${lessonOf(view, selectedUid)}）`}
+                color={colors.success}
+                onPress={() =>
+                  doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "skill" })
                 }
               />
             )}
