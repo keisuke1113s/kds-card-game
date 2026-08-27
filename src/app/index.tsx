@@ -78,7 +78,13 @@ export default function HomeScreen() {
                 <Text style={[styles.go, { color: brand.amber }]}>!</Text>
               </View>
             </View>
-            <Text style={styles.catch}>運転が楽しくなる!!</Text>
+            {/* 「運転」「楽しく」だけ赤、つなぎの言葉は黒 */}
+            <Text style={styles.catch}>
+              <Text style={styles.catchRed}>運転</Text>
+              <Text style={styles.catchDark}>が</Text>
+              <Text style={styles.catchRed}>楽しく</Text>
+              <Text style={styles.catchDark}>なる!!</Text>
+            </Text>
             <Text style={styles.title}>トレーディングカードゲーム</Text>
             <View style={styles.goalRow}>
               <GoalChip label="学科" value="10時限" color={colors.primary} />
@@ -277,6 +283,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 4,
     textShadowOffset: { width: 0, height: 1 },
   },
+  catchRed: { color: brand.red },
+  catchDark: { color: colors.text },
   catch: {
     fontSize: 14,
     fontWeight: "900",

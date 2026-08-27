@@ -101,7 +101,7 @@ window.addEventListener('appinstalled', function () {
 #kds-boot .kds-name { font-size: 40px; font-weight: 900; letter-spacing: 2px; line-height: 1; }
 #kds-boot .kds-go { font-size: 20px; font-weight: 900; letter-spacing: 1px; line-height: 1; }
 #kds-boot .kds-catch {
-  font-size: 14px; font-weight: 900; color: #d83030; margin-top: 2px;
+  font-size: 14px; font-weight: 900; margin-top: 2px;
   animation: kds-pop .45s .08s cubic-bezier(.2,1.3,.5,1) both;
 }
 @keyframes kds-pop {
@@ -138,7 +138,13 @@ window.addEventListener('appinstalled', function () {
               <span style={{ color: "#eeb121" }}>!</span>
             </span>
           </div>
-          <div className="kds-catch">運転が楽しくなる!!</div>
+          {/* 「運転」「楽しく」だけ赤、つなぎの言葉は黒 */}
+          <div className="kds-catch">
+            <span style={{ color: "#d83030" }}>運転</span>
+            <span style={{ color: "#16283c" }}>が</span>
+            <span style={{ color: "#d83030" }}>楽しく</span>
+            <span style={{ color: "#16283c" }}>なる!!</span>
+          </div>
           <div className="kds-spinner" />
           <div className="kds-sub">読み込んでいます…</div>
         </div>
