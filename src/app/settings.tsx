@@ -5,6 +5,7 @@ import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 const speeds: { label: string; ms: number }[] = [
   { label: "はやい", ms: 700 },
@@ -29,7 +30,8 @@ export default function SettingsScreen() {
   } = useSettingsStore();
 
   return (
-    <ScrollView style={styles.root} contentContainerStyle={styles.content}>
+    <ScreenEnter style={styles.root}>
+      <ScrollView contentContainerStyle={styles.content}>
       <Text style={styles.sectionTitle}>CPUの手の速さ</Text>
       <View style={styles.row}>
         {speeds.map((s) => (
@@ -115,7 +117,8 @@ export default function SettingsScreen() {
           </Pressable>
         </Pressable>
       )}
-    </ScrollView>
+      </ScrollView>
+    </ScreenEnter>
   );
 }
 

@@ -1,21 +1,26 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DimensionValue,
   Pressable,
   ScrollView,
+  StyleProp,
   StyleSheet,
   Text,
   View,
+  ViewStyle,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   BounceIn,
+  Easing,
+  Keyframe,
   FadeIn,
   FadeInDown,
   FadeOut,
-  FlipInEasyY,
   SlideInLeft,
   SlideInRight,
+  SlideOutRight,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -52,6 +57,21 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
+
+/** 場に出るとき: 大きく振りかぶって、盤面に叩きつけるように着地する */
+const SlamIn = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 1.7 }, { translateY: -30 }, { rotate: "-12deg" }] },
+  55: { opacity: 1, transform: [{ scale: 0.92 }, { translateY: 5 }, { rotate: "3deg" }] },
+  80: { opacity: 1, transform: [{ scale: 1.05 }, { translateY: -2 }, { rotate: "-1deg" }] },
+  100: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }, { rotate: "0deg" }] },
+}).duration(430);
+
+/** 場外に行くとき: 弾かれて回転しながら落ちていく */
+const SpinOut = new Keyframe({
+  0: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }, { rotate: "0deg" }] },
+  35: { opacity: 1, transform: [{ scale: 1.18 }, { translateY: -14 }, { rotate: "-10deg" }] },
+  100: { opacity: 0, transform: [{ scale: 0.45 }, { translateY: 70 }, { rotate: "38deg" }] },
+}).duration(520);
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
 
@@ -214,10 +234,43 @@ export default function BattleScreen() {
     transform: [{ translateX: shakeX.value }],
   }));
 
+  // 教習が進んだ瞬間の演出（中央に大きく出る）
+  const [lessonFx, setLessonFx] = useState<
+    { key: number; track: Track; amount: number; mine: boolean } | null
+  >(null);
+
+  // ターンが変わった瞬間、画面を横切る大きな帯
+  const [turnFx, setTurnFx] = useState<{ key: number; mine: boolean } | null>(null);
+
+  // バトル解決・退場のときに画面全体を一瞬光らせる
+  const flash = useSharedValue(0);
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
+
   // イベント → 実況キュー＋シェイク
   useEffect(() => {
     const anns = announcementsFor(lastEvents);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
+    // 教習が進んだら中央に大きく表示する
+    const advance = lastEvents.find(
+      (e) => e.type === "trackAdvanced" && e.amount !== 0
+    );
+    if (advance && advance.type === "trackAdvanced") {
+      setLessonFx({
+        key: Date.now(),
+        track: advance.track,
+        amount: advance.amount,
+        mine: advance.player === HUMAN,
+      });
+      setTimeout(() => setLessonFx(null), 1100);
+    }
+
+    // ターンの切り替わりを大きな帯で知らせる
+    const turnEv = lastEvents.find((e) => e.type === "turnStarted");
+    if (turnEv && turnEv.type === "turnStarted") {
+      setTurnFx({ key: Date.now(), mine: turnEv.player === HUMAN });
+      setTimeout(() => setTurnFx(null), 1150);
+    }
+
     // 出来事に応じて振動で手応えを返す
     for (const e of lastEvents) {
       if (e.type === "gameEnded") haptic(e.winner === HUMAN ? "success" : "error");
@@ -234,6 +287,11 @@ export default function BattleScreen() {
         withTiming(-6, { duration: 50 }),
         withTiming(5, { duration: 50 }),
         withTiming(0, { duration: 45 })
+      );
+      // 衝撃の白フラッシュ
+      flash.value = withSequence(
+        withTiming(0.55, { duration: 60 }),
+        withTiming(0, { duration: 320 })
       );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -296,6 +354,15 @@ export default function BattleScreen() {
     () => (state ? getLegalActions(ctx, state, HUMAN) : []),
     [state]
   );
+
+  // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
+  const hint = useMemo(() => {
+    if (!tutorial || !state) return null;
+    const view = viewFor(state, HUMAN);
+    const myTurnCount = Math.ceil(state.turnNumber / 2);
+    return hintFor(cardRegistry, view, legal, { myTurnCount });
+  }, [tutorial, state, legal]);
+
 
   // 瀧本などで相手の手札が公開されたらオーバーレイ表示
   useEffect(() => {
@@ -380,15 +447,8 @@ export default function BattleScreen() {
   const allLogLines = eventLog
     .map((e) => eventText(e, HUMAN))
     .filter((t): t is string => t !== null);
-  const logLines = allLogLines.slice(-4);
-
-  // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
-  const hint = useMemo(() => {
-    if (!tutorial || !state) return null;
-    const view = viewFor(state, HUMAN);
-    const myTurnCount = Math.ceil(state.turnNumber / 2);
-    return hintFor(cardRegistry, view, legal, { myTurnCount });
-  }, [tutorial, state, legal]);
+  // 中央エリアは高さが限られるので、直近3件だけ出す（全文は「すべてのログを見る」）
+  const logLines = allLogLines.slice(-3);
 
   const humanChoice =
     state.phase.type === "choice" && state.phase.pending.player === HUMAN
@@ -442,10 +502,10 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
-          <Text style={styles.infoText}>手札 {cpu.hand.length}枚</Text>
-          <Text style={styles.infoText}>山札 {cpu.deck.length}枚</Text>
+          <Text style={styles.infoText}>手札 {cpu.hand.length}</Text>
+          <Text style={styles.infoText}>山札 {cpu.deck.length}</Text>
           <Pressable onPress={() => setPileView("cpuOutOfPlay")} hitSlop={6}>
-            <Text style={styles.infoLink}>場外 {cpu.outOfPlay.length}枚 ▸</Text>
+            <Text style={styles.infoLink}>場外 {cpu.outOfPlay.length} ▸</Text>
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
@@ -475,6 +535,14 @@ export default function BattleScreen() {
 
       {/* ===== 中央: 状況とログ ===== */}
       <View style={styles.middle}>
+        {/* 設定画面へ（対戦をやめる操作もそこから行う）。手札に重ならないよう中央エリアの右上に置く */}
+        <Pressable
+          onPress={() => router.push("/settings")}
+          hitSlop={8}
+          style={styles.settingsButton}
+        >
+          <Text style={styles.settingsText}>⚙️ 設定</Text>
+        </Pressable>
         {battleInfo && (
           <Animated.View entering={ZoomIn.duration(250)} style={styles.battleBanner}>
             <View style={styles.battleRow}>
@@ -598,19 +666,19 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>あなた</Text>
           {/* 山札・場外はタップで中身を確認できる */}
           <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
-            <Text style={styles.infoLink}>山札 {me.deck.length}枚 ▸</Text>
+            <Text style={styles.infoLink}>山札 {me.deck.length} ▸</Text>
           </Pressable>
           <Pressable onPress={() => setPileView("outOfPlay")} hitSlop={6}>
-            <Text style={styles.infoLink}>場外 {me.outOfPlay.length}枚 ▸</Text>
+            <Text style={styles.infoLink}>場外 {me.outOfPlay.length} ▸</Text>
           </Pressable>
-          <View style={tantouUsable ? styles.tantouUsable : undefined}>
+          <PulseRing active={tantouUsable} style={tantouUsable ? styles.tantouUsable : undefined}>
             {/* 担当カードはタップすると拡大表示。そこから力を使う */}
             <CardFace
               cardId={me.tantou}
               size="sm"
               onPress={() => setDetailCardId(me.tantou, "self")}
             />
-          </View>
+          </PulseRing>
           <View style={{ flex: 1 }} />
           {battleInfo?.myPriority && (
             <ActionButton
@@ -635,29 +703,77 @@ export default function BattleScreen() {
           {me.hand.map((cardId, i) => {
             const playable = handActionFor(i) !== null;
             return (
-              <Animated.View
-                key={`${cardId}-${i}`}
-                entering={FadeInDown.duration(250)}
-                style={playable ? styles.playableCard : undefined}
-              >
-                <CardFace
-                  cardId={cardId}
-                  size="md"
-                  dimmed={!playable && (isMyMain || state.phase.type === "battleSupport")}
-                  onPress={() => setPreviewHandIndex(i)}
-                />
+              <Animated.View key={`${cardId}-${i}`} entering={FadeInDown.duration(250)}>
+                {/* 出せるカードはゆっくり浮き沈みして、目で追えるようにする */}
+                <FloatIdle active={playable} offset={i}>
+                  <View style={playable ? styles.playableCard : undefined}>
+                    <CardFace
+                      cardId={cardId}
+                      size="md"
+                      dimmed={!playable && (isMyMain || state.phase.type === "battleSupport")}
+                      onPress={() => setPreviewHandIndex(i)}
+                    />
+                  </View>
+                </FloatIdle>
               </Animated.View>
             );
           })}
           {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
         </ScrollView>
-        {/* 設定画面へ（対戦をやめる操作もそこから行う） */}
-        <Pressable onPress={() => router.push("/settings")} style={styles.quitButton}>
-          <Text style={styles.quitText}>⚙️{"\n"}設定</Text>
-        </Pressable>
       </View>
 
       </Animated.View>
+
+      {/* 衝撃の白フラッシュ（バトル解決・退場） */}
+      <Animated.View style={[styles.flashLayer, flashStyle]} pointerEvents="none" />
+
+      {/* ターンの切り替わりを知らせる帯 */}
+      {turnFx && (
+        <View style={styles.turnFxLayer} pointerEvents="none">
+          <Animated.View
+            key={turnFx.key}
+            entering={SlideInLeft.duration(280)}
+            exiting={SlideOutRight.duration(260)}
+            style={[
+              styles.turnFxBand,
+              { backgroundColor: turnFx.mine ? colors.success : colors.danger },
+            ]}
+          >
+            <Text style={styles.turnFxText}>
+              {turnFx.mine ? "あなたのターン" : "CPUのターン"}
+            </Text>
+          </Animated.View>
+        </View>
+      )}
+
+      {/* 教習が進んだ瞬間の演出 */}
+      {lessonFx && (
+        <View style={styles.lessonFxLayer} pointerEvents="none">
+          <Animated.View
+            key={lessonFx.key}
+            entering={ZoomIn.springify().damping(10)}
+            exiting={FadeOut.duration(300)}
+            style={[
+              styles.lessonFxBox,
+              {
+                borderColor: lessonFx.amount > 0 ? colors.success : colors.danger,
+                backgroundColor: lessonFx.amount > 0 ? "#eaf7eeee" : "#fdecece6",
+              },
+            ]}
+          >
+            <Text style={styles.lessonFxWho}>{lessonFx.mine ? "あなた" : "CPU"}</Text>
+            <Text
+              style={[
+                styles.lessonFxAmount,
+                { color: lessonFx.amount > 0 ? colors.success : colors.danger },
+              ]}
+            >
+              {TRACK_LABEL[lessonFx.track]} {lessonFx.amount > 0 ? `＋${lessonFx.amount}` : lessonFx.amount}
+            </Text>
+            <Text style={styles.lessonFxUnit}>時限</Text>
+          </Animated.View>
+        </View>
+      )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
       {currentAnn && (
@@ -973,6 +1089,8 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
+      {state.phase.type === "finished" && state.phase.winner === HUMAN && <Confetti />}
+
       {state.phase.type === "finished" && (
         <Overlay
           title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
@@ -1066,8 +1184,8 @@ function FieldRow({
         return (
           <Animated.View
             key={inst.uid}
-            entering={FlipInEasyY.duration(400)}
-            exiting={ZoomOut.duration(350)}
+            entering={SlamIn}
+            exiting={SpinOut}
           >
             <Pressable
               onPress={() => onPress(inst.uid)}
@@ -1117,7 +1235,7 @@ function ThinkingDots() {
 
 /** 最新ログ: 大きく飛び出してから元のサイズに収まり、ハイライトが消える */
 function LatestLogLine({ text }: { text: string }) {
-  const scale = useSharedValue(1.35);
+  const scale = useSharedValue(1.18);
   const glow = useSharedValue(1);
   useEffect(() => {
     scale.value = withSpring(1, { damping: 13, stiffness: 160 });
@@ -1132,6 +1250,129 @@ function LatestLogLine({ text }: { text: string }) {
     <Animated.Text style={[styles.logLatest, style]} numberOfLines={2}>
       {text}
     </Animated.Text>
+  );
+}
+
+/**
+ * 使えるカードをゆっくり浮き沈みさせる。
+ * `offset` をずらすことで、手札が波打つように見える。
+ */
+function FloatIdle({
+  active,
+  offset = 0,
+  children,
+}: {
+  active: boolean;
+  offset?: number;
+  children: React.ReactNode;
+}) {
+  const y = useSharedValue(0);
+  useEffect(() => {
+    if (!active) {
+      y.value = withTiming(0, { duration: 200 });
+      return;
+    }
+    y.value = withDelay(
+      (offset % 4) * 160,
+      withRepeat(
+        withSequence(
+          withTiming(-5, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+          withTiming(0, { duration: 900, easing: Easing.inOut(Easing.quad) })
+        ),
+        -1,
+        false
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active, offset]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: y.value }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+
+/** 使えるカードのまわりを脈打たせて気づかせる */
+function PulseRing({
+  active,
+  style,
+  children,
+}: {
+  active: boolean;
+  style?: StyleProp<ViewStyle>;
+  children: React.ReactNode;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    if (!active) {
+      p.value = withTiming(0, { duration: 200 });
+      return;
+    }
+    p.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 620, easing: Easing.out(Easing.quad) }),
+        withTiming(0, { duration: 620, easing: Easing.in(Easing.quad) })
+      ),
+      -1,
+      false
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+  const animated = useAnimatedStyle(() => ({
+    transform: [{ scale: 1 + p.value * 0.06 }],
+    shadowColor: colors.highlight,
+    shadowOpacity: p.value * 0.9,
+    shadowRadius: 4 + p.value * 8,
+    shadowOffset: { width: 0, height: 0 },
+  }));
+  return <Animated.View style={[style, animated]}>{children}</Animated.View>;
+}
+
+/** 勝利したときに舞う紙吹雪 */
+const CONFETTI_COLORS = ["#d83030", "#e49c18", "#78b424", "#3d8fd0", "#c9d63a", "#8fd3ee"];
+
+function Confetti() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {Array.from({ length: 26 }, (_, i) => (
+        <ConfettiPiece key={i} index={i} />
+      ))}
+    </View>
+  );
+}
+
+function ConfettiPiece({ index }: { index: number }) {
+  // 見た目を散らすための固定値（乱数だと再レンダーのたびに変わってしまう）
+  const left = `${(index * 37) % 100}%`;
+  const color = CONFETTI_COLORS[index % CONFETTI_COLORS.length];
+  const size = 7 + (index % 4) * 2;
+  const delay = (index % 9) * 130;
+  const duration = 2400 + (index % 5) * 260;
+  const drift = ((index % 7) - 3) * 16;
+
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: progress.value < 0.9 ? 1 : (1 - progress.value) * 10,
+    transform: [
+      { translateY: -40 + progress.value * 900 },
+      { translateX: Math.sin(progress.value * 6) * drift },
+      { rotate: `${progress.value * 900}deg` },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        styles.confettiPiece,
+        { left: left as DimensionValue, width: size, height: size * 1.6, backgroundColor: color },
+        style,
+      ]}
+    />
   );
 }
 
@@ -1224,6 +1465,53 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   annLayerDim: { backgroundColor: "#00000066" },
+  flashLayer: { ...StyleSheet.absoluteFill, backgroundColor: "#fff" },
+  confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
+  turnFxLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "stretch",
+    justifyContent: "center",
+  },
+  turnFxBand: {
+    paddingVertical: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 5 },
+    elevation: 10,
+  },
+  turnFxText: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textShadowColor: "#0006",
+    textShadowRadius: 6,
+  },
+  lessonFxLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  lessonFxBox: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 22,
+    borderRadius: 999,
+    borderWidth: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
+  },
+  lessonFxWho: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
+  lessonFxAmount: { fontSize: 30, fontWeight: "900" },
+  lessonFxUnit: { fontSize: 14, fontWeight: "800", color: colors.textMuted },
   annCardBox: {
     backgroundColor: colors.surface,
     borderRadius: 16,
@@ -1281,6 +1569,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
     alignSelf: "flex-start",
+    maxWidth: "100%",
+    // 左端を軸に拡大させ、右にはみ出して切れないようにする
+    transformOrigin: "left center",
   },
   battleRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   battleSide: { alignItems: "center", gap: 3 },
@@ -1315,9 +1606,9 @@ const styles = StyleSheet.create({
     borderTopWidth: 2,
     borderColor: "transparent",
   },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 10 },
-  playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14 },
-  infoText: { color: colors.textMuted, fontSize: 12 },
+  infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14, flexShrink: 0 },
+  infoText: { color: colors.textMuted, fontSize: 12, flexShrink: 0 },
   fieldRow: { gap: 8, paddingVertical: 4, alignItems: "center", minHeight: 92 },
   fieldSlot: {
     alignItems: "center",
@@ -1337,6 +1628,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 4,
     backgroundColor: colors.boardCenter,
+    // 中身が入りきらないときも、上下の盤面にはみ出して重ならないようにする
+    overflow: "hidden",
   },
   battleBanner: {
     backgroundColor: colors.surface,
@@ -1366,11 +1659,9 @@ const styles = StyleSheet.create({
   statusDetail: { fontSize: 12, color: colors.text, flexShrink: 1 },
   thinkingDots: { fontSize: 9, color: colors.danger, letterSpacing: 1 },
   bannerText: { fontSize: 16, fontWeight: "700", color: colors.text },
-  log: { gap: 1 },
+  log: { gap: 1, overflow: "hidden", flexShrink: 1 },
   logLine: { fontSize: 11, color: colors.textMuted },
   handArea: {
-    flexDirection: "row",
-    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 6,
     backgroundColor: colors.surface,
@@ -1390,15 +1681,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 1,
   },
-  quitButton: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-    backgroundColor: colors.background,
+  settingsButton: {
+    position: "absolute",
+    top: 4,
+    right: 8,
+    zIndex: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  quitText: { color: colors.textMuted, fontSize: 11, textAlign: "center", lineHeight: 14 },
+  settingsText: { color: colors.text, fontSize: 12, fontWeight: "700" },
   actionButton: {
     borderRadius: 10,
     paddingVertical: 12,

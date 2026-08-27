@@ -1,4 +1,5 @@
 import { Stack, useRouter } from "expo-router";
+import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import React from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
@@ -30,6 +31,13 @@ function HomeButton() {
 export default function RootLayout() {
   return (
     <>
+      {/*
+       * ブラウザのタブ名 ＝ ホーム画面に追加したときの既定名。
+       * expo-router が空の <title> を先に出力してしまうため、ここで必ず名前を入れる。
+       */}
+      <Head>
+        <title>KDSトレーディングカードゲーム</title>
+      </Head>
       <StatusBar style="dark" />
       <Stack
         screenOptions={{
@@ -39,17 +47,28 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
           headerLeft: () => <HomeButton />,
           headerBackVisible: false,
+          // 画面の移動は右から流れ込む形で見せる
+          animation: "slide_from_right",
+          animationDuration: 280,
         }}
       >
-        <Stack.Screen name="index" options={{ headerShown: false }} />
-        <Stack.Screen name="battle" options={{ headerShown: false, gestureEnabled: false }} />
+        <Stack.Screen name="index" options={{ headerShown: false, animation: "fade" }} />
+        {/* 対戦は「別世界に入る」感じにしたいのでフェードで切り替える */}
+        <Stack.Screen
+          name="battle"
+          options={{ headerShown: false, gestureEnabled: false, animation: "fade" }}
+        />
         <Stack.Screen name="tutorial" options={{ title: "遊び方" }} />
         <Stack.Screen name="prematch" options={{ title: "対戦の準備" }} />
         <Stack.Screen name="deck/index" options={{ title: "デッキ" }} />
         <Stack.Screen name="deck/[deckId]" options={{ title: "デッキ構築" }} />
         <Stack.Screen name="library/index" options={{ title: "カード図鑑" }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
-        <Stack.Screen name="settings" options={{ title: "設定", headerLeft: () => null }} />
+        {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
+        <Stack.Screen
+          name="settings"
+          options={{ title: "設定", headerLeft: () => null, animation: "slide_from_bottom" }}
+        />
       </Stack>
     </>
   );

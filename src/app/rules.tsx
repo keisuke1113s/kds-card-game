@@ -6,6 +6,7 @@ import { CardFace } from "@/components/CardFace";
 import { getCard } from "@/data/cards";
 import { RuleBlock, ruleSections } from "@/tutorial/ruleSections";
 import { colors, radius, shadow, spacing } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 export default function RulesScreen() {
   const scrollRef = useRef<ScrollView>(null);
@@ -26,7 +27,7 @@ export default function RulesScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <ScreenEnter style={styles.root}>
       <ScrollView ref={scrollRef} contentContainerStyle={styles.content}>
         {/* 目次 */}
         <View style={styles.tocCard}>
@@ -84,7 +85,7 @@ export default function RulesScreen() {
           </Pressable>
         </Pressable>
       )}
-    </View>
+    </ScreenEnter>
   );
 }
 

@@ -4,6 +4,7 @@ import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { allCards, getCard } from "@/data/cards";
 import { colors } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 const sections: { label: string; type: string }[] = [
   { label: "インストラクター", type: "instructor" },
@@ -15,7 +16,7 @@ export default function LibraryScreen() {
   const [selected, setSelected] = useState<string | null>(null);
 
   return (
-    <View style={styles.root}>
+    <ScreenEnter style={styles.root}>
       <FlatList
         data={sections}
         keyExtractor={(s) => s.type}
@@ -44,7 +45,7 @@ export default function LibraryScreen() {
           </Pressable>
         </Pressable>
       )}
-    </View>
+    </ScreenEnter>
   );
 }
 

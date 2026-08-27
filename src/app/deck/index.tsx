@@ -12,6 +12,7 @@ import {
   useDeckStore,
 } from "@/store/deckStore";
 import { colors } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 export default function DeckListScreen() {
   const router = useRouter();
@@ -44,7 +45,7 @@ export default function DeckListScreen() {
   const confirmDelete = (deck: SavedDeck) => setDeleting(deck);
 
   return (
-    <View style={styles.root}>
+    <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.hint}>対戦で使うデッキを選んでください</Text>
         {decks.map((deck) => {
@@ -171,7 +172,7 @@ export default function DeckListScreen() {
           </Pressable>
         </Pressable>
       )}
-    </View>
+    </ScreenEnter>
   );
 }
 

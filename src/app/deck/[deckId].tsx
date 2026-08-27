@@ -18,6 +18,7 @@ import {
   useDeckStore,
 } from "@/store/deckStore";
 import { colors } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 export default function DeckEditScreen() {
   const { deckId } = useLocalSearchParams<{ deckId: string }>();
@@ -73,7 +74,7 @@ export default function DeckEditScreen() {
   const supportMax = cardRegistry[tantou]?.supportLimit ?? 5;
 
   return (
-    <View style={styles.root}>
+    <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <TextInput
           value={name}
@@ -185,7 +186,7 @@ export default function DeckEditScreen() {
           </Text>
         </Pressable>
       </View>
-    </View>
+    </ScreenEnter>
   );
 }
 

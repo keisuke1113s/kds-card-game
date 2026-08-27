@@ -8,6 +8,7 @@ import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 const speeds: { label: string; ms: number }[] = [
   { label: "はやい", ms: 700 },
@@ -51,7 +52,7 @@ export default function PrematchScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.matchupBox}>
           <Text style={styles.matchupLabel}>あなた</Text>
@@ -135,7 +136,7 @@ export default function PrematchScreen() {
           <Text style={styles.startText}>{isTutorial ? "練習対戦を始める" : "この設定で対戦する"}</Text>
         </Pressable>
       </View>
-    </View>
+    </ScreenEnter>
   );
 }
 
