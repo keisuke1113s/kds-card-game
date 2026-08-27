@@ -331,6 +331,7 @@ export default function BattleScreen() {
   const [readHint, setReadHint] = useState<string | null>(null);
   const [pendingDraw, setPendingDraw] = useState<string | null>(null);
   const [drawFx, setDrawFx] = useState<{ key: number; cardId: string } | null>(null);
+  const handScroll = useRef<ScrollView>(null);
   useEffect(() => {
     if (!state || state.phase.type === "mulligan") return;
     const drawn = lastEvents.find(
@@ -343,6 +344,8 @@ export default function BattleScreen() {
     if (!pendingDraw || busy || drawFx) return;
     setDrawFx({ key: Date.now(), cardId: pendingDraw });
     setPendingDraw(null);
+    // 引いたカードは右端に加わる。隠れないよう手札を送る
+    setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
   // 対戦中BGM（bgm_battle が無ければ bgm_main）
@@ -415,6 +418,40 @@ export default function BattleScreen() {
     setPreviewHandIndex(null);
     setChoicePreview(null);
     dispatch(action);
+  };
+
+  /**
+   * その手札が今使えない理由。使えるときは null。
+   * 「引いたのに使えない」と迷わせないよう、拡大表示で理由を伝える。
+   */
+  const cannotUseReason = (index: number): string | null => {
+    if (handActionFor(index) !== null) return null;
+    const cardId = me.hand[index];
+    if (cardId === undefined) return null;
+    const def = getCard(cardId);
+
+    if (state.phase.type === "mulligan") return "対戦の準備中です。手札を決めてから使えます。";
+    if (state.phase.type === "finished") return "対戦は終わりました。";
+    if (state.phase.type === "choice") return "先に、表示されている選択を済ませてください。";
+
+    if (state.phase.type === "battleSupport") {
+      if (def.type === "instructor") {
+        return "バトル中はインストラクターを場に出せません。バトルが終わってから出せます。";
+      }
+      if (def.timing === "main") return "このサポートカードは、自分の番にだけ使えます（バトル中は使えません）。";
+      if (!battleInfo?.myPriority) return "いまは相手がサポートカードを使う番です。少し待ってください。";
+      return "このバトルではサポートカードを使えません（相手の効果で封じられています）。";
+    }
+
+    // メインフェイズ
+    if (state.turnPlayer !== HUMAN) return "いまは相手の番です。自分の番になるまで待ちましょう。";
+    if (def.type === "instructor") {
+      return "インストラクターを出せるのは、まだ誰も行動していない間だけです。このターンはもう出せません。";
+    }
+    if (def.timing === "battle") {
+      return "このサポートカードは、バトルの最中にだけ使えます。バトルが始まったら手札から選べます。";
+    }
+    return "いまは使えません。";
   };
 
   const handActionFor = (index: number): GameAction | null =>
@@ -715,7 +752,12 @@ export default function BattleScreen() {
             onDone={() => setDrawFx(null)}
           />
         )}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hand}>
+        <ScrollView
+          ref={handScroll}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.hand}
+        >
           {me.hand.map((cardId, i) => {
             const playable = handActionFor(i) !== null;
             return (
@@ -957,13 +999,22 @@ export default function BattleScreen() {
           <View style={styles.overlayButtons}>
             {(() => {
               const action = handActionFor(previewHandIndex);
-              if (!action) return null;
+              if (action) {
+                return (
+                  <ActionButton
+                    label={action.type === "playInstructor" ? "場に出す" : "使う"}
+                    color={colors.primary}
+                    onPress={() => doAction(action)}
+                  />
+                );
+              }
+              const reason = cannotUseReason(previewHandIndex);
+              if (!reason) return null;
               return (
-                <ActionButton
-                  label={action.type === "playInstructor" ? "場に出す" : "使う"}
-                  color={colors.primary}
-                  onPress={() => doAction(action)}
-                />
+                <View style={styles.cannotBox}>
+                  <Text style={styles.cannotLabel}>いま使えません</Text>
+                  <Text style={styles.cannotText}>{reason}</Text>
+                </View>
               );
             })()}
             <ActionButton label="閉じる" color={colors.textMuted} onPress={() => setPreviewHandIndex(null)} />
@@ -1778,6 +1829,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
   },
   hintOkText: { color: "#fff", fontWeight: "900", fontSize: 13 },
+  cannotBox: {
+    backgroundColor: "#fff8e1",
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: colors.accent,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  cannotLabel: { fontSize: 11, fontWeight: "800", color: colors.accentDark },
+  cannotText: { fontSize: 13, lineHeight: 19, color: colors.text },
   infoLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   pileNote: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   pileScroll: { alignSelf: "stretch", maxHeight: 380 },
