@@ -69,8 +69,8 @@ type Owner = "self" | "cpu";
  */
 interface Announcement {
   key: number;
-  /** "turn" は画面を横切る帯、"battle" は全画面のカットイン、"text" は実況（カード付きはタップ待ち） */
-  kind: "text" | "turn" | "battle";
+  /** "turn"=帯 / "battle"=バトルのカットイン / "lesson"=教習の増減 / "text"=実況（カード付きはタップ待ち） */
+  kind: "text" | "turn" | "battle" | "lesson";
   text: string;
   cardId?: string;
   emph?: boolean;
@@ -81,6 +81,11 @@ interface Announcement {
   atkCardId?: string;
   defCardId?: string;
   atkIsCpu?: boolean;
+  /** kind === "lesson" のときの内訳 */
+  track?: Track;
+  amount?: number;
+  newValue?: number;
+  goal?: number;
 }
 
 let annSeq = 0;
@@ -173,8 +178,18 @@ function announcementsFor(events: GameEvent[], state: GameState | null): Announc
         break;
       }
       case "trackAdvanced":
-        if (e.player === HUMAN && e.amount < 0) {
-          add(`あなたの${TRACK_LABEL[e.track]}が ${-e.amount}時限 戻された！`, undefined, true);
+        // 進んだときも戻されたときも、全画面で大きく知らせる
+        if (e.amount !== 0) {
+          out.push({
+            key: ++annSeq,
+            kind: "lesson",
+            text: "",
+            mine: e.player === HUMAN,
+            track: e.track,
+            amount: e.amount,
+            newValue: e.newValue,
+            goal: e.track === "academic" ? ACADEMIC_GOAL : SKILL_GOAL,
+          });
         }
         break;
       case "jankenPlayed": {
@@ -317,11 +332,13 @@ export default function BattleScreen() {
           ? 900
           : next.kind === "battle"
             ? 2400
-            : next.cardId
-              ? 1600
-              : next.emph
-                ? 1300
-                : 850
+            : next.kind === "lesson"
+              ? 1400
+              : next.cardId
+                ? 1600
+                : next.emph
+                  ? 1300
+                  : 850
       );
     }
   }, [currentAnn, annQueue, autoPlay]);
@@ -915,12 +932,22 @@ export default function BattleScreen() {
             styles.annLayer,
             currentAnn.kind === "turn" && styles.annLayerBand,
             currentAnn.kind === "battle" && styles.annLayerBattle,
+            currentAnn.kind === "lesson" && styles.annLayerEmph,
             currentAnn.kind === "text" && currentAnn.emph && styles.annLayerEmph,
             currentAnn.cardId && styles.annLayerDim,
           ]}
           onPress={dismissAnn}
         >
-          {currentAnn.kind === "battle" ? (
+          {currentAnn.kind === "lesson" ? (
+            <LessonCutIn
+              key={currentAnn.key}
+              mine={currentAnn.mine ?? false}
+              track={currentAnn.track ?? "academic"}
+              amount={currentAnn.amount ?? 0}
+              newValue={currentAnn.newValue ?? 0}
+              goal={currentAnn.goal ?? 10}
+            />
+          ) : currentAnn.kind === "battle" ? (
             <BattleCutIn
               key={currentAnn.key}
               subtitle={currentAnn.text}
@@ -1825,6 +1852,97 @@ function BattleCutIn({
 }
 
 /**
+ * 教習が進んだ／戻されたときの全画面カットイン。
+ * 進み: トラック色の光とともに 🚗/📖 が走り、「＋N時限」が飛び出す。
+ * 戻り: 赤い警告とともに 🚧/📕 が落ち、「−N時限」が突き刺さる。
+ */
+function LessonCutIn({
+  mine,
+  track,
+  amount,
+  newValue,
+  goal,
+}: {
+  mine: boolean;
+  track: Track;
+  amount: number;
+  newValue: number;
+  goal: number;
+}) {
+  const gained = amount > 0;
+  const pop = useSharedValue(0);
+  const run = useSharedValue(0);
+  const shake = useSharedValue(0);
+
+  useEffect(() => {
+    playSe(gained ? "advance" : "hit");
+    run.value = withTiming(1, { duration: 900, easing: Easing.inOut(Easing.cubic) });
+    pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
+    if (!gained) {
+      shake.value = withDelay(
+        250,
+        withSequence(
+          withTiming(-8, { duration: 50 }),
+          withTiming(7, { duration: 50 }),
+          withTiming(-5, { duration: 45 }),
+          withTiming(0, { duration: 40 })
+        )
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const emojiStyle = useAnimatedStyle(() => ({
+    transform: gained
+      ? [
+          // 画面を左から右へ走り抜ける
+          { translateX: -160 + run.value * 320 },
+          { translateY: Math.sin(run.value * 10) * 5 },
+        ]
+      : [
+          // 力なく落ちて傾く
+          { translateY: run.value * 60 - 30 },
+          { rotate: `${run.value * 30 - 10}deg` },
+        ],
+  }));
+  const popStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, pop.value * 2),
+    transform: [{ scale: 0.4 + pop.value * 0.6 }, { translateX: shake.value }],
+  }));
+
+  const color = gained ? (track === "academic" ? "#6ab7ff" : "#7ce08f") : "#ff8a8a";
+  const emoji = gained
+    ? track === "skill"
+      ? "\u{1F697}"
+      : "\u{1F4D6}"
+    : track === "skill"
+      ? "\u{1F6A7}"
+      : "\u{1F4D5}";
+
+  return (
+    <View style={styles.lessonCutWrap} pointerEvents="none">
+      <Animated.Text style={[styles.lessonCutEmoji, emojiStyle]} allowFontScaling={false}>
+        {emoji}
+      </Animated.Text>
+      <Animated.View style={[popStyle, styles.lessonCutBody]}>
+        <View style={[styles.lessonCutBadge, { backgroundColor: mine ? colors.success : colors.danger }]}>
+          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
+        </View>
+        <Text style={[styles.lessonCutTitle, { color }]} allowFontScaling={false}>
+          {TRACK_LABEL[track]} {gained ? `＋${amount}` : `−${-amount}`}
+          <Text style={styles.lessonCutUnit}>時限</Text>
+        </Text>
+        <Text style={styles.lessonCutSub}>
+          {gained
+            ? `${TRACK_LABEL[track]}教習が ${newValue}/${goal} まで進んだ！`
+            : `${TRACK_LABEL[track]}教習が ${newValue}/${goal} に戻された…`}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
  * 場外へ飛んでいくカード。
  * 画面中央に現れ、回転しながら場外置き場の方向（自分は左下、CPUは左上）へ
  * 吸い込まれて消える。
@@ -2067,6 +2185,35 @@ const styles = StyleSheet.create({
   annLayerBattle: { backgroundColor: "#0b1024ee", padding: 0, alignItems: "stretch" },
   // 強調実況（じゃんけん勝敗・教習戻され・バトル解決）は全画面暗転で大きく
   annLayerEmph: { backgroundColor: "#0b1024cc" },
+  lessonCutWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  lessonCutEmoji: { position: "absolute", fontSize: 84, opacity: 0.45 },
+  lessonCutBody: { alignItems: "center", gap: 10 },
+  lessonCutBadge: {
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+  },
+  lessonCutBadgeText: { color: "#fff", fontWeight: "900", fontSize: 14 },
+  lessonCutTitle: {
+    fontSize: 56,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textShadowColor: "#000",
+    textShadowRadius: 14,
+  },
+  lessonCutUnit: { fontSize: 22, fontWeight: "900" },
+  lessonCutSub: {
+    color: "#ffffffee",
+    fontSize: 16,
+    fontWeight: "800",
+    textShadowColor: "#000",
+    textShadowRadius: 8,
+  },
   annBigText: {
     color: "#fff",
     fontSize: 30,
