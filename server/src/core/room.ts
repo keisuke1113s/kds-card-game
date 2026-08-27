@@ -28,10 +28,15 @@ import {
  *   → 各席に「その席の視点の view ＋ 秘匿済みイベント」を配る
  */
 
+/** じゃんけんの手 */
+export type JankenHand = "rock" | "scissors" | "paper";
+
 /** サーバー→クライアントのメッセージ */
 export type ServerMessage =
   | { type: "joined"; seat: PlayerId; sessionToken: string }
   | { type: "opponentJoined"; name: string }
+  | { type: "jankenStart" }
+  | { type: "jankenResult"; hands: [JankenHand, JankenHand]; winner: PlayerId | null }
   | { type: "matchStart"; seat: PlayerId }
   | { type: "update"; seq: number; view: PlayerView; events: GameEvent[] }
   | { type: "opponentLeft" }
@@ -89,6 +94,22 @@ function deepEqual(a: unknown, b: unknown): boolean {
 /** 切断したまま復帰しないときに負けになるまでの猶予 */
 export const DISCONNECT_GRACE_MS = 60 * 1000;
 
+/** じゃんけんで手を選ばないまま放置されたとき、自動で手を割り当てるまでの時間 */
+export const JANKEN_TIMEOUT_MS = 30 * 1000;
+
+const JANKEN_HANDS: JankenHand[] = ["rock", "scissors", "paper"];
+
+/** じゃんけんの勝者。あいこは null */
+function jankenWinner(a: JankenHand, b: JankenHand): 0 | 1 | null {
+  if (a === b) return null;
+  const beats: Record<JankenHand, JankenHand> = {
+    rock: "scissors",
+    scissors: "paper",
+    paper: "rock",
+  };
+  return beats[a] === b ? 0 : 1;
+}
+
 export class RoomCore {
   readonly id: string;
   private readonly ctx: GameContext;
@@ -96,6 +117,10 @@ export class RoomCore {
   private state: GameState | null = null;
   private seq = 0;
   private graceTimers: (ReturnType<typeof setTimeout> | null)[] = [null, null];
+  /** 先攻を決めるじゃんけん（両者 ready 後、対局開始前） */
+  private jankenActive = false;
+  private jankenHands: (JankenHand | null)[] = [null, null];
+  private jankenTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
   private readonly clearTimer: (t: ReturnType<typeof setTimeout>) => void;
 
@@ -179,6 +204,10 @@ export class RoomCore {
       this.graceTimers[seatIndex] = null;
     }
     seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken });
+    // じゃんけんの途中で復帰したら、手の選択画面を出し直す
+    if (this.jankenActive && this.jankenHands[seatIndex] === null) {
+      seat.send({ type: "jankenStart" });
+    }
     if (this.state) {
       seat.send({
         type: "update",
@@ -190,23 +219,76 @@ export class RoomCore {
     return { seat: seatIndex as PlayerId };
   }
 
-  /** 準備完了。両者そろったら対局を開始する */
+  /** 準備完了。両者そろったら先攻を決めるじゃんけんを始める */
   setReady(seatIndex: PlayerId): void {
     const seat = this.seats[seatIndex];
-    if (!seat || this.state) return;
+    if (!seat || this.state || this.jankenActive) return;
     seat.ready = true;
     const [a, b] = this.seats;
-    if (a?.ready && b?.ready) this.startMatch();
+    if (a?.ready && b?.ready) this.beginJanken();
   }
 
-  private startMatch(): void {
+  /** 説明書どおり、先攻後攻はじゃんけんで決める */
+  private beginJanken(): void {
+    this.jankenActive = true;
+    this.jankenHands = [null, null];
+    this.seats.forEach((s) => s?.send({ type: "jankenStart" }));
+    this.armJankenTimer();
+  }
+
+  /** 手を選ばないまま放置されても対戦が始まるよう、時間切れで自動的に手を割り当てる */
+  private armJankenTimer(): void {
+    if (this.jankenTimer) this.clearTimer(this.jankenTimer);
+    this.jankenTimer = this.setTimer(() => {
+      this.jankenTimer = null;
+      if (!this.jankenActive) return;
+      for (let i = 0; i < 2; i++) {
+        if (this.jankenHands[i] === null) {
+          this.jankenHands[i] = JANKEN_HANDS[Math.abs(randomInt32()) % 3];
+        }
+      }
+      this.resolveJanken();
+    }, JANKEN_TIMEOUT_MS);
+  }
+
+  /** クライアントが選んだじゃんけんの手。一度選んだら変更できない */
+  handleJanken(seatIndex: PlayerId, hand: JankenHand): void {
+    if (!this.jankenActive || this.state) return;
+    if (!this.seats[seatIndex]) return;
+    if (this.jankenHands[seatIndex] !== null) return;
+    this.jankenHands[seatIndex] = hand;
+    if (this.jankenHands[0] !== null && this.jankenHands[1] !== null) {
+      this.resolveJanken();
+    }
+  }
+
+  private resolveJanken(): void {
+    const [a, b] = this.jankenHands;
+    if (a === null || b === null) return;
+    const winner = jankenWinner(a, b);
+    this.seats.forEach((s) => s?.send({ type: "jankenResult", hands: [a, b], winner }));
+    if (winner === null) {
+      // あいこ。もう一度
+      this.jankenHands = [null, null];
+      this.armJankenTimer();
+      return;
+    }
+    this.jankenActive = false;
+    if (this.jankenTimer) {
+      this.clearTimer(this.jankenTimer);
+      this.jankenTimer = null;
+    }
+    this.startMatch(winner);
+  }
+
+  private startMatch(firstPlayer: PlayerId): void {
     const [a, b] = this.seats;
     if (!a || !b) return;
-    // seed と先攻はサーバーが決める（seed は絶対にクライアントへ送らない）
+    // seed はサーバーが決める（絶対にクライアントへ送らない）。先攻はじゃんけんの勝者
     const { state, events } = createGame(this.ctx, {
       seed: randomInt32(),
       decks: [a.deck, b.deck],
-      firstPlayer: (randomInt32() & 1) as PlayerId,
+      firstPlayer,
     });
     this.state = state;
     this.seats.forEach((s, i) => s?.send({ type: "matchStart", seat: i as PlayerId }));

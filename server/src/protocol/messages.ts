@@ -36,6 +36,10 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
     sessionToken: z.string().max(64),
   }),
   z.object({ type: z.literal("ready") }),
+  z.object({
+    type: z.literal("janken"),
+    hand: z.enum(["rock", "scissors", "paper"]),
+  }),
   z.object({ type: z.literal("action"), action: z.unknown() }),
   z.object({ type: z.literal("resign") }),
   z.object({ type: z.literal("leave") }),

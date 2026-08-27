@@ -15,6 +15,7 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { DeckList } from "@/engine/deckRules";
 import { MatchPrep } from "@/components/MatchPrep";
+import { OnlineJanken } from "@/components/OnlineJanken";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 /**
@@ -465,6 +466,9 @@ export default function OnlineScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* 対戦相手が見つかったときの、先攻を決めるじゃんけん */}
+      <OnlineJanken />
 
       {/* 待機中CPU対戦の準備（シャッフル→じゃんけんで先攻を決める） */}
       {cpuPrep && (

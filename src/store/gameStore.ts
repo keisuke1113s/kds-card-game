@@ -22,6 +22,9 @@ import {
 export const HUMAN: PlayerId = 0;
 export const CPU: PlayerId = 1;
 
+/** オンライン対戦のじゃんけんの手（サーバーのプロトコルと同じ値） */
+export type JankenHand = "rock" | "scissors" | "paper";
+
 const ctx: GameContext = { defs: cardRegistry };
 
 interface GameStore {
@@ -78,6 +81,11 @@ interface GameStore {
   /** 相手が見つかった瞬間の通知（battle 画面が全画面で知らせて消す） */
   matchFound: string | null;
   clearMatchFound: () => void;
+  /** オンライン対戦の先攻を決めるじゃんけん */
+  jankenActive: boolean;
+  jankenHand: JankenHand | null;
+  jankenResult: { myHand: JankenHand; oppHand: JankenHand; result: "win" | "lose" | "tie" } | null;
+  sendJanken: (hand: JankenHand) => void;
 
   startGame: (opts: {
     playerDeck: DeckList;
@@ -126,6 +134,10 @@ let humanAi: AIController | null = null;
 let socket: WebSocket | null = null;
 /** 復帰用の接続情報（部屋コード＋セッショントークン） */
 let onlineSession: { serverUrl: string; code: string; sessionToken: string } | null = null;
+/** 自分の席番号（じゃんけんの勝敗判定に使う。view が届く前に必要） */
+let onlineSeat: number | null = null;
+/** じゃんけん結果の表示を自動で閉じるためのタイマー */
+let jankenTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 /** オンラインの受信バッファ（演出中に届いた更新をため、順に流す） */
@@ -289,6 +301,15 @@ export const useGameStore = create<GameStore>()((set, get) => {
     clearMatchFound: () => set({ matchFound: null }),
     queueCancelledNotice: false,
     clearQueueCancelledNotice: () => set({ queueCancelledNotice: false }),
+    jankenActive: false,
+    jankenHand: null,
+    jankenResult: null,
+    sendJanken: (hand) => {
+      if (!get().jankenActive || get().jankenHand !== null) return;
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({ type: "janken", hand }));
+      set({ jankenHand: hand });
+    },
     eventLog: [],
     lastEvents: [],
     aiThinking: false,
@@ -446,6 +467,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
             seq?: number;
             view?: PlayerView;
             events?: GameEvent[];
+            hands?: [JankenHand, JankenHand];
+            winner?: number | null;
           };
           try {
             msg = JSON.parse(String(ev.data));
@@ -454,7 +477,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
           }
           switch (msg.type) {
             case "joined":
-              // 復帰用にトークンを控えて、準備完了を送る
+              // 復帰用にトークンと席番号を控えて、準備完了を送る
+              if (typeof msg.seat === "number") onlineSeat = msg.seat;
               if (msg.sessionToken) {
                 onlineSession = {
                   serverUrl,
@@ -471,6 +495,40 @@ export const useGameStore = create<GameStore>()((set, get) => {
             case "opponentJoined":
               set({ opponentName: msg.name ?? null });
               break;
+            case "jankenStart":
+              // 先攻を決めるじゃんけん。CPU対戦中でも全画面で選択画面をかぶせる
+              if (jankenTimer) {
+                clearTimeout(jankenTimer);
+                jankenTimer = null;
+              }
+              set({ jankenActive: true, jankenHand: null, jankenResult: null });
+              break;
+            case "jankenResult": {
+              const hands = msg.hands;
+              if (!hands) break;
+              const seat = onlineSeat === 1 ? 1 : 0;
+              const winner = msg.winner ?? null;
+              const result: "win" | "lose" | "tie" =
+                winner === null ? "tie" : winner === seat ? "win" : "lose";
+              set({
+                jankenResult: { myHand: hands[seat], oppHand: hands[1 - seat], result },
+              });
+              if (jankenTimer) clearTimeout(jankenTimer);
+              if (result === "tie") {
+                // あいこ表示を少し見せてから、もう一度選ばせる
+                jankenTimer = setTimeout(() => {
+                  jankenTimer = null;
+                  set({ jankenHand: null, jankenResult: null });
+                }, 1600);
+              } else {
+                // 勝敗を見せてから閉じる（裏ではすでに対局が始まっている）
+                jankenTimer = setTimeout(() => {
+                  jankenTimer = null;
+                  set({ jankenActive: false, jankenHand: null, jankenResult: null });
+                }, 2400);
+              }
+              break;
+            }
             case "matchStart": {
               // 待機中にCPU対戦をしていた場合はそれを破棄して切り替える
               gameToken++;
@@ -481,7 +539,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
                 onlineStatus: "playing",
                 onlineError: null,
                 queueActive: false,
-                matchFound: get().opponentName ?? "相手",
+                // じゃんけんの結果表示が出ているときは「見つかりました」は出さない
+                matchFound: get().jankenActive ? null : (get().opponentName ?? "相手"),
                 state: null,
                 lastEvents: [],
                 eventLog: [],
@@ -583,7 +642,19 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
       closeSocket();
       onlineSession = null;
-      set({ queueActive: false, matchFound: null, queueCancelledNotice: wasQueued });
+      onlineSeat = null;
+      if (jankenTimer) {
+        clearTimeout(jankenTimer);
+        jankenTimer = null;
+      }
+      set({
+        queueActive: false,
+        matchFound: null,
+        queueCancelledNotice: wasQueued,
+        jankenActive: false,
+        jankenHand: null,
+        jankenResult: null,
+      });
       ai = null;
       set({
         state: null,

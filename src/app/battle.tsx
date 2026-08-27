@@ -51,6 +51,7 @@ import {
   SKILL_GOAL,
 } from "@/engine/types";
 import { CardFace } from "@/components/CardFace";
+import { OnlineJanken } from "@/components/OnlineJanken";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
 import { hintFor } from "@/tutorial/hints";
@@ -560,6 +561,8 @@ export default function BattleScreen() {
           <Text style={styles.bannerText}>対局がありません</Text>
           <ActionButton label="ホームへ" color={colors.primary} onPress={() => router.replace("/")} />
         </View>
+        {/* CPU対戦の破棄直後〜オンライン初回盤面が届くまでの間もじゃんけんを出し続ける */}
+        <OnlineJanken />
       </SafeAreaView>
     );
   }
@@ -1169,6 +1172,9 @@ export default function BattleScreen() {
           </Pressable>
         </Animated.View>
       )}
+
+      {/* 相手が見つかったときの、先攻を決めるじゃんけん（待機中CPU対戦の上にかぶせる） */}
+      <OnlineJanken />
 
       {/* 相手が見つかった通知（CPU対戦からの切り替え） */}
       {matchFound && (

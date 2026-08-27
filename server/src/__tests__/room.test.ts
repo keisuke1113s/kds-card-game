@@ -55,6 +55,10 @@ function setupMatch(): { room: RoomCore; a: TestClient; b: TestClient } {
   expect("seat" in room.join("はなこ", cpuDeck, b.send)).toBe(true);
   room.setReady(0);
   room.setReady(1);
+  // 両者そろうと先攻を決めるじゃんけんが始まる
+  expect(a.received.some((m) => m.type === "jankenStart")).toBe(true);
+  room.handleJanken(0, "rock");
+  room.handleJanken(1, "scissors"); // 席0の勝ち → 席0が先攻で開始
   return { room, a, b };
 }
 
@@ -206,10 +210,13 @@ describe("RoomCore（サーバーの権威ロジック）", () => {
     room.join("はなこ", cpuDeck, b.send);
     room.setReady(0);
     room.setReady(1);
+    room.handleJanken(0, "paper");
+    room.handleJanken(1, "rock"); // 席0の勝ちで対局開始
 
     // A が切断 → 猶予タイマーが仕掛かる
+    const base = pending.length;
     room.markDisconnected(a.seat!);
-    expect(pending.length).toBe(1);
+    expect(pending.length).toBe(base + 1);
 
     // 復帰すればタイマーは解除され、負けにならない
     room.reattach(a.sessionToken, a.send);
@@ -282,14 +289,48 @@ describe("Matchmaker（部屋の管理）", () => {
     room.setReady(a.seat!);
     room.markDisconnected(a.seat!);
     expect(pending.length).toBe(0);
-    // B の ready で対局開始 → 開始時に A の猶予タイマーが仕掛かる
+    // B の ready でじゃんけん開始。A は放置なので時間切れの自動選択で
+    // （あいこなら再抽選しながら）対局が始まる
     room.setReady(b.seat!);
     expect(pending.length).toBe(1);
-    pending.forEach((fn) => fn());
+    let fired = 0;
+    const fireAll = () => {
+      while (fired < pending.length) pending[fired++]();
+    };
+    for (let i = 0; i < 30 && !room.started; i++) fireAll();
+    expect(room.started).toBe(true);
+    // 開始時に切断していた A の猶予タイマーが仕掛かっている → 発火で B の不戦勝
+    fireAll();
     expect(b.view?.phase.type).toBe("finished");
     if (b.view?.phase.type === "finished") {
       expect(b.view.phase.winner).toBe(b.seat);
     }
+  });
+
+  it("じゃんけんの勝者が先攻になり、あいこはやり直しになる", () => {
+    const room = new RoomCore(ctx, "TESTJANKEN");
+    const a = new TestClient(33);
+    const b = new TestClient(34);
+    room.join("たろう", defaultDeck, a.send);
+    room.join("はなこ", cpuDeck, b.send);
+    room.setReady(0);
+    room.setReady(1);
+    // あいこ → 両者に winner: null が届き、まだ始まらない
+    room.handleJanken(0, "rock");
+    room.handleJanken(1, "rock");
+    const tie = a.received.find((m) => m.type === "jankenResult");
+    expect(tie && tie.type === "jankenResult" && tie.winner).toBeNull();
+    expect(room.started).toBe(false);
+    // やり直し: パーがグーに勝つ → 席1が先攻で開始
+    room.handleJanken(0, "rock");
+    room.handleJanken(1, "paper");
+    expect(room.started).toBe(true);
+    const started = b.received.find(
+      (m): m is Extract<ServerMessage, { type: "update" }> => m.type === "update"
+    );
+    const ev = started?.events.find((e) => e.type === "gameStarted");
+    expect(ev && ev.type === "gameStarted" && ev.firstPlayer).toBe(1);
+    // 一度選んだ手は変更できない（上書きしても結果は変わらない）
   });
 
   it("ランダムマッチは2人目が同じ部屋に入る", () => {

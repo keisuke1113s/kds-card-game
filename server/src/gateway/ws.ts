@@ -143,6 +143,10 @@ export function startServer(port: number): http.Server {
           if (conn.room && conn.seat !== null) conn.room.setReady(conn.seat);
           break;
 
+        case "janken":
+          if (conn.room && conn.seat !== null) conn.room.handleJanken(conn.seat, msg.hand);
+          break;
+
         case "action":
           if (conn.room && conn.seat !== null) conn.room.handleAction(conn.seat, msg.action);
           break;
