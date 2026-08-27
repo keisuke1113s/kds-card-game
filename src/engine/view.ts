@@ -41,6 +41,9 @@ export function viewFor(state: GameState, playerId: PlayerId): PlayerView {
     self: {
       hand: [...self.hand],
       deckCount: self.deck.length,
+      // 純関数を保つため乱数は使わず、辞書順で並び順を伏せる
+      deckContents: [...self.deck].sort(),
+      mulliganDecided: self.mulliganDecided,
       field: self.field.map((f) => ({ ...f })),
       tantou: self.tantou,
       tantouAbilityUsedThisTurn: self.tantouAbilityUsedThisTurn,
@@ -51,6 +54,7 @@ export function viewFor(state: GameState, playerId: PlayerId): PlayerView {
     },
     opponent: {
       handCount: opp.hand.length,
+      mulliganDecided: opp.mulliganDecided,
       deckCount: opp.deck.length,
       field: opp.field.map((f) => ({ ...f })),
       tantou: opp.tantou,

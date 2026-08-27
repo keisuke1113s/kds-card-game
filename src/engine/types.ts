@@ -315,6 +315,8 @@ export interface ApplyResult {
 
 export interface OpponentView {
   handCount: number;
+  /** 公開情報（mulliganTaken イベントで既に露出している） */
+  mulliganDecided: boolean;
   deckCount: number;
   field: InstructorOnField[];
   tantou: string;
@@ -327,6 +329,12 @@ export interface OpponentView {
 export interface SelfView {
   hand: string[];
   deckCount: number;
+  /**
+   * 自分の山札の中身（並び順を伏せるため辞書順に整列済み）。
+   * 「山札の中身を確認」画面用。実際の並び順とは無関係。
+   */
+  deckContents: string[];
+  mulliganDecided: boolean;
   field: InstructorOnField[];
   tantou: string;
   tantouAbilityUsedThisTurn: boolean;
