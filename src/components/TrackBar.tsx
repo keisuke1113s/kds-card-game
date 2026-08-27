@@ -12,6 +12,7 @@ import Animated, {
   withTiming,
   ZoomIn,
 } from "react-native-reanimated";
+import { Image } from "expo-image";
 import { colors } from "@/theme";
 
 interface Props {
@@ -263,6 +264,18 @@ function Vehicle({
       ? "\u{1F697}"
       : "\u{1F4D6}";
 
+  // 技能の進みは、当校の教習車が走る
+  if (!back && kind === "skill") {
+    return (
+      <Animated.View style={[styles.effectCarWrap, style]}>
+        <Image
+          source={require("../../assets/images/kds-car.png")}
+          style={styles.effectCar}
+          contentFit="contain"
+        />
+      </Animated.View>
+    );
+  }
   return (
     <Animated.Text
       style={[styles.effect, back && styles.effectBack, style]}
@@ -426,6 +439,8 @@ const styles = StyleSheet.create({
   deltaLost: { fontSize: 28, textShadowColor: "#ffd6d6", textShadowRadius: 10 },
   // 進捗バーの真上を走らせる
   effect: { position: "absolute", top: -14, fontSize: 17 },
+  effectCarWrap: { position: "absolute", top: -13 },
+  effectCar: { width: 40, height: 15 },
   effectBack: { fontSize: 20 },
   bit: { position: "absolute", top: -16, fontSize: 12 },
   sweep: {

@@ -1956,9 +1956,20 @@ function LessonCutIn({
 
   return (
     <View style={styles.lessonCutWrap} pointerEvents="none">
-      <Animated.Text style={[styles.lessonCutEmoji, emojiStyle]} allowFontScaling={false}>
-        {emoji}
-      </Animated.Text>
+      {/* 技能の進みは、当校の教習車が走り抜ける */}
+      {gained && track === "skill" ? (
+        <Animated.View style={[styles.lessonCutCarWrap, emojiStyle]}>
+          <Image
+            source={require("../../assets/images/kds-car.png")}
+            style={styles.lessonCutCar}
+            contentFit="contain"
+          />
+        </Animated.View>
+      ) : (
+        <Animated.Text style={[styles.lessonCutEmoji, emojiStyle]} allowFontScaling={false}>
+          {emoji}
+        </Animated.Text>
+      )}
       <Animated.View style={[popStyle, styles.lessonCutBody]}>
         <View style={[styles.lessonCutBadge, { backgroundColor: mine ? colors.success : colors.danger }]}>
           <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
@@ -2395,6 +2406,8 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   lessonCutEmoji: { position: "absolute", fontSize: 130, opacity: 0.4 },
+  lessonCutCarWrap: { position: "absolute", opacity: 0.6 },
+  lessonCutCar: { width: 250, height: 95 },
   lessonCutBody: { alignItems: "center", gap: 12 },
   lessonCutBadge: {
     paddingVertical: 6,
