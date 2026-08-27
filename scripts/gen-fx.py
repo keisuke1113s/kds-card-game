@@ -31,6 +31,9 @@ PROMPTS = {
     "fx_defeat": "melancholic rainy night background, dark blue and gray tones, streaks of falling rain, faint soft bokeh lights, puddle reflections, sad quiet atmosphere" + COMMON,
     "fx_battle": "dramatic energy clash background, blue energy aura versus red energy aura colliding in the center with white lightning sparks, impact shockwave, dark arena" + COMMON,
     "fx_pack": "magical treasure reveal background, radiant warm golden glow from center, floating sparkles and star dust, soft light rays, mysterious dark violet edges" + COMMON,
+    "fx_up": "uplifting power up effect background, streams of golden and emerald green light rising upward, ascending sparkles, hopeful bright energy, dark background at bottom" + COMMON,
+    "fx_down": "power down effect background, heavy dark blue and purple energy sinking downward, falling gloomy streaks, ominous descending aura, dark atmosphere" + COMMON,
+    "fx_janken": "dramatic showdown stage background, two spotlights from left and right crossing in the middle, purple and deep blue arena atmosphere, floating dust particles in light beams, tension" + COMMON,
 }
 
 
