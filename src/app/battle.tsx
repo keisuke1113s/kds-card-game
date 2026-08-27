@@ -1038,7 +1038,8 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {humanChoice && (
+      {/* 実況が残っている間は出さない（カードを引いた実況と重なるため） */}
+      {humanChoice && !busy && (
         <Overlay title={humanChoice.prompt}>
           {humanChoice.purpose === "janken" ? (
             <View style={styles.jankenRow}>
@@ -1106,7 +1107,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {revealedHand && (
+      {revealedHand && !busy && (
         <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
