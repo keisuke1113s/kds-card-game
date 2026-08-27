@@ -6,6 +6,15 @@ import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
+import { DARK_MODE, setDarkModePreference } from "@/theme";
+
+/** ダークモードを切り替えて反映する（色は起動時に固定のため読み込み直す） */
+function switchDarkMode(dark: boolean): void {
+  if (dark === DARK_MODE) return;
+  setDarkModePreference(dark);
+  const loc = (globalThis as { location?: { reload: () => void } }).location;
+  loc?.reload();
+}
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
 
@@ -82,8 +91,19 @@ export default function SettingsScreen() {
         />
       </View>
 
+      <Text style={styles.sectionTitle}>画面の見た目</Text>
+      <View style={styles.row}>
+        <Choice
+          label="☀️ ライト"
+          active={!DARK_MODE}
+          onPress={() => switchDarkMode(false)}
+        />
+        <Choice label="🌙 ダーク" active={DARK_MODE} onPress={() => switchDarkMode(true)} />
+      </View>
+
       <Text style={styles.note}>
         CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
+        画面の見た目の切り替えは、画面を読み込み直して反映します。
       </Text>
       {!HAPTICS_AVAILABLE && (
         <Text style={styles.note}>

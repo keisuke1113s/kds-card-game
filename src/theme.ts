@@ -2,7 +2,7 @@
 // 深い紺（信頼感）を基調に、KDSブランドの水色をアクセントに使う。
 // 影・角丸・余白・文字サイズを体系化して、画面ごとの見た目のばらつきを無くす。
 
-export const colors = {
+const lightColors = {
   // 背景（上から下へわずかに濃くなるグラデーションで使う）
   background: "#eef4fa",
   backgroundDeep: "#dce8f4",
@@ -39,7 +39,71 @@ export const colors = {
   rested: "#9aa8b5",
   highlight: "#ffc93c",
   target: "#ef5350",
-} as const;
+};
+
+/** ダークモードの配色（夜でもまぶしくない深い紺基調） */
+const darkColors: typeof lightColors = {
+  background: "#101826",
+  backgroundDeep: "#0a1220",
+  surface: "#1a2536",
+  surfaceAlt: "#16202f",
+
+  primary: "#3d8fd0",
+  primaryDark: "#0d3f7a",
+  primaryLight: "#63a8e0",
+  accent: "#e5a52e",
+  accentDark: "#c97f0a",
+
+  danger: "#e05c5c",
+  success: "#3cb56d",
+  text: "#e8eef6",
+  textMuted: "#93a5b8",
+  cancel: "#5c6b7a",
+  border: "#2c3c52",
+  borderStrong: "#3d5470",
+
+  instructor: "#3d8fd0",
+  support: "#3cb56d",
+  tantou: "#d0a63e",
+
+  boardOpponent: "#1d2939",
+  boardOpponentEdge: "#2c3c52",
+  boardSelf: "#1c2e24",
+  boardSelfEdge: "#2c4a38",
+  boardCenter: "#131c2b",
+  rested: "#5c6b7a",
+  highlight: "#ffc93c",
+  target: "#ef5350",
+};
+
+/**
+ * ダークモードの設定は起動時に一度だけ読む（画面の色は起動時に固定されるため、
+ * 切り替えの反映は再読み込み／再起動で行う）。
+ * Web は localStorage を同期的に読めるのでそれを使う。
+ */
+function isDarkPreferred(): boolean {
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage;
+    return ls?.getItem("kds-dark-mode") === "1";
+  } catch {
+    return false;
+  }
+}
+
+export const DARK_MODE = isDarkPreferred();
+
+export const colors = (DARK_MODE ? darkColors : lightColors) as typeof lightColors;
+
+/** ダークモード設定を保存する（反映は再読み込み後） */
+export function setDarkModePreference(dark: boolean): void {
+  try {
+    const ls = (globalThis as { localStorage?: Storage }).localStorage;
+    if (dark) ls?.setItem("kds-dark-mode", "1");
+    else ls?.removeItem("kds-dark-mode");
+  } catch {
+    // 保存できない環境ではライトのまま
+  }
+}
 
 /** 角丸。用途ごとに固定して統一感を出す */
 export const radius = {
