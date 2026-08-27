@@ -39,6 +39,25 @@ export default function RootLayout() {
     ensureInitialSet();
   }, []);
 
+  // アプリに戻ってきたとき、カードの絵を温め直す。
+  // iPhoneのSafariはメモリ節約のため展開済みの絵を捨てることがあり、
+  // 戻った直後にカードが一瞬白く見える原因になるため
+  useEffect(() => {
+    const doc = globalThis.document;
+    if (!doc?.addEventListener) return;
+    let lastWarm = Date.now();
+    const onVisible = () => {
+      if (doc.visibilityState !== "visible") return;
+      // 頻繁に切り替えても連発しないよう、1分以上あいたときだけ温め直す
+      if (Date.now() - lastWarm < 60 * 1000) return;
+      lastWarm = Date.now();
+      void preloadAllSmall();
+      void preloadAllThumbs();
+    };
+    doc.addEventListener("visibilitychange", onVisible);
+    return () => doc.removeEventListener("visibilitychange", onVisible);
+  }, []);
+
   useEffect(() => {
     let alive = true;
     const hideBoot = () => {

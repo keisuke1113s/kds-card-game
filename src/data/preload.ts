@@ -28,13 +28,24 @@ async function warm(sources: number[]): Promise<void> {
   if (uris.length === 0) return;
   try {
     if (Platform.OS === "web") {
-      // ブラウザのキャッシュに入れる。1枚でも失敗した場合に止めない
+      // ブラウザのキャッシュに入れ、decode() で絵への展開まで済ませておく。
+      // ダウンロードだけだと、表示の瞬間に展開が走って一瞬白く見えることがある。
+      // 1枚でも失敗した場合に止めない
       await Promise.all(
         uris.map(
           (uri) =>
             new Promise<void>((resolve) => {
               const img = new globalThis.Image();
-              img.onload = () => resolve();
+              img.onload = () => {
+                const d = (img as { decode?: () => Promise<void> }).decode;
+                if (typeof d === "function") {
+                  d.call(img)
+                    .catch(() => {})
+                    .then(() => resolve());
+                } else {
+                  resolve();
+                }
+              };
               img.onerror = () => resolve();
               img.src = uri;
             })

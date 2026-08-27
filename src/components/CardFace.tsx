@@ -93,6 +93,7 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
             contentFit="cover"
             transition={0}
             cachePolicy="memory-disk"
+            priority="high"
             onError={() => setImageFailed(true)}
           />
         )}
