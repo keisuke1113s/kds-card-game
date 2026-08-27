@@ -2249,10 +2249,11 @@ function RainDrop({ index }: { index: number }) {
 
 /** 力なくひらひらと落ちていくカード */
 function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
-  const left = `${(index * 37 + 10) % 80}%`;
-  const delay = index * 700;
-  const duration = 5200 + (index % 4) * 700;
-  const sway = ((index % 3) - 1) * 40 + 22;
+  // 黄金角ベースの散布で、位置もタイミングも画面全体に広くばらける
+  const left = `${(index * 61.8 + 9) % 88}%`;
+  const delay = Math.floor((index * 1371) % 5600);
+  const duration = 4800 + ((index * 977) % 2600);
+  const sway = (((index * 89) % 7) - 3) * 26 + 12;
 
   const p = useSharedValue(0);
   useEffect(() => {
