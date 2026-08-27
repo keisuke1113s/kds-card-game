@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
@@ -212,7 +213,14 @@ export function PackReveal({ cardId }: { cardId: string }) {
 
   return (
     <View style={styles.packWrap}>
-      <Animated.View style={[styles.packGlow, glowStyle]} />
+      <Animated.View style={[styles.packGlow, glowStyle]}>
+        {/* AI生成の宝箱風の光の背景 */}
+        <Image
+          source={require("../../assets/images/fx/fx_pack.webp")}
+          style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+          contentFit="cover"
+        />
+      </Animated.View>
       <Animated.View style={[styles.packFace, backStyle]}>
         <CardFace cardId={cardId} size="lg" faceDown />
       </Animated.View>
@@ -446,12 +454,13 @@ const styles = StyleSheet.create({
   packFace: { ...StyleSheet.absoluteFill },
   packGlow: {
     position: "absolute",
-    left: -18,
-    right: -18,
-    top: -18,
-    bottom: -18,
+    left: -26,
+    right: -26,
+    top: -26,
+    bottom: -26,
     borderRadius: 20,
-    backgroundColor: "#ffd54d",
+    overflow: "hidden",
+    backgroundColor: "#2a1f4d",
   },
   confetti: {
     position: "absolute",

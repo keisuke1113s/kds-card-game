@@ -1624,6 +1624,13 @@ export default function BattleScreen() {
 
       {view.phase.type === "finished" && view.phase.winner === ME && (
         <>
+          {/* AI生成の祝福背景（金色バースト＋紙吹雪） */}
+          <Image
+            source={require("../../assets/images/fx/fx_victory.webp")}
+            style={[StyleSheet.absoluteFill, { opacity: 0.88 }]}
+            contentFit="cover"
+            pointerEvents="none"
+          />
           <Confetti />
           {/* 自分のデッキの全カード（担当含む）が舞う */}
           <CardRain
@@ -1904,6 +1911,16 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
   const color = mine ? "#ffd54d" : "#ff6b6b";
   return (
     <View style={styles.reachLayer} pointerEvents="none">
+      {/* AI生成の集中線バースト背景（自分=金 / 相手=赤） */}
+      <Image
+        source={
+          mine
+            ? require("../../assets/images/fx/fx_reach_gold.webp")
+            : require("../../assets/images/fx/fx_reach_red.webp")
+        }
+        style={[StyleSheet.absoluteFill, { opacity: 0.85 }]}
+        contentFit="cover"
+      />
       <Animated.View style={[styles.reachBox, box]}>
         <Animated.Text style={[styles.reachTitle, { color }, glowStyle]} allowFontScaling={false}>
           {mine ? "⚡ リーチ！" : "⚠️ 相手がリーチ！"}
@@ -2303,6 +2320,12 @@ function BattleCutIn({
 
   return (
     <Animated.View style={[styles.cutinWrap, shakeStyle]} pointerEvents="none">
+      {/* AI生成の激突エネルギー背景（青vs赤） */}
+      <Image
+        source={require("../../assets/images/fx/fx_battle.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.9 }]}
+        contentFit="cover"
+      />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashA, slashAStyle]} />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashB, slashBStyle]} />
 
@@ -2594,6 +2617,14 @@ function LossScene({ cardIds }: { cardIds: string[] }) {
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* AI生成の雨夜の背景 */}
+      <Animated.View style={[StyleSheet.absoluteFill, dimStyle]}>
+        <Image
+          source={require("../../assets/images/fx/fx_defeat.webp")}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
+      </Animated.View>
       {/* 青暗い沈み込み */}
       <Animated.View style={[styles.lossDim, dimStyle]} />
       {/* 雨 */}
