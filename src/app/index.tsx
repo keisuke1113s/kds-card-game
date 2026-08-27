@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
@@ -52,6 +52,10 @@ export default function HomeScreen() {
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
       <SafeAreaView style={styles.safe}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
         {/* タイトル：カード裏面を扇状に並べた上にロゴを置く */}
         <View style={styles.hero}>
           <View style={styles.fanRow}>
@@ -178,6 +182,7 @@ export default function HomeScreen() {
         </Animated.View>
 
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
+        </ScrollView>
       </SafeAreaView>
     </LinearGradient>
   );
@@ -253,8 +258,15 @@ function GoalChip({ label, value, color }: { label: string; value: string; color
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  safe: { flex: 1, paddingHorizontal: spacing.xl },
-  hero: { alignItems: "center", marginTop: spacing.lg, marginBottom: spacing.lg },
+  safe: { flex: 1 },
+  // 中身をひとかたまりにして、画面の上下中央にそろえる
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+    paddingHorizontal: spacing.xl,
+    paddingVertical: spacing.lg,
+  },
+  hero: { alignItems: "center", marginBottom: spacing.lg },
   fanRow: {
     height: 84,
     alignItems: "center",
@@ -331,8 +343,7 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.5,
   },
-  // 余った高さはメニューの上下に均等に配ける（下だけに空白が寄らないように）
-  menu: { gap: spacing.md, flex: 1, justifyContent: "center" },
+  menu: { gap: spacing.md },
   row: { flexDirection: "row", gap: spacing.md },
   flex: { flex: 1 },
   buttonCardIcon: {
@@ -369,7 +380,7 @@ const styles = StyleSheet.create({
   matchupSide: { fontSize: 12, fontWeight: "600", color: colors.textMuted, flexShrink: 1 },
   matchupVs: { fontSize: 11, fontWeight: "900", color: colors.accent },
   footer: {
-    marginBottom: spacing.md,
+    marginTop: spacing.lg,
     textAlign: "center",
     color: colors.textMuted,
     fontSize: 10,
