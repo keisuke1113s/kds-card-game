@@ -64,7 +64,9 @@ export default function OnlineScreen() {
   const [joinCode, setJoinCode] = React.useState("");
   // 名前が未入力のまま参加ボタンを押したときに出す入力ダイアログ。
   // どの参加方法を押したかを覚えておき、入力後にその方法で続行する
-  const [namePrompt, setNamePrompt] = React.useState<"create" | "join" | "queue" | null>(null);
+  const [namePrompt, setNamePrompt] = React.useState<"create" | "join" | "queue" | "edit" | null>(
+    null
+  );
   const [nameDraft, setNameDraft] = React.useState("");
 
   const deck = resolveActiveDeck(deckState);
@@ -122,6 +124,8 @@ export default function OnlineScreen() {
     prefs.setName(name);
     const mode = namePrompt;
     setNamePrompt(null);
+    // 名前の変更だけのときは参加しない
+    if (mode === "edit") return;
     haptic("medium");
     connectOnline({
       serverUrl,
@@ -137,20 +141,29 @@ export default function OnlineScreen() {
   return (
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionTitle}>あなたの名前</Text>
-        <TextInput
-          style={styles.input}
-          value={prefs.name}
-          onChangeText={prefs.setName}
-          placeholder="対戦相手に表示されます"
-          maxLength={12}
-        />
-
         <Text style={styles.sectionTitle}>使うデッキ</Text>
         <Pressable style={styles.deckRow} onPress={() => router.push("/deck")}>
           <Text style={styles.deckName}>{deck.name}</Text>
           <Text style={styles.deckChange}>変える ▸</Text>
         </Pressable>
+
+        {/* 名前は参加ボタンを押したときのダイアログで入力する。
+            登録済みの名前はここで確認・変更できる */}
+        {prefs.name.trim() !== "" && (
+          <Pressable
+            style={styles.deckRow}
+            onPress={() => {
+              haptic("light");
+              setNameDraft(prefs.name);
+              setNamePrompt("edit");
+            }}
+          >
+            <Text style={styles.nameRowText}>
+              名前: <Text style={styles.deckName}>{prefs.name}</Text>
+            </Text>
+            <Text style={styles.deckChange}>変える ▸</Text>
+          </Pressable>
+        )}
 
         {waiting ? (
           <View style={styles.waitBox}>
@@ -321,7 +334,9 @@ export default function OnlineScreen() {
               style={[styles.nameModalOk, nameDraft.trim().length === 0 && styles.buttonDisabled]}
               onPress={confirmName}
             >
-              <Text style={styles.bigButtonText}>この名前で参加する</Text>
+              <Text style={styles.bigButtonText}>
+                {namePrompt === "edit" ? "この名前にする" : "この名前で参加する"}
+              </Text>
             </Pressable>
             <Pressable
               style={[styles.cancelButton, { alignSelf: "center" }]}
@@ -371,6 +386,7 @@ const styles = StyleSheet.create({
   },
   deckName: { fontSize: 16, fontWeight: "800", color: colors.text },
   deckChange: { color: colors.primary, fontWeight: "700" },
+  nameRowText: { fontSize: 14, fontWeight: "700", color: colors.textMuted },
   nameModalLayer: {
     flex: 1,
     backgroundColor: "rgba(10, 20, 40, 0.55)",
