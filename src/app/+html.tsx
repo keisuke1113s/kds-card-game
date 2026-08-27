@@ -93,18 +93,16 @@ window.addEventListener('appinstalled', function () {
   transition: opacity .32s ease;
 }
 #kds-boot.kds-hide { opacity: 0; pointer-events: none; }
-/* 画像は起動が遅くなるので使わない。カード実物から採った配色の文字で見せる */
+/* 画像は起動が遅くなるので使わない。ホーム画面と同じ見た目を文字で作る */
 #kds-boot .kds-logo {
-  font-size: 40px; font-weight: 900; letter-spacing: 2px; line-height: 1;
+  display: flex; align-items: baseline; gap: 8px;
   animation: kds-pop .45s cubic-bezier(.2,1.3,.5,1) both;
 }
-#kds-boot .kds-go {
-  font-size: 20px; font-weight: 900; letter-spacing: 1px; margin-top: 6px;
-  animation: kds-pop .45s .06s cubic-bezier(.2,1.3,.5,1) both;
-}
+#kds-boot .kds-name { font-size: 40px; font-weight: 900; letter-spacing: 2px; line-height: 1; }
+#kds-boot .kds-go { font-size: 20px; font-weight: 900; letter-spacing: 1px; line-height: 1; }
 #kds-boot .kds-catch {
-  font-size: 14px; font-weight: 900; color: #d83030; margin-top: 8px;
-  animation: kds-pop .45s .12s cubic-bezier(.2,1.3,.5,1) both;
+  font-size: 14px; font-weight: 900; color: #d83030; margin-top: 2px;
+  animation: kds-pop .45s .08s cubic-bezier(.2,1.3,.5,1) both;
 }
 @keyframes kds-pop {
   from { transform: scale(.82); opacity: 0; }
@@ -125,18 +123,20 @@ window.addEventListener('appinstalled', function () {
         <div id="kds-boot">
           {/* 文字色はカード実物のロゴから採ったもの */}
           <div className="kds-logo">
-            <span style={{ color: "#d83030" }}>K</span>
-            <span style={{ color: "#e49c18" }}>D</span>
-            <span style={{ color: "#78b424" }}>S</span>
-          </div>
-          <div className="kds-go">
-            <span style={{ color: "#e2604a" }}>a</span>
-            <span style={{ color: "#e49c18" }}> G</span>
-            <span style={{ color: "#3d8fd0" }}>O</span>
-            <span style={{ color: "#d83030" }}>!</span>
-            <span style={{ color: "#c9d63a" }}> G</span>
-            <span style={{ color: "#8fd3ee" }}>O</span>
-            <span style={{ color: "#eeb121" }}>!</span>
+            <span className="kds-name">
+              <span style={{ color: "#d83030" }}>K</span>
+              <span style={{ color: "#e49c18" }}>D</span>
+              <span style={{ color: "#78b424" }}>S</span>
+            </span>
+            <span className="kds-go">
+              <span style={{ color: "#e2604a" }}>a</span>
+              <span style={{ color: "#e49c18" }}> G</span>
+              <span style={{ color: "#3d8fd0" }}>O</span>
+              <span style={{ color: "#d83030" }}>!</span>
+              <span style={{ color: "#c9d63a" }}> G</span>
+              <span style={{ color: "#8fd3ee" }}>O</span>
+              <span style={{ color: "#eeb121" }}>!</span>
+            </span>
           </div>
           <div className="kds-catch">運転が楽しくなる!!</div>
           <div className="kds-spinner" />
