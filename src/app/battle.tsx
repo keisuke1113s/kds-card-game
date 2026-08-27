@@ -35,7 +35,7 @@ import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
 import { GameEvent, Track } from "@/engine/types";
-import { effectiveCombat } from "@/engine/effects";
+import { effectiveCombat, effectiveLesson } from "@/engine/effects";
 import { getLegalActions } from "@/engine/legalActions";
 import {
   ACADEMIC_GOAL,
@@ -1271,6 +1271,10 @@ function FieldRow({
       {field.map((inst) => {
         const combat = effectiveCombat(ctx, state, player, inst);
         const base = getCard(inst.cardId).combat ?? 0;
+        // 効果で教習力が変わっているときは、差分を「教+1」のように示す
+        const lesson = effectiveLesson(ctx, state, player, inst);
+        const lessonBase = getCard(inst.cardId).lesson ?? 0;
+        const lessonDiff = lesson - lessonBase;
         return (
           <SlamEnter key={inst.uid}>
             <Pressable
@@ -1294,7 +1298,13 @@ function FieldRow({
               </RestRotator>
               <Text style={styles.fieldCaption}>
                 {inst.rested ? "休憩 " : ""}
-                {combat !== base ? `戦${combat}` : ""}
+                {combat !== base ? `戦${combat}(${combat - base > 0 ? "+" : ""}${combat - base}) ` : ""}
+                {lessonDiff !== 0 && (
+                  <Text style={lessonDiff > 0 ? styles.captionUp : styles.captionDown}>
+                    教{lesson}({lessonDiff > 0 ? "+" : ""}
+                    {lessonDiff})
+                  </Text>
+                )}
               </Text>
             </Pressable>
           </SlamEnter>
@@ -1906,6 +1916,8 @@ const styles = StyleSheet.create({
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
   fieldCaption: { fontSize: 9, color: colors.textMuted, marginTop: 2, minHeight: 11 },
+  captionUp: { color: colors.success, fontWeight: "800" },
+  captionDown: { color: colors.danger, fontWeight: "800" },
   emptyField: { color: colors.textMuted, fontSize: 12, paddingVertical: 24 },
   middle: {
     flex: 1,
