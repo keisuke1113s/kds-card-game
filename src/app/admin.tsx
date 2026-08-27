@@ -113,25 +113,44 @@ export default function AdminScreen() {
  * 永遠に同じQRになる（保存が消えても割り当ては崩れない）。
  * 崩れる唯一の原因は「IDの変更・使い回し」なので、それを禁止する。
  */
+const CARD_TYPES = [
+  { key: "instructor", prefix: "i_", label: "インストラクター" },
+  { key: "support", prefix: "s_", label: "サポート" },
+  { key: "tantou", prefix: "t_", label: "担当" },
+] as const;
+
+/** IDの先頭記号からカードの種類名を返す */
+function typeLabelOf(id: string): string {
+  return CARD_TYPES.find((t) => id.startsWith(t.prefix))?.label ?? "不明";
+}
+
 function IssueNewCard() {
   const { issued, addIssued } = useUnlockStore();
+  const [cardType, setCardType] = useState<(typeof CARD_TYPES)[number]>(CARD_TYPES[0]);
   const [newId, setNewId] = useState("");
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [issuedNow, setIssuedNow] = useState<{ id: string; name: string } | null>(null);
 
+  // 種類の記号（i_/s_/t_）はアプリが自動で付ける。管理者は名前部分だけ入力する
+  const fullId = `${cardType.prefix}${newId.trim()}`;
+
   const issue = () => {
-    const id = newId.trim();
     const name = newName.trim();
     setError(null);
-    if (!/^[ist]_[a-z0-9_]{1,30}$/.test(id)) {
+    if (!/^[a-z0-9][a-z0-9_]{0,29}$/.test(newId.trim())) {
       setError(
-        "IDの形式が正しくありません。半角小文字英数字と_のみ、先頭は i_（インストラクター）/ s_（サポート）/ t_（担当）で始めてください。例: i_yamada"
+        "IDは半角小文字英数字と_のみで入力してください（先頭は英数字）。例: yamada"
       );
       return;
     }
-    if (allCards.some((c) => c.id === id)) {
+    if (allCards.some((c) => c.id === fullId)) {
       setError("このIDはすでにアプリ内のカードで使われています。別のIDにしてください。");
+      return;
+    }
+    const dup = issued.find((e) => e.id === fullId);
+    if (dup) {
+      setError(`このIDは ${dup.at} に「${dup.name}」として発行済みです（下の記録にQRがあります）。`);
       return;
     }
     if (!name) {
@@ -139,8 +158,8 @@ function IssueNewCard() {
       return;
     }
     haptic("medium");
-    addIssued({ id, name, at: new Date().toISOString().slice(0, 10) });
-    setIssuedNow({ id, name });
+    addIssued({ id: fullId, name, at: new Date().toISOString().slice(0, 10) });
+    setIssuedNow({ id: fullId, name });
     setNewId("");
     setNewName("");
   };
@@ -160,14 +179,38 @@ function IssueNewCard() {
       </View>
 
       <Text style={styles.sectionTitle}>発行する</Text>
+      <Text style={styles.note}>カードの種類（IDの記号はアプリが自動で付けます）</Text>
+      <View style={styles.typeRow}>
+        {CARD_TYPES.map((t) => (
+          <Pressable
+            key={t.key}
+            style={[styles.typeButton, cardType.key === t.key && styles.typeButtonActive]}
+            onPress={() => {
+              haptic("light");
+              setCardType(t);
+            }}
+          >
+            <Text
+              style={[styles.typeText, cardType.key === t.key && styles.typeTextActive]}
+            >
+              {t.label}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
       <TextInput
         style={styles.issueInput}
         value={newId}
         onChangeText={(v) => setNewId(v.toLowerCase())}
         autoCapitalize="none"
         autoCorrect={false}
-        placeholder="カードID（例: i_yamada）"
+        placeholder="ID（例: yamada）※半角小文字英数字"
       />
+      {newId.trim() !== "" && (
+        <Text style={styles.idPreview}>
+          発行されるカードID: <Text style={{ fontWeight: "900" }}>{fullId}</Text>（{cardType.label}）
+        </Text>
+      )}
       <TextInput
         style={styles.issueInput}
         value={newName}
@@ -186,7 +229,9 @@ function IssueNewCard() {
         <View style={styles.qrItem}>
           <QRCode value={qrPayloadFor(issuedNow.id)} size={140} ecl="L" quietZone={6} />
           <Text style={styles.qrName}>{issuedNow.name}</Text>
-          <Text style={styles.qrId}>{issuedNow.id}</Text>
+          <Text style={styles.qrId}>
+            {issuedNow.id}（{typeLabelOf(issuedNow.id)}）
+          </Text>
           <Text style={styles.qrId} selectable>
             {qrPayloadFor(issuedNow.id)}
           </Text>
@@ -205,7 +250,7 @@ function IssueNewCard() {
                 <QRCode value={qrPayloadFor(e.id)} size={120} ecl="L" quietZone={6} />
                 <Text style={styles.qrName}>{e.name}</Text>
                 <Text style={styles.qrId}>
-                  {e.id}（{e.at}）
+                  {e.id}（{typeLabelOf(e.id)}・{e.at}）
                 </Text>
               </View>
             ))}
@@ -341,6 +386,20 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
   issueError: { fontSize: 12, color: colors.danger, fontWeight: "800", lineHeight: 18 },
+  typeRow: { flexDirection: "row", gap: spacing.sm },
+  typeButton: {
+    flex: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  typeButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  typeText: { fontWeight: "800", color: colors.text, fontSize: 13 },
+  typeTextActive: { color: "#fff" },
+  idPreview: { fontSize: 13, color: colors.text, fontWeight: "700" },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 14 },
   qrGrid: { flexDirection: "row", flexWrap: "wrap", gap: 18, justifyContent: "center" },
   qrItem: {
