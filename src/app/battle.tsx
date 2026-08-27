@@ -36,22 +36,24 @@ import { playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
-import { GameEvent, Track } from "@/engine/types";
-import { effectiveCombat, effectiveLesson } from "@/engine/effects";
-import { getLegalActions } from "@/engine/legalActions";
+import { GameEvent, PlayerView, Track } from "@/engine/types";
+
+import {
+  effectiveCombatFromView,
+  effectiveLessonFromView,
+  getLegalActionsFromView,
+  playerToActFromView,
+} from "@/engine/viewRules";
 import {
   ACADEMIC_GOAL,
   GameAction,
-  GameState,
   InstructorOnField,
   SKILL_GOAL,
 } from "@/engine/types";
-import { playerToAct } from "@/engine/reducer";
 import { CardFace } from "@/components/CardFace";
 import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
 import { hintFor } from "@/tutorial/hints";
-import { viewFor } from "@/engine/view";
 import {
   cpuDeckFor,
   randomizeDecksForMatch,
@@ -66,6 +68,11 @@ import { colors } from "@/theme";
 const ctx = { defs: cardRegistry };
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
+
+/** その視点で見た、指定プレイヤーの場（自分でも相手でも同じ形で取れる） */
+function fieldOf(view: PlayerView, player: number): InstructorOnField[] {
+  return player === view.playerId ? view.self.field : view.opponent.field;
+}
 
 /** カードの持ち主（拡大表示のバッジに使う） */
 type Owner = "self" | "cpu";
@@ -122,8 +129,8 @@ function choiceOwner(purpose: string): Owner {
     : "self";
 }
 
-/** イベント列から実況表示を組み立てる。state はバトルの2枚を引くのに使う */
-function announcementsFor(events: GameEvent[], state: GameState | null): Announcement[] {
+/** イベント列から実況表示を組み立てる。view はバトルの2枚を引くのに使う */
+function announcementsFor(events: GameEvent[], view: PlayerView | null): Announcement[] {
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
     out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
@@ -196,10 +203,12 @@ function announcementsFor(events: GameEvent[], state: GameState | null): Announc
         break;
       case "battleDeclared": {
         // 宣言直後は両者とも場にいるので、uid からカードを引ける
-        const atk = state?.players[e.attackerPlayer].field.find((f) => f.uid === e.attackerUid);
-        const def = state?.players[1 - e.attackerPlayer].field.find(
-          (f) => f.uid === e.defenderUid
-        );
+        const atk = view
+          ? fieldOf(view, e.attackerPlayer).find((f) => f.uid === e.attackerUid)
+          : undefined;
+        const def = view
+          ? fieldOf(view, 1 - e.attackerPlayer).find((f) => f.uid === e.defenderUid)
+          : undefined;
         out.push({
           key: ++annSeq,
           kind: "battle",
@@ -261,7 +270,7 @@ function announcementsFor(events: GameEvent[], state: GameState | null): Announc
 
 export default function BattleScreen() {
   const router = useRouter();
-  const state = useGameStore((s) => s.state);
+  const view = useGameStore((s) => s.view);
   const dispatch = useGameStore((s) => s.dispatch);
   const quitGame = useGameStore((s) => s.quitGame);
   const eventLog = useGameStore((s) => s.eventLog);
@@ -316,7 +325,7 @@ export default function BattleScreen() {
       setOutFx(null);
       return;
     }
-    const anns = announcementsFor(lastEvents, state);
+    const anns = announcementsFor(lastEvents, view);
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
     // 出来事に応じて振動で手応えを返す
     for (const e of lastEvents) {
@@ -403,7 +412,7 @@ export default function BattleScreen() {
   // 選択が発生したら、開いていた手札の拡大表示を閉じる
   // （選択画面と重なって、どちらも操作できなくなるため）
   const choiceActive =
-    state?.phase.type === "choice" && state.phase.pending.player === HUMAN;
+    view?.phase.type === "choice" && view.phase.pending.player === HUMAN;
   useEffect(() => {
     if (choiceActive) setPreviewHandIndex(null);
   }, [choiceActive]);
@@ -449,7 +458,7 @@ export default function BattleScreen() {
   const [drawFx, setDrawFx] = useState<{ key: number; cardId: string } | null>(null);
   const handScroll = useRef<ScrollView>(null);
   useEffect(() => {
-    if (!state || state.phase.type === "mulligan") return;
+    if (!view || view.phase.type === "mulligan") return;
     const drawn = lastEvents.find(
       (e) => e.type === "cardDrawn" && e.player === HUMAN && e.cardId
     );
@@ -476,30 +485,28 @@ export default function BattleScreen() {
   }, [bgmEnabled]);
 
   const legal = useMemo(
-    () => (state ? getLegalActions(ctx, state, HUMAN) : []),
-    [state]
+    () => (view ? getLegalActionsFromView(ctx, view) : []),
+    [view]
   );
 
   // 開幕（と引き直し）に、山札から手札を配る演出
   const [dealing, setDealing] = useState<{ key: number; cards: string[] } | null>(null);
   const dealtRef = useRef("");
   useEffect(() => {
-    if (!state || state.phase.type !== "mulligan") return;
-    const me = state.players[HUMAN];
-    if (me.mulliganDecided) return;
-    const sig = me.hand.join(",");
+    if (!view || view.phase.type !== "mulligan") return;
+    if (view.self.mulliganDecided) return;
+    const sig = view.self.hand.join(",");
     if (dealtRef.current === sig) return;
     dealtRef.current = sig;
-    setDealing({ key: Date.now(), cards: [...me.hand] });
-  }, [state]);
+    setDealing({ key: Date.now(), cards: [...view.self.hand] });
+  }, [view]);
 
   // 練習対戦のヒント（盤面から判断して出すので、台本に依存せず壊れにくい）
   const hint = useMemo(() => {
-    if (!tutorial || !state) return null;
-    const view = viewFor(state, HUMAN);
-    const myTurnCount = Math.ceil(state.turnNumber / 2);
+    if (!tutorial || !view) return null;
+    const myTurnCount = Math.ceil(view.turnNumber / 2);
     return hintFor(cardRegistry, view, legal, { myTurnCount });
-  }, [tutorial, state, legal]);
+  }, [tutorial, view, legal]);
 
 
   // 瀧本などで相手の手札が公開されたらオーバーレイ表示
@@ -511,7 +518,7 @@ export default function BattleScreen() {
     }
   }, [lastEvents]);
 
-  if (!state) {
+  if (!view) {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.center}>
@@ -522,10 +529,10 @@ export default function BattleScreen() {
     );
   }
 
-  const me = state.players[HUMAN];
-  const cpu = state.players[CPU];
-  const isMyMain = state.phase.type === "main" && state.turnPlayer === HUMAN;
-  const actor = playerToAct(state);
+  const me = view.self;
+  const cpu = view.opponent;
+  const isMyMain = view.phase.type === "main" && view.turnPlayer === HUMAN;
+  const actor = playerToActFromView(view);
 
   const can = (pred: (a: GameAction) => boolean) => legal.some(pred);
   const doAction = (action: GameAction) => {
@@ -546,12 +553,12 @@ export default function BattleScreen() {
     if (cardId === undefined) return null;
     const def = getCard(cardId);
 
-    if (state.phase.type === "battleSupport") {
+    if (view.phase.type === "battleSupport") {
       if (def.type === "instructor") return "バトル後";
       if (def.timing === "main") return "自分の番用";
       return null;
     }
-    if (state.turnPlayer !== HUMAN) return null;
+    if (view.turnPlayer !== HUMAN) return null;
     if (def.type === "instructor") return "次のターン";
     if (def.timing === "battle") return "バトル用";
     return null;
@@ -567,11 +574,11 @@ export default function BattleScreen() {
     if (cardId === undefined) return null;
     const def = getCard(cardId);
 
-    if (state.phase.type === "mulligan") return "対戦の準備中です。手札を決めてから使えます。";
-    if (state.phase.type === "finished") return "対戦は終わりました。";
-    if (state.phase.type === "choice") return "先に、表示されている選択を済ませてください。";
+    if (view.phase.type === "mulligan") return "対戦の準備中です。手札を決めてから使えます。";
+    if (view.phase.type === "finished") return "対戦は終わりました。";
+    if (view.phase.type === "choice") return "先に、表示されている選択を済ませてください。";
 
-    if (state.phase.type === "battleSupport") {
+    if (view.phase.type === "battleSupport") {
       if (def.type === "instructor") {
         return "バトル中はインストラクターを場に出せません。バトルが終わってから出せます。";
       }
@@ -581,7 +588,7 @@ export default function BattleScreen() {
     }
 
     // メインフェイズ
-    if (state.turnPlayer !== HUMAN) return "いまは相手の番です。自分の番になるまで待ちましょう。";
+    if (view.turnPlayer !== HUMAN) return "いまは相手の番です。自分の番になるまで待ちましょう。";
     if (def.type === "instructor") {
       return "インストラクターを出せるのは、まだ誰も行動していない間だけです。このターンはもう出せません。";
     }
@@ -615,10 +622,10 @@ export default function BattleScreen() {
   const tantouUsable = can((a) => a.type === "activateAbility" && a.uid === undefined);
 
   const battleInfo = (() => {
-    if (state.phase.type !== "battleSupport") return null;
-    const b = state.phase.battle;
-    const atkInst = state.players[b.attackerPlayer].field.find((f) => f.uid === b.attackerUid);
-    const defInst = state.players[1 - b.attackerPlayer].field.find((f) => f.uid === b.defenderUid);
+    if (view.phase.type !== "battleSupport") return null;
+    const b = view.phase.battle;
+    const atkInst = fieldOf(view, b.attackerPlayer).find((f) => f.uid === b.attackerUid);
+    const defInst = fieldOf(view, 1 - b.attackerPlayer).find((f) => f.uid === b.defenderUid);
     if (!atkInst || !defInst) return null;
     const buff = (p: number) =>
       b.buffs.filter((x) => x.player === p).reduce((a, x) => a + x.amount, 0);
@@ -629,9 +636,9 @@ export default function BattleScreen() {
       defenderCardId: defInst.cardId,
       attackerIsCpu: b.attackerPlayer === CPU,
       attackerTotal:
-        effectiveCombat(ctx, state, b.attackerPlayer, atkInst) + buff(b.attackerPlayer),
+        effectiveCombatFromView(ctx, view, b.attackerPlayer, atkInst) + buff(b.attackerPlayer),
       defenderTotal:
-        effectiveCombat(ctx, state, (1 - b.attackerPlayer) as 0 | 1, defInst) +
+        effectiveCombatFromView(ctx, view, (1 - b.attackerPlayer) as 0 | 1, defInst) +
         buff(1 - b.attackerPlayer),
       myPriority: b.priority === HUMAN,
     };
@@ -644,22 +651,22 @@ export default function BattleScreen() {
   const logLines = allLogLines.slice(-3);
 
   const humanChoice =
-    state.phase.type === "choice" && state.phase.pending.player === HUMAN
-      ? state.phase.pending
+    view.phase.type === "choice" && view.phase.pending.player === HUMAN
+      ? view.phase.pending
       : null;
 
   /** 誰の番か・何をすべきかを、色つきの帯で示す */
   const status = (() => {
-    if (state.phase.type === "finished") {
+    if (view.phase.type === "finished") {
       return { who: "対戦終了", detail: "", mine: false, waiting: false };
     }
     if (actor === CPU || aiThinking) {
       return { who: "CPUの番", detail: "考えています…", mine: false, waiting: true };
     }
-    if (state.phase.type === "mulligan") {
+    if (view.phase.type === "mulligan") {
       return { who: "あなたの番", detail: "手札を確認してください", mine: true, waiting: false };
     }
-    if (state.phase.type === "battleSupport") {
+    if (view.phase.type === "battleSupport") {
       return battleInfo?.myPriority
         ? {
             who: "あなたの番",
@@ -669,7 +676,7 @@ export default function BattleScreen() {
           }
         : { who: "CPUの番", detail: "相手の応答を待っています", mine: false, waiting: true };
     }
-    if (state.phase.type === "choice") {
+    if (view.phase.type === "choice") {
       return { who: "あなたの番", detail: "カードを選んでください", mine: true, waiting: false };
     }
     if (isMyMain) {
@@ -699,8 +706,8 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
-          <Text style={styles.infoText}>手札 {cpu.hand.length}</Text>
-          <Text style={styles.infoText}>山札 {cpu.deck.length}</Text>
+          <Text style={styles.infoText}>手札 {cpu.handCount}</Text>
+          <Text style={styles.infoText}>山札 {cpu.deckCount}</Text>
           <Pressable
             ref={cpuOutRef}
             onPress={() => setPileView("cpuOutOfPlay")}
@@ -714,7 +721,7 @@ export default function BattleScreen() {
         <TrackBar label="学科" kind="academic" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" kind="skill" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
-          state={state}
+          view={view}
           player={CPU}
           field={cpu.field}
           highlightUids={targetingUid ? battleTargets(targetingUid) : new Set()}
@@ -866,7 +873,7 @@ export default function BattleScreen() {
       {/* ===== 自分エリア ===== */}
       <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
         <FieldRow
-          state={state}
+          view={view}
           player={HUMAN}
           field={me.field}
           highlightUids={
@@ -890,7 +897,7 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>あなた</Text>
           {/* 山札・場外はタップで中身を確認できる */}
           <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
-            <Text style={styles.infoLink}>山札 {me.deck.length} ▸</Text>
+            <Text style={styles.infoLink}>山札 {me.deckCount} ▸</Text>
           </Pressable>
           <Pressable
             ref={myOutRef}
@@ -952,7 +959,7 @@ export default function BattleScreen() {
                     <CardFace
                       cardId={cardId}
                       size="md"
-                      dimmed={!playable && (isMyMain || state.phase.type === "battleSupport")}
+                      dimmed={!playable && (isMyMain || view.phase.type === "battleSupport")}
                       onPress={() => setPreviewHandIndex(i)}
                     />
                     {(() => {
@@ -1006,7 +1013,7 @@ export default function BattleScreen() {
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
-      {currentAnn && state.phase.type !== "finished" && (
+      {currentAnn && view.phase.type !== "finished" && (
         <Pressable
           style={[
             styles.annLayer,
@@ -1096,7 +1103,7 @@ export default function BattleScreen() {
        * 実況やターン帯より手前に、手札のすぐ上へ固定して出す
        * （中央に置くと演出に隠れて読めなくなるため）。
        */}
-      {hint && hint.title !== readHint && !dealing && state.phase.type !== "finished" && (
+      {hint && hint.title !== readHint && !dealing && view.phase.type !== "finished" && (
         <Animated.View
           key={hint.title}
           entering={FadeIn.duration(200)}
@@ -1132,7 +1139,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !autoPlay && (
+      {view.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !autoPlay && (
         <Overlay title="この手札で始めますか？">
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
@@ -1162,14 +1169,14 @@ export default function BattleScreen() {
 
       {selectedUid && (
         <Overlay
-          title={`「${nameOf(state, HUMAN, selectedUid)}」の行動`}
+          title={`「${nameOf(view, HUMAN, selectedUid)}」の行動`}
           onClose={() => setSelectedUid(null)}
         >
           <View style={styles.menuCardRow}>
-            <CardFace cardId={cardIdOf(state, selectedUid)} size="md" />
-            {!!effectTextOf(state, selectedUid) && (
+            <CardFace cardId={cardIdOf(view, selectedUid)} size="md" />
+            {!!effectTextOf(view, selectedUid) && (
               <Text style={[styles.menuEffectText, styles.menuEffectFlex]}>
-                {effectTextOf(state, selectedUid)}
+                {effectTextOf(view, selectedUid)}
               </Text>
             )}
           </View>
@@ -1178,7 +1185,7 @@ export default function BattleScreen() {
               (a) => a.type === "instructorAction" && a.action === "skill"
             ) && (
               <ActionButton
-                label={`技能を進める（+${lessonOf(state, selectedUid)}）`}
+                label={`技能を進める（+${lessonOf(view, selectedUid)}）`}
                 color={colors.success}
                 onPress={() =>
                   doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "skill" })
@@ -1189,7 +1196,7 @@ export default function BattleScreen() {
               (a) => a.type === "instructorAction" && a.action === "academic"
             ) && (
               <ActionButton
-                label={`学科を進める（+${lessonOf(state, selectedUid)}）`}
+                label={`学科を進める（+${lessonOf(view, selectedUid)}）`}
                 color={colors.primary}
                 onPress={() =>
                   doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "academic" })
@@ -1208,7 +1215,7 @@ export default function BattleScreen() {
             )}
             {instActions(selectedUid).some((a) => a.type === "activateAbility") && (
               <ActionButton
-                label={`特技: ${abilityLabelOf(state, selectedUid)}`}
+                label={`特技: ${abilityLabelOf(view, selectedUid)}`}
                 color={colors.tantou}
                 onPress={() =>
                   doAction({ type: "activateAbility", player: HUMAN, uid: selectedUid })
@@ -1356,7 +1363,7 @@ export default function BattleScreen() {
       {pileView && (() => {
         const isCpu = pileView === "cpuOutOfPlay";
         const cards = sortedPile(
-          pileView === "deck" ? me.deck : isCpu ? cpu.outOfPlay : me.outOfPlay
+          pileView === "deck" ? me.deckContents : isCpu ? cpu.outOfPlay : me.outOfPlay
         );
         const title =
           pileView === "deck"
@@ -1409,13 +1416,13 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "finished" && state.phase.winner === HUMAN && (
+      {view.phase.type === "finished" && view.phase.winner === HUMAN && (
         <>
           <Confetti />
           {/* 自分のデッキの全カード（担当含む）が舞う */}
           <CardRain
             cardIds={[
-              ...me.deck,
+              ...me.deckContents,
               ...me.hand,
               ...me.field.map((f) => f.cardId),
               ...me.outOfPlay,
@@ -1426,21 +1433,21 @@ export default function BattleScreen() {
       )}
 
       {/* 敗北: 画面が暗く沈み、雨が降り、カードが力なく落ちていく */}
-      {state.phase.type === "finished" && state.phase.winner === CPU && (
+      {view.phase.type === "finished" && view.phase.winner === CPU && (
         <LossScene cardIds={[...me.hand, ...me.field.map((f) => f.cardId), me.tantou]} />
       )}
 
-      {state.phase.type === "finished" && (
+      {view.phase.type === "finished" && (
         <Overlay
-          title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
+          title={view.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
           entering="bounce"
         >
           <Text style={styles.resultText}>
-            {state.phase.reason === "deckOut"
-              ? state.phase.winner === HUMAN
+            {view.phase.reason === "deckOut"
+              ? view.phase.winner === HUMAN
                 ? "CPUの山札が切れました"
                 : "山札が切れてしまいました"
-              : state.phase.winner === HUMAN
+              : view.phase.winner === HUMAN
                 ? "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : "CPUが先に教習を修了しました"}
           </Text>
@@ -1477,38 +1484,34 @@ export default function BattleScreen() {
 
 // ---------------------------------------------------------------- 部品
 
-function nameOf(state: GameState, player: 0 | 1, uid: string): string {
-  const inst = state.players[player].field.find((f) => f.uid === uid);
+function nameOf(view: PlayerView, player: 0 | 1, uid: string): string {
+  const inst = fieldOf(view, player).find((f) => f.uid === uid);
   return inst ? getCard(inst.cardId).name : "";
 }
 
-function lessonOf(state: GameState, uid: string): number {
-  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+function lessonOf(view: PlayerView, uid: string): number {
+  const inst = view.self.field.find((f) => f.uid === uid);
   if (!inst) return 0;
-  const base = getCard(inst.cardId).lesson ?? 0;
-  const mods = state.lessonMods
-    .filter((m) => m.player === HUMAN && (m.uid === null || m.uid === uid))
-    .reduce((a, m) => a + m.amount, 0);
-  return Math.max(0, base + mods);
+  return effectiveLessonFromView(ctx, view, view.playerId, inst);
 }
 
-function abilityLabelOf(state: GameState, uid: string): string {
-  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+function abilityLabelOf(view: PlayerView, uid: string): string {
+  const inst = view.self.field.find((f) => f.uid === uid);
   return inst ? (getCard(inst.cardId).ability?.label ?? "") : "";
 }
 
-function effectTextOf(state: GameState, uid: string): string {
-  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+function effectTextOf(view: PlayerView, uid: string): string {
+  const inst = view.self.field.find((f) => f.uid === uid);
   return inst ? (getCard(inst.cardId).effectText ?? "") : "";
 }
 
-function cardIdOf(state: GameState, uid: string): string {
-  const inst = state.players[HUMAN].field.find((f) => f.uid === uid);
+function cardIdOf(view: PlayerView, uid: string): string {
+  const inst = view.self.field.find((f) => f.uid === uid);
   return inst ? inst.cardId : "";
 }
 
 function FieldRow({
-  state,
+  view,
   player,
   field,
   highlightUids,
@@ -1516,7 +1519,7 @@ function FieldRow({
   selectedUid,
   onPress,
 }: {
-  state: GameState;
+  view: PlayerView;
   player: 0 | 1;
   field: InstructorOnField[];
   highlightUids: Set<string>;
@@ -1532,10 +1535,10 @@ function FieldRow({
     >
       {field.length === 0 && <Text style={styles.emptyField}>インストラクターなし</Text>}
       {field.map((inst) => {
-        const combat = effectiveCombat(ctx, state, player, inst);
+        const combat = effectiveCombatFromView(ctx, view, player, inst);
         const base = getCard(inst.cardId).combat ?? 0;
         // 効果で教習力が変わっているときは、差分を「教+1」のように示す
-        const lesson = effectiveLesson(ctx, state, player, inst);
+        const lesson = effectiveLessonFromView(ctx, view, player, inst);
         const lessonBase = getCard(inst.cardId).lesson ?? 0;
         const lessonDiff = lesson - lessonBase;
         return (

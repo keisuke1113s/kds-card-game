@@ -16,6 +16,7 @@ import {
   GameEvent,
   GameState,
   PlayerId,
+  PlayerView,
 } from "@/engine/types";
 
 export const HUMAN: PlayerId = 0;
@@ -25,6 +26,11 @@ const ctx: GameContext = { defs: cardRegistry };
 
 interface GameStore {
   state: GameState | null;
+  /**
+   * 人間視点のビュー。UI はこれだけを見る（state は直接見ない）。
+   * オンライン対戦ではサーバーから届くのがこの形になる。
+   */
+  view: PlayerView | null;
   /** これまでの全イベント（ログ表示用） */
   eventLog: GameEvent[];
   /** 直近のアクションで発生したイベント */
@@ -185,6 +191,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const visible = redactEventsFor(events, HUMAN);
       set({
         state,
+        view: viewFor(state, HUMAN),
         lastEvents: visible,
         eventLog: [...get().eventLog, ...visible],
       });
@@ -206,6 +213,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
   return {
     state: null,
+    view: null,
     eventLog: [],
     lastEvents: [],
     aiThinking: false,
@@ -245,6 +253,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const visible = redactEventsFor(events, HUMAN);
       set({
         state,
+        view: viewFor(state, HUMAN),
         eventLog: visible,
         lastEvents: visible,
         aiThinking: false,
@@ -276,6 +285,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       ai = null;
       set({
         state: null,
+        view: null,
         eventLog: [],
         lastEvents: [],
         aiThinking: false,
