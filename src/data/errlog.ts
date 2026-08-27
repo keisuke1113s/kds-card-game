@@ -1,0 +1,73 @@
+import { Platform } from "react-native";
+
+/**
+ * エラーの自動報告。
+ * ユーザーの端末で起きた予期しないエラーを対戦サーバーの /errlog に送り、
+ * 「たまに起きる」系の不具合を調査できるようにする。
+ * - 公開ページ（github.io）でだけ送る。開発中(localhost)は送らない
+ * - 1セッション最大5件・同じ内容は1回だけ
+ * - 既知の無害なエラー（音の自動再生ブロック等）は送らない
+ */
+
+const ENDPOINT = "https://kds-taisen.fly.dev/errlog";
+const MAX_REPORTS = 5;
+
+let sent = 0;
+const seen = new Set<string>();
+
+const IGNORE_PATTERNS = [
+  "The play() request was interrupted",
+  "not allowed by the user agent",
+  "navigator.vibrate",
+  "AbortError",
+  "Loading chunk",
+  "ResizeObserver loop",
+];
+
+function shouldReport(msg: string): boolean {
+  if (!msg) return false;
+  if (IGNORE_PATTERNS.some((p) => msg.includes(p))) return false;
+  if (sent >= MAX_REPORTS) return false;
+  const key = msg.slice(0, 200);
+  if (seen.has(key)) return false;
+  seen.add(key);
+  return true;
+}
+
+function report(msg: string, stack?: string): void {
+  if (!shouldReport(msg)) return;
+  sent++;
+  try {
+    void fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        msg,
+        stack,
+        url: (globalThis as { location?: { href: string } }).location?.href,
+        ua: (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent,
+      }),
+      // 送れなくてもアプリの動作には影響させない
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // 報告自体の失敗は無視
+  }
+}
+
+/** アプリ起動時に一度だけ呼ぶ */
+export function setupErrorReporting(): void {
+  if (Platform.OS !== "web") return;
+  const loc = (globalThis as { location?: { hostname: string } }).location;
+  // 公開ページでだけ送る（開発中のエラーでログを埋めない）
+  if (!loc?.hostname.endsWith("github.io")) return;
+  const win = globalThis as unknown as Window;
+  win.addEventListener("error", (e) => {
+    report(String(e.message ?? e.error ?? "unknown error"), e.error?.stack);
+  });
+  win.addEventListener("unhandledrejection", (e) => {
+    const r = (e as PromiseRejectionEvent).reason as { message?: string; stack?: string } | string;
+    const msg = typeof r === "string" ? r : (r?.message ?? "unhandled rejection");
+    report(`unhandledrejection: ${msg}`, typeof r === "object" ? r?.stack : undefined);
+  });
+}

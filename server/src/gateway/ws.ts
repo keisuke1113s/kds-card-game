@@ -22,7 +22,59 @@ export function startServer(port: number): http.Server {
   const ctx: GameContext = { defs: cardRegistry };
   const matchmaker = new Matchmaker(ctx);
 
+  // アプリから届いたエラー報告（直近200件をメモリに保持）
+  const errorLog: {
+    at: string;
+    msg: string;
+    stack?: string;
+    url?: string;
+    ua?: string;
+  }[] = [];
+
   const server = http.createServer((req, res) => {
+    // エラー報告の受け口。ブラウザからのPOSTを受けるためCORSを許可する
+    if (req.url === "/errlog" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (req.url === "/errlog" && req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 20000) req.destroy(); // 巨大な報告は捨てる
+      });
+      req.on("end", () => {
+        try {
+          const e = JSON.parse(body) as { msg?: string; stack?: string; url?: string; ua?: string };
+          const entry = {
+            at: new Date().toISOString(),
+            msg: String(e.msg ?? "").slice(0, 500),
+            stack: e.stack ? String(e.stack).slice(0, 2000) : undefined,
+            url: e.url ? String(e.url).slice(0, 300) : undefined,
+            ua: e.ua ? String(e.ua).slice(0, 300) : undefined,
+          };
+          errorLog.push(entry);
+          if (errorLog.length > 200) errorLog.shift();
+          console.warn("[アプリのエラー報告]", entry.msg, entry.url ?? "");
+        } catch {
+          // 壊れた報告は無視
+        }
+        res.writeHead(204, { "access-control-allow-origin": "*" });
+        res.end();
+      });
+      return;
+    }
+    if (req.url?.startsWith("/errlog?key=946946") && req.method === "GET") {
+      // 管理者がブラウザで確認する用（新しい順）
+      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.end(JSON.stringify([...errorLog].reverse(), null, 2));
+      return;
+    }
     if (req.url === "/healthz") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, rooms: matchmaker.roomCount }));

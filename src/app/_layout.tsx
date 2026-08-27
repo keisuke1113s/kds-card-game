@@ -5,6 +5,7 @@ import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { AchievementToast } from "@/components/AchievementToast";
+import { setupErrorReporting } from "@/data/errlog";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { ensureInitialSet } from "@/store/unlockStore";
@@ -39,6 +40,7 @@ export default function RootLayout() {
   // 初回起動なら、ランダムな22枚（デッキ1つ分）をこの端末の初期セットとして配る
   useEffect(() => {
     ensureInitialSet();
+    setupErrorReporting();
     // 取りこぼした実績があれば起動時に拾う（お知らせは次の達成時のみ）
     const t = setTimeout(evaluateAchievements, 1500);
     return () => clearTimeout(t);

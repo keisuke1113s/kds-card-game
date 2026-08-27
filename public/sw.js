@@ -1,7 +1,11 @@
-// ホーム画面への追加（インストール）をブラウザに認めてもらうための最小の Service Worker。
-//
-// オフライン対応は行わない（キャッシュを持つと、更新したのに古い画面が出る事故が起きるため）。
-// fetch をそのまま素通しするハンドラだけを置き、常にネットワークの最新を表示する。
+/* KDSカードゲームの Service Worker（オフライン対応）。
+ * - カード画像・音は一度読んだら端末に保存 → オフラインでも図鑑・CPU対戦が動き、
+ *   iPhoneで絵が一瞬白くなる問題の根本対策にもなる
+ * - ページ本体はネット優先（更新は必ず届く）。圏外のときだけ保存済みを表示
+ * - アプリ本体(JS/CSS)はファイル名が更新ごとに変わるため、保存しても古い版が
+ *   出続ける事故は起きない（新しいページは新しいファイル名を読みに行く）
+ */
+const CACHE = "kds-cache-v1";
 
 self.addEventListener("install", () => {
   // 新しい版をすぐ有効にする
@@ -9,10 +13,73 @@ self.addEventListener("install", () => {
 });
 
 self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+      await self.clients.claim();
+    })()
+  );
 });
 
+const ASSET_RE = /\.(webp|png|jpg|jpeg|gif|svg|mp3|wav|ttf|otf|woff2?)($|\?)/i;
+const CODE_RE = /\.(js|css)($|\?)/i;
+
 self.addEventListener("fetch", (event) => {
-  // 何も加工せずネットワークに任せる
-  event.respondWith(fetch(event.request));
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+
+  // ページ本体: ネット優先 → 圏外は保存済みを表示
+  if (req.mode === "navigate") {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        try {
+          const res = await fetch(req);
+          if (res.ok) cache.put(req, res.clone());
+          return res;
+        } catch {
+          const hit = await cache.match(req, { ignoreSearch: true });
+          return hit ?? Response.error();
+        }
+      })()
+    );
+    return;
+  }
+
+  // 画像・音: 保存優先（無ければ取得して保存）
+  if (ASSET_RE.test(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        const hit = await cache.match(req);
+        if (hit) return hit;
+        const res = await fetch(req);
+        if (res.ok) cache.put(req, res.clone());
+        return res;
+      })()
+    );
+    return;
+  }
+
+  // アプリ本体: 保存を返しつつ、裏で最新を取り直す
+  if (CODE_RE.test(url.pathname)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE);
+        const hit = await cache.match(req);
+        const refresh = fetch(req)
+          .then((res) => {
+            if (res.ok) cache.put(req, res.clone());
+            return res;
+          })
+          .catch(() => null);
+        if (hit) return hit;
+        const fresh = await refresh;
+        return fresh ?? Response.error();
+      })()
+    );
+  }
 });
