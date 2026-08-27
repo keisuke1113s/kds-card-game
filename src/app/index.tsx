@@ -145,6 +145,13 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/prematch")}
           />
+          <AppButton
+            label="オンライン対戦（開発版）"
+            icon="🌐"
+            tone="accent"
+            fullWidth
+            onPress={() => router.push("/online")}
+          />
           <View style={styles.matchupCard}>
             <Text style={styles.matchupSide} numberOfLines={1}>
               {activeDeck.name}

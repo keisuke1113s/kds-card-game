@@ -46,6 +46,31 @@ interface GameStore {
   setAutoPlay: (v: boolean) => void;
   setPresentationBusy: (v: boolean) => void;
 
+  /** 対戦の種類。online のとき dispatch はサーバーへ送るだけになる */
+  mode: "local" | "online";
+  /** オンライン接続の進行状況 */
+  onlineStatus:
+    | "idle"
+    | "connecting"
+    | "waitingOpponent"
+    | "playing"
+    | "opponentLeft"
+    | "error";
+  onlineError: string | null;
+  /** 合言葉（部屋コード）。相手に伝えて入ってもらう */
+  roomCode: string | null;
+  opponentName: string | null;
+  /** オンライン対戦を開始する（部屋を作る／合言葉で入る／ランダム） */
+  connectOnline: (opts: {
+    serverUrl: string;
+    mode: "create" | "join" | "queue";
+    code?: string;
+    name: string;
+    deck: DeckList;
+  }) => void;
+  /** オンライン対戦の投了 */
+  resignOnline: () => void;
+
   startGame: (opts: {
     playerDeck: DeckList;
     cpuDeck: DeckList;
@@ -86,6 +111,19 @@ function randomSeed(): number {
 let ai: AIController | null = null;
 /** 自動プレイで自分の手を選ぶAI（常に最強設定） */
 let humanAi: AIController | null = null;
+/** オンライン対戦のWebSocket（local のときは null） */
+let socket: WebSocket | null = null;
+
+function closeSocket() {
+  if (socket) {
+    try {
+      socket.close();
+    } catch {
+      // すでに閉じていれば無視
+    }
+    socket = null;
+  }
+}
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
 let gameToken = 0; // 対局をまたいだ古いタイマーの発火防止
 
@@ -214,6 +252,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
   return {
     state: null,
     view: null,
+    mode: "local" as const,
+    onlineStatus: "idle" as const,
+    onlineError: null,
+    roomCode: null,
+    opponentName: null,
     eventLog: [],
     lastEvents: [],
     aiThinking: false,
@@ -241,6 +284,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     }) => {
       gameToken++;
       clearAiTimer();
+      closeSocket();
+      set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
       const realSeed = seed ?? randomSeed();
       ai = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS[difficulty], realSeed ^ 0x55aa);
       // 自動プレイ用。自分側は常に最強設定で打つ
@@ -266,7 +311,126 @@ export const useGameStore = create<GameStore>()((set, get) => {
       scheduleAI();
     },
 
+    connectOnline: ({ serverUrl, mode, code, name, deck }) => {
+      // 既存の対局・接続を片づけてから始める
+      gameToken++;
+      clearAiTimer();
+      closeSocket();
+      set({
+        mode: "online",
+        onlineStatus: "connecting",
+        onlineError: null,
+        roomCode: null,
+        opponentName: null,
+        state: null,
+        view: null,
+        eventLog: [],
+        lastEvents: [],
+        aiThinking: false,
+        presentationBusy: false,
+        tutorial: false,
+        autoPlay: false,
+      });
+
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(serverUrl);
+      } catch (e) {
+        set({ onlineStatus: "error", onlineError: `サーバーに接続できません: ${e}` });
+        return;
+      }
+      socket = ws;
+
+      ws.onopen = () => {
+        if (mode === "create") {
+          ws.send(JSON.stringify({ type: "createRoom", name, deck }));
+        } else if (mode === "join") {
+          ws.send(JSON.stringify({ type: "joinRoom", code, name, deck }));
+        } else {
+          ws.send(JSON.stringify({ type: "joinQueue", name, deck }));
+        }
+        set({ onlineStatus: "waitingOpponent" });
+      };
+
+      ws.onmessage = (ev) => {
+        if (socket !== ws) return; // 古い接続からの残響は無視
+        let msg: {
+          type: string;
+          code?: string;
+          name?: string;
+          message?: string;
+          seq?: number;
+          view?: PlayerView;
+          events?: GameEvent[];
+        };
+        try {
+          msg = JSON.parse(String(ev.data));
+        } catch {
+          return;
+        }
+        switch (msg.type) {
+          case "joined":
+            // 入室できたら即、準備完了を送る（両者そろえば対局開始）
+            ws.send(JSON.stringify({ type: "ready" }));
+            break;
+          case "roomCreated":
+            set({ roomCode: msg.code ?? null });
+            break;
+          case "opponentJoined":
+            set({ opponentName: msg.name ?? null });
+            break;
+          case "matchStart":
+            set({ onlineStatus: "playing" });
+            break;
+          case "update": {
+            const view = msg.view ?? null;
+            const events = msg.events ?? [];
+            // 秘匿はサーバー側で済んでいるので、そのまま流す
+            set({
+              view,
+              lastEvents: events,
+              eventLog: [...get().eventLog, ...events],
+            });
+            playEventSounds(events);
+            break;
+          }
+          case "opponentLeft":
+            set({ onlineStatus: "opponentLeft" });
+            break;
+          case "error":
+            set({ onlineError: msg.message ?? "エラーが発生しました" });
+            break;
+        }
+      };
+
+      ws.onerror = () => {
+        if (socket !== ws) return;
+        set({
+          onlineStatus: "error",
+          onlineError: "サーバーに接続できません。アドレスとサーバーの起動を確認してください。",
+        });
+      };
+      ws.onclose = () => {
+        if (socket !== ws) return;
+        const st = get();
+        if (st.onlineStatus !== "error" && st.mode === "online" && st.view === null) {
+          set({ onlineStatus: "error", onlineError: "接続が切れました" });
+        }
+      };
+    },
+
+    resignOnline: () => {
+      if (socket) socket.send(JSON.stringify({ type: "resign" }));
+    },
+
     dispatch: (action) => {
+      // オンラインでは手をサーバーに送るだけ。適用と検証はサーバーが行う
+      if (get().mode === "online") {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: "action", action }));
+        }
+        return;
+      }
       const state = get().state;
       if (!state) return;
       if (playerToAct(state) !== action.player) return;
@@ -282,10 +446,23 @@ export const useGameStore = create<GameStore>()((set, get) => {
     quitGame: () => {
       gameToken++;
       clearAiTimer();
+      if (socket) {
+        try {
+          socket.send(JSON.stringify({ type: "leave" }));
+        } catch {
+          // 送れなくても閉じる
+        }
+      }
+      closeSocket();
       ai = null;
       set({
         state: null,
         view: null,
+        mode: "local",
+        onlineStatus: "idle",
+        onlineError: null,
+        roomCode: null,
+        opponentName: null,
         eventLog: [],
         lastEvents: [],
         aiThinking: false,

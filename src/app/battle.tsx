@@ -106,7 +106,6 @@ interface Announcement {
 
 let annSeq = 0;
 
-const ownerOf = (player: number): Owner => (player === HUMAN ? "self" : "cpu");
 
 /**
  * 山札・場外の中身を表示用に並べ替える。
@@ -131,6 +130,10 @@ function choiceOwner(purpose: string): Owner {
 
 /** イベント列から実況表示を組み立てる。view はバトルの2枚を引くのに使う */
 function announcementsFor(events: GameEvent[], view: PlayerView | null): Announcement[] {
+  // 自分の席番号。オンラインでは 1 になることもある（後手で入室した側）
+  const ME = view?.playerId ?? 0;
+  const OPP = 1 - ME;
+  const ownerOf = (player: number): Owner => (player === ME ? "self" : "cpu");
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
     out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
@@ -141,22 +144,22 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         out.push({
           key: ++annSeq,
           kind: "turn",
-          text: e.player === HUMAN ? "あなたのターン" : "CPUのターン",
-          mine: e.player === HUMAN,
+          text: e.player === ME ? "あなたのターン" : "CPUのターン",
+          mine: e.player === ME,
         });
         break;
       // 誰の行動かはバッジで示すので、文章では繰り返さない
       case "instructorPlayed":
-        if (e.player === CPU)
+        if (e.player === OPP)
           add(`「${getCard(e.cardId).name}」を場に出した！`, e.cardId, false, "cpu");
         break;
       case "cardDrawn":
         // 自分のドローだけ公開（CPUの手札は非公開情報）
-        if (e.player === HUMAN && e.cardId)
+        if (e.player === ME && e.cardId)
           add(`「${getCard(e.cardId).name}」を引いた`, e.cardId, false, "self");
         break;
       case "instructorActed":
-        if (e.player === CPU) {
+        if (e.player === OPP) {
           if (e.action === "doNothing") {
             add(`「${getCard(e.cardId).name}」は様子を見ている…`, e.cardId, false, "cpu");
           } else {
@@ -170,11 +173,11 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         }
         break;
       case "supportPlayed":
-        if (e.player === CPU)
+        if (e.player === OPP)
           add(`サポート「${getCard(e.cardId).name}」を使った！`, e.cardId, false, "cpu");
         break;
       case "abilityActivated":
-        if (e.player === CPU)
+        if (e.player === OPP)
           add(`「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
       case "lessonModApplied":
@@ -183,7 +186,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
             key: ++annSeq,
             kind: "power",
             text: "",
-            mine: e.player === HUMAN,
+            mine: e.player === ME,
             amount: e.amount,
             powerLabel: "教習力",
           });
@@ -195,7 +198,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
             key: ++annSeq,
             kind: "power",
             text: "",
-            mine: e.player === HUMAN,
+            mine: e.player === ME,
             amount: e.amount,
             powerLabel: "戦闘力",
           });
@@ -212,10 +215,10 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         out.push({
           key: ++annSeq,
           kind: "battle",
-          text: e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "あなたのバトル！",
+          text: e.attackerPlayer === OPP ? "CPUがバトルを仕掛けた！" : "あなたのバトル！",
           atkCardId: atk?.cardId,
           defCardId: def?.cardId,
-          atkIsCpu: e.attackerPlayer === CPU,
+          atkIsCpu: e.attackerPlayer === OPP,
         });
         break;
       }
@@ -226,7 +229,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
             key: ++annSeq,
             kind: "lesson",
             text: "",
-            mine: e.player === HUMAN,
+            mine: e.player === ME,
             track: e.track,
             amount: e.amount,
             newValue: e.newValue,
@@ -235,7 +238,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         }
         break;
       case "jankenPlayed": {
-        const humanWon = (e.owner === HUMAN) === e.won;
+        const humanWon = (e.owner === ME) === e.won;
         add(humanWon ? "じゃんけんに勝った！" : "じゃんけんに負けた…", undefined, true);
         break;
       }
@@ -254,14 +257,14 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         );
         break;
       case "cardSalvaged":
-        if (e.player === CPU)
+        if (e.player === OPP)
           add(`場外から「${getCard(e.cardId).name}」を回収した`, e.cardId, false, "cpu");
         break;
       case "battleResolved":
         add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
         break;
       case "supportsRecycled":
-        if (e.player === CPU) add(`CPUがサポート${e.count}枚を山札に戻した`);
+        if (e.player === OPP) add(`CPUがサポート${e.count}枚を山札に戻した`);
         break;
     }
   }
@@ -271,6 +274,9 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
 export default function BattleScreen() {
   const router = useRouter();
   const view = useGameStore((s) => s.view);
+  // 自分の席番号（オフラインは常に0。オンラインの後手は1になる）
+  const ME = (view?.playerId ?? HUMAN) as 0 | 1;
+  const OPP = (1 - ME) as 0 | 1;
   const dispatch = useGameStore((s) => s.dispatch);
   const quitGame = useGameStore((s) => s.quitGame);
   const eventLog = useGameStore((s) => s.eventLog);
@@ -281,6 +287,9 @@ export default function BattleScreen() {
   const tutorial = useGameStore((s) => s.tutorial);
   const autoPlay = useGameStore((s) => s.autoPlay);
   const setAutoPlay = useGameStore((s) => s.setAutoPlay);
+  const matchMode = useGameStore((s) => s.mode);
+  const opponentName = useGameStore((s) => s.opponentName);
+  const isOnline = matchMode === "online";
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -329,12 +338,12 @@ export default function BattleScreen() {
     if (anns.length > 0) setAnnQueue((q) => [...q, ...anns]);
     // 出来事に応じて振動で手応えを返す
     for (const e of lastEvents) {
-      if (e.type === "gameEnded") haptic(e.winner === HUMAN ? "success" : "error");
+      if (e.type === "gameEnded") haptic(e.winner === ME ? "success" : "error");
       else if (e.type === "instructorRemoved") haptic("heavy");
       else if (e.type === "battleDeclared") haptic("heavy");
       else if (e.type === "instructorPlayed") haptic("medium");
-      else if (e.type === "jankenPlayed") haptic((e.owner === HUMAN) === e.won ? "success" : "warning");
-      else if (e.type === "trackAdvanced" && e.player === HUMAN && e.amount < 0) haptic("warning");
+      else if (e.type === "jankenPlayed") haptic((e.owner === ME) === e.won ? "success" : "warning");
+      else if (e.type === "trackAdvanced" && e.player === ME && e.amount < 0) haptic("warning");
     }
     if (lastEvents.some((e) => e.type === "instructorRemoved" || e.type === "battleResolved")) {
       shakeX.value = withSequence(
@@ -412,7 +421,7 @@ export default function BattleScreen() {
   // 選択が発生したら、開いていた手札の拡大表示を閉じる
   // （選択画面と重なって、どちらも操作できなくなるため）
   const choiceActive =
-    view?.phase.type === "choice" && view.phase.pending.player === HUMAN;
+    view?.phase.type === "choice" && view.phase.pending.player === ME;
   useEffect(() => {
     if (choiceActive) setPreviewHandIndex(null);
   }, [choiceActive]);
@@ -441,7 +450,7 @@ export default function BattleScreen() {
       .filter((e) => e.type === "instructorRemoved" || e.type === "cardDiscarded")
       .map((e) => ({
         cardId: (e as { cardId: string }).cardId,
-        mine: (e as { player: number }).player === HUMAN,
+        mine: (e as { player: number }).player === ME,
       }));
     if (outs.length > 0) setPendingOuts((q) => [...q, ...outs]);
   }, [lastEvents]);
@@ -460,7 +469,7 @@ export default function BattleScreen() {
   useEffect(() => {
     if (!view || view.phase.type === "mulligan") return;
     const drawn = lastEvents.find(
-      (e) => e.type === "cardDrawn" && e.player === HUMAN && e.cardId
+      (e) => e.type === "cardDrawn" && e.player === ME && e.cardId
     );
     if (drawn && drawn.type === "cardDrawn" && drawn.cardId) setPendingDraw(drawn.cardId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -512,7 +521,7 @@ export default function BattleScreen() {
   // 瀧本などで相手の手札が公開されたらオーバーレイ表示
   useEffect(() => {
     for (const e of lastEvents) {
-      if (e.type === "handRevealed" && e.player === CPU) {
+      if (e.type === "handRevealed" && e.player === OPP) {
         setRevealedHand(e.cardIds);
       }
     }
@@ -531,7 +540,7 @@ export default function BattleScreen() {
 
   const me = view.self;
   const cpu = view.opponent;
-  const isMyMain = view.phase.type === "main" && view.turnPlayer === HUMAN;
+  const isMyMain = view.phase.type === "main" && view.turnPlayer === ME;
   const actor = playerToActFromView(view);
 
   const can = (pred: (a: GameAction) => boolean) => legal.some(pred);
@@ -558,7 +567,7 @@ export default function BattleScreen() {
       if (def.timing === "main") return "自分の番用";
       return null;
     }
-    if (view.turnPlayer !== HUMAN) return null;
+    if (view.turnPlayer !== ME) return null;
     if (def.type === "instructor") return "次のターン";
     if (def.timing === "battle") return "バトル用";
     return null;
@@ -588,7 +597,7 @@ export default function BattleScreen() {
     }
 
     // メインフェイズ
-    if (view.turnPlayer !== HUMAN) return "いまは相手の番です。自分の番になるまで待ちましょう。";
+    if (view.turnPlayer !== ME) return "いまは相手の番です。自分の番になるまで待ちましょう。";
     if (def.type === "instructor") {
       return "インストラクターを出せるのは、まだ誰も行動していない間だけです。このターンはもう出せません。";
     }
@@ -634,24 +643,24 @@ export default function BattleScreen() {
       defenderName: getCard(defInst.cardId).name,
       attackerCardId: atkInst.cardId,
       defenderCardId: defInst.cardId,
-      attackerIsCpu: b.attackerPlayer === CPU,
+      attackerIsCpu: b.attackerPlayer === OPP,
       attackerTotal:
         effectiveCombatFromView(ctx, view, b.attackerPlayer, atkInst) + buff(b.attackerPlayer),
       defenderTotal:
         effectiveCombatFromView(ctx, view, (1 - b.attackerPlayer) as 0 | 1, defInst) +
         buff(1 - b.attackerPlayer),
-      myPriority: b.priority === HUMAN,
+      myPriority: b.priority === ME,
     };
   })();
 
   const allLogLines = eventLog
-    .map((e) => eventText(e, HUMAN))
+    .map((e) => eventText(e, ME))
     .filter((t): t is string => t !== null);
   // 中央エリアは高さが限られるので、直近3件だけ出す（全文は「すべてのログを見る」）
   const logLines = allLogLines.slice(-3);
 
   const humanChoice =
-    view.phase.type === "choice" && view.phase.pending.player === HUMAN
+    view.phase.type === "choice" && view.phase.pending.player === ME
       ? view.phase.pending
       : null;
 
@@ -660,7 +669,7 @@ export default function BattleScreen() {
     if (view.phase.type === "finished") {
       return { who: "対戦終了", detail: "", mine: false, waiting: false };
     }
-    if (actor === CPU || aiThinking) {
+    if (actor === OPP || aiThinking) {
       return { who: "CPUの番", detail: "考えています…", mine: false, waiting: true };
     }
     if (view.phase.type === "mulligan") {
@@ -705,7 +714,9 @@ export default function BattleScreen() {
       {/* ===== 相手エリア ===== */}
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
-          <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
+          <Text style={styles.playerLabel}>
+            {isOnline ? (opponentName ?? "相手") : `CPU ${aiThinking ? "🤔" : ""}`}
+          </Text>
           <Text style={styles.infoText}>手札 {cpu.handCount}</Text>
           <Text style={styles.infoText}>山札 {cpu.deckCount}</Text>
           <Pressable
@@ -722,7 +733,7 @@ export default function BattleScreen() {
         <TrackBar label="技能" kind="skill" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
           view={view}
-          player={CPU}
+          player={OPP}
           field={cpu.field}
           highlightUids={targetingUid ? battleTargets(targetingUid) : new Set()}
           highlightColor={colors.target}
@@ -730,7 +741,7 @@ export default function BattleScreen() {
             if (targetingUid && battleTargets(targetingUid).has(uid)) {
               doAction({
                 type: "declareBattle",
-                player: HUMAN,
+                player: ME,
                 attackerUid: targetingUid,
                 defenderUid: uid,
               });
@@ -759,7 +770,8 @@ export default function BattleScreen() {
         >
           <Text style={styles.settingsText}>⚙️ 設定</Text>
         </Pressable>
-        {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ */}
+        {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ。オンラインでは出さない */}
+        {!isOnline && (
         <Pressable
           onPress={() => {
             haptic("light");
@@ -780,6 +792,7 @@ export default function BattleScreen() {
             {autoPlay ? "⏸ 自動中" : "▶ 自動"}
           </Text>
         </Pressable>
+        )}
         {battleInfo && (
           <Animated.View entering={ZoomIn.duration(250)} style={styles.battleBanner}>
             <View style={styles.battleRow}>
@@ -874,7 +887,7 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
         <FieldRow
           view={view}
-          player={HUMAN}
+          player={ME}
           field={me.field}
           highlightUids={
             new Set(me.field.filter((f) => instActions(f.uid).length > 0).map((f) => f.uid))
@@ -920,14 +933,14 @@ export default function BattleScreen() {
             <ActionButton
               label="パス"
               color={colors.textMuted}
-              onPress={() => doAction({ type: "passSupport", player: HUMAN })}
+              onPress={() => doAction({ type: "passSupport", player: ME })}
             />
           )}
           <ActionButton
             label="ターン終了"
             color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
             onPress={() =>
-              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: HUMAN })
+              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: ME })
             }
           />
         </View>
@@ -1156,12 +1169,12 @@ export default function BattleScreen() {
             <ActionButton
               label="この手札で始める"
               color={colors.primary}
-              onPress={() => doAction({ type: "mulligan", player: HUMAN, redraw: false })}
+              onPress={() => doAction({ type: "mulligan", player: ME, redraw: false })}
             />
             <ActionButton
               label="引き直す（1回だけ）"
               color={colors.accent}
-              onPress={() => doAction({ type: "mulligan", player: HUMAN, redraw: true })}
+              onPress={() => doAction({ type: "mulligan", player: ME, redraw: true })}
             />
           </View>
         </Overlay>
@@ -1169,7 +1182,7 @@ export default function BattleScreen() {
 
       {selectedUid && (
         <Overlay
-          title={`「${nameOf(view, HUMAN, selectedUid)}」の行動`}
+          title={`「${nameOf(view, ME, selectedUid)}」の行動`}
           onClose={() => setSelectedUid(null)}
         >
           <View style={styles.menuCardRow}>
@@ -1188,7 +1201,7 @@ export default function BattleScreen() {
                 label={`技能を進める（+${lessonOf(view, selectedUid)}）`}
                 color={colors.success}
                 onPress={() =>
-                  doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "skill" })
+                  doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "skill" })
                 }
               />
             )}
@@ -1199,7 +1212,7 @@ export default function BattleScreen() {
                 label={`学科を進める（+${lessonOf(view, selectedUid)}）`}
                 color={colors.primary}
                 onPress={() =>
-                  doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "academic" })
+                  doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "academic" })
                 }
               />
             )}
@@ -1218,7 +1231,7 @@ export default function BattleScreen() {
                 label={`特技: ${abilityLabelOf(view, selectedUid)}`}
                 color={colors.tantou}
                 onPress={() =>
-                  doAction({ type: "activateAbility", player: HUMAN, uid: selectedUid })
+                  doAction({ type: "activateAbility", player: ME, uid: selectedUid })
                 }
               />
             )}
@@ -1229,7 +1242,7 @@ export default function BattleScreen() {
                 label="なにもしない（元気のまま）"
                 color={colors.textMuted}
                 onPress={() =>
-                  doAction({ type: "instructorAction", player: HUMAN, uid: selectedUid, action: "doNothing" })
+                  doAction({ type: "instructorAction", player: ME, uid: selectedUid, action: "doNothing" })
                 }
               />
             )}
@@ -1283,7 +1296,7 @@ export default function BattleScreen() {
                 <Pressable
                   key={i}
                   style={styles.jankenButton}
-                  onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
+                  onPress={() => doAction({ type: "resolveChoice", player: ME, optionIndex: i })}
                 >
                   <Text style={styles.jankenEmoji}>{o.label.split(" ")[1] ?? o.label}</Text>
                   <Text style={styles.jankenLabel}>{o.label.split(" ")[0]}</Text>
@@ -1310,7 +1323,7 @@ export default function BattleScreen() {
                     key={i}
                     label={o.label}
                     color={colors.primary}
-                    onPress={() => doAction({ type: "resolveChoice", player: HUMAN, optionIndex: i })}
+                    onPress={() => doAction({ type: "resolveChoice", player: ME, optionIndex: i })}
                   />
                 )
               )}
@@ -1332,7 +1345,7 @@ export default function BattleScreen() {
             label="このカードを選ぶ"
             color={colors.primary}
             onPress={() =>
-              doAction({ type: "resolveChoice", player: HUMAN, optionIndex: choicePreview })
+              doAction({ type: "resolveChoice", player: ME, optionIndex: choicePreview })
             }
           />
           <ActionButton
@@ -1408,7 +1421,7 @@ export default function BattleScreen() {
               color={colors.tantou}
               onPress={() => {
                 setDetailCardId(null);
-                doAction({ type: "activateAbility", player: HUMAN });
+                doAction({ type: "activateAbility", player: ME });
               }}
             />
           )}
@@ -1416,7 +1429,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {view.phase.type === "finished" && view.phase.winner === HUMAN && (
+      {view.phase.type === "finished" && view.phase.winner === ME && (
         <>
           <Confetti />
           {/* 自分のデッキの全カード（担当含む）が舞う */}
@@ -1433,21 +1446,21 @@ export default function BattleScreen() {
       )}
 
       {/* 敗北: 画面が暗く沈み、雨が降り、カードが力なく落ちていく */}
-      {view.phase.type === "finished" && view.phase.winner === CPU && (
+      {view.phase.type === "finished" && view.phase.winner === OPP && (
         <LossScene cardIds={[...me.hand, ...me.field.map((f) => f.cardId), me.tantou]} />
       )}
 
       {view.phase.type === "finished" && (
         <Overlay
-          title={view.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
+          title={view.phase.winner === ME ? "🎉 勝利！" : "😢 敗北…"}
           entering="bounce"
         >
           <Text style={styles.resultText}>
             {view.phase.reason === "deckOut"
-              ? view.phase.winner === HUMAN
+              ? view.phase.winner === ME
                 ? "CPUの山札が切れました"
                 : "山札が切れてしまいました"
-              : view.phase.winner === HUMAN
+              : view.phase.winner === ME
                 ? "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : "CPUが先に教習を修了しました"}
           </Text>
@@ -1466,7 +1479,9 @@ export default function BattleScreen() {
             )}
           </View>
           <View style={styles.overlayButtons}>
-            <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
+            {!isOnline && (
+              <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
+            )}
             <ActionButton
               label="ホームへ"
               color={colors.textMuted}
