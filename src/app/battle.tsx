@@ -53,9 +53,8 @@ import { eventText } from "@/components/eventText";
 import { hintFor } from "@/tutorial/hints";
 import { viewFor } from "@/engine/view";
 import {
-  CHALLENGER_DECK_ID,
-  DEFAULT_DECK_ID,
   cpuDeckFor,
+  randomizeDecksForMatch,
   resolveActiveDeck,
   useDeckStore,
 } from "@/store/deckStore";
@@ -682,9 +681,7 @@ export default function BattleScreen() {
   const rematch = () => {
     // 「対戦するごとに入れ替える」設定なら、もう一度遊ぶときも組み直す
     const st = useSettingsStore.getState();
-    const ds = useDeckStore.getState();
-    if (st.randomizeStandard) ds.randomizeBuiltin(DEFAULT_DECK_ID);
-    if (st.randomizeChallenger) ds.randomizeBuiltin(CHALLENGER_DECK_ID);
+    randomizeDecksForMatch(st.randomizeStandard, st.randomizeChallenger);
     const latest = useDeckStore.getState();
     const deck = resolveActiveDeck(latest);
     startGame({

@@ -5,9 +5,8 @@ import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import {
-  CHALLENGER_DECK_ID,
-  DEFAULT_DECK_ID,
   cpuDeckFor,
+  randomizeDecksForMatch,
   resolveActiveDeck,
   useDeckStore,
 } from "@/store/deckStore";
@@ -57,10 +56,8 @@ export default function PrematchScreen() {
   const begin = (firstPlayerIsMe: boolean) => {
     // ここからが新しい連戦。前回の連戦スコアはリセットする
     useRecordStore.getState().resetSession();
-    // 設定に応じて、対戦のたびに組み込みデッキをランダムに組み直す
-    const deckStore = useDeckStore.getState();
-    if (randomizeStandard) deckStore.randomizeBuiltin(DEFAULT_DECK_ID);
-    if (randomizeChallenger) deckStore.randomizeBuiltin(CHALLENGER_DECK_ID);
+    // 設定に応じて、この対戦に登場するデッキだけをランダムに組み直す
+    randomizeDecksForMatch(randomizeStandard, randomizeChallenger);
     // 組み直した内容で解決し直す
     const latest = useDeckStore.getState();
     const player = resolveActiveDeck(latest);

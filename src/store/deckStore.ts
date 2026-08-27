@@ -108,6 +108,26 @@ export function resolveActiveDeck(state: DeckState): SavedDeck {
  * CPUが使うデッキ。プレイヤーと同じ内容にならないよう、
  * チャレンジャーデッキを選んだときはCPUがスタンダードデッキを使う。
  */
+/**
+ * 「対戦するごとに入れ替える」設定を適用する。
+ * その対戦に実際に登場するデッキだけを組み直す。
+ * （使わないデッキまで書き換えると、デッキ構築での編集内容が
+ * 知らないうちに消えてしまうため）
+ */
+export function randomizeDecksForMatch(
+  randomizeStandard: boolean,
+  randomizeChallenger: boolean
+): void {
+  const s = useDeckStore.getState();
+  const player = resolveActiveDeck(s);
+  const cpuId = player.id === CHALLENGER_DECK_ID ? DEFAULT_DECK_ID : CHALLENGER_DECK_ID;
+  const used = new Set([player.id, cpuId]);
+  if (used.has(DEFAULT_DECK_ID) && randomizeStandard) s.randomizeBuiltin(DEFAULT_DECK_ID);
+  if (used.has(CHALLENGER_DECK_ID) && randomizeChallenger) {
+    s.randomizeBuiltin(CHALLENGER_DECK_ID);
+  }
+}
+
 export function cpuDeckFor(
   playerDeck: SavedDeck,
   overrides: Record<string, DeckList> = {}
