@@ -30,6 +30,7 @@ import Animated, {
   ZoomIn,
   ZoomOut,
 } from "react-native-reanimated";
+import { Image } from "expo-image";
 import { playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
@@ -650,6 +651,13 @@ export default function BattleScreen() {
 
       {/* ===== 中央: 状況とログ ===== */}
       <View style={styles.middle}>
+        {/* 当校ロゴの透かし */}
+        <Image
+          source={require("../../assets/images/logo-watermark.png")}
+          style={styles.logoWatermark}
+          contentFit="contain"
+          pointerEvents="none"
+        />
         {/* 設定画面へ（対戦をやめる操作もそこから行う）。手札に重ならないよう中央エリアの右上に置く */}
         <Pressable
           onPress={() => router.push("/settings")}
@@ -2324,6 +2332,16 @@ const styles = StyleSheet.create({
   captionUp: { color: colors.success, fontWeight: "800" },
   captionDown: { color: colors.danger, fontWeight: "800" },
   emptyField: { color: colors.textMuted, fontSize: 12, paddingVertical: 24 },
+  // ログの背景にうっすら敷く当校ロゴ
+  logoWatermark: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "50%",
+    marginTop: -80,
+    width: 160,
+    height: 160,
+    opacity: 0.08,
+  },
   middle: {
     flex: 1,
     paddingHorizontal: 12,
