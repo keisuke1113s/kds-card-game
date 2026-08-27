@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import Animated, {
@@ -29,6 +30,12 @@ export function AchievementToast() {
   if (!toast) return null;
   return (
     <Pressable style={styles.layer} onPress={shiftToast}>
+      {/* AI生成の祝福背景 */}
+      <Image
+        source={require("../../assets/images/fx/fx_victory.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.6 }]}
+        contentFit="cover"
+      />
       <PopBox key={toast.id}>
         <Text style={styles.kicker}>🏅 実績達成！</Text>
         <Text style={styles.emoji}>{toast.emoji}</Text>

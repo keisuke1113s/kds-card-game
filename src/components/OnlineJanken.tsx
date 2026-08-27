@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -41,6 +42,12 @@ export function OnlineJanken() {
 
   return (
     <View style={styles.layer}>
+      {/* AI生成の対決ステージ背景（スポットライト） */}
+      <Image
+        source={require("../../assets/images/fx/fx_janken.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.75 }]}
+        contentFit="cover"
+      />
       <PopIn>
         <Text style={styles.foundText}>🌐 対戦相手が見つかりました！</Text>
         <Text style={styles.title}>{opp} さんとじゃんけん！</Text>

@@ -1,3 +1,4 @@
+import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -121,6 +122,12 @@ export function MatchPrep({
 
   return (
     <View style={styles.layer}>
+      {/* AI生成の対決ステージ背景（スポットライト） */}
+      <Image
+        source={require("../../assets/images/fx/fx_janken.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.7 }]}
+        contentFit="cover"
+      />
       <Animated.View key={stepNumber} entering={FadeIn.duration(260)} style={styles.caption}>
         <View style={styles.stepBadge}>
           <Text style={styles.stepBadgeText}>{stepNumber}</Text>

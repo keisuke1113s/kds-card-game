@@ -1323,6 +1323,12 @@ export default function BattleScreen() {
       {/* 相手が見つかった通知（CPU対戦からの切り替え） */}
       {matchFound && (
         <Pressable style={styles.matchFoundLayer} onPress={clearMatchFound}>
+          {/* AI生成の激突背景で「対戦が始まる」高揚感を出す */}
+          <Image
+            source={require("../../assets/images/fx/fx_battle.webp")}
+            style={[StyleSheet.absoluteFill, { opacity: 0.55 }]}
+            contentFit="cover"
+          />
           <Animated.View entering={ZoomIn.springify().damping(10)} style={styles.matchFoundBox}>
             <Text style={styles.matchFoundEmoji}>🌐</Text>
             <Text style={styles.matchFoundTitle}>対戦相手が見つかりました！</Text>
@@ -2422,6 +2428,16 @@ function LessonCutIn({
 
   return (
     <View style={styles.lessonCutWrap} pointerEvents="none">
+      {/* AI生成の背景（進む=上昇する光 / 戻る=沈む闇） */}
+      <Image
+        source={
+          gained
+            ? require("../../assets/images/fx/fx_up.webp")
+            : require("../../assets/images/fx/fx_down.webp")
+        }
+        style={[StyleSheet.absoluteFill, { opacity: 0.82 }]}
+        contentFit="cover"
+      />
       {/* 技能の進みは、当校の教習車が走り抜ける */}
       {gained && track === "skill" ? (
         <Animated.View style={[styles.lessonCutCarWrap, emojiStyle]}>
@@ -2578,6 +2594,16 @@ function PowerCutIn({
 
   return (
     <View style={styles.lessonCutWrap} pointerEvents="none">
+      {/* AI生成の背景（上がる=上昇する光 / 下がる=沈む闇） */}
+      <Image
+        source={
+          up
+            ? require("../../assets/images/fx/fx_up.webp")
+            : require("../../assets/images/fx/fx_down.webp")
+        }
+        style={[StyleSheet.absoluteFill, { opacity: 0.82 }]}
+        contentFit="cover"
+      />
       {/* 背後で明滅する輝き */}
       <Animated.Text style={[styles.lessonCutEmoji, glowStyle]} allowFontScaling={false}>
         {emoji}
