@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { playSe, SeKey } from "@/audio/sound";
-import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
+import { applyPersona, DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { HeuristicAI } from "@/ai/heuristic";
 import { AIController, Difficulty } from "@/ai/types";
 import { cardRegistry } from "@/data/cards";
@@ -12,6 +12,7 @@ import { redactEventsFor, viewFor } from "@/engine/view";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { evaluateAchievements, useAchievementStore } from "@/store/achievementStore";
 import { ReplayData, useRecordStore } from "@/store/recordStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import {
   GameAction,
   GameContext,
@@ -516,7 +517,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
         set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
       }
       const realSeed = seed ?? randomSeed();
-      ai = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS[difficulty], realSeed ^ 0x55aa);
+      // 設定されたCPUの個性（こうげき型／まもり型）を反映する。練習対戦は素のまま
+      const persona = tutorial ? "balanced" : useSettingsStore.getState().cpuPersona;
+      ai = new HeuristicAI(
+        cardRegistry,
+        applyPersona(DIFFICULTY_PARAMS[difficulty], persona),
+        realSeed ^ 0x55aa
+      );
       // 自動プレイ用。自分側は常に最強設定で打つ
       humanAi = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS.hard, realSeed ^ 0x1234);
       const { state, events } = createGame(ctx, {

@@ -1,10 +1,13 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { CpuPersona } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 
 interface SettingsState {
   difficulty: Difficulty;
+  /** CPUの個性（バランス／こうげき型／まもり型） */
+  cpuPersona: CpuPersona;
   aiSpeedMs: number; // CPUの1手ごとの間隔
   seEnabled: boolean;
   bgmEnabled: boolean;
@@ -14,6 +17,7 @@ interface SettingsState {
   /** 対戦するごとにチャレンジャーデッキをランダムに入れ替える */
   randomizeChallenger: boolean;
   setDifficulty: (d: Difficulty) => void;
+  setCpuPersona: (p: CpuPersona) => void;
   setAiSpeedMs: (ms: number) => void;
   setSeEnabled: (v: boolean) => void;
   setBgmEnabled: (v: boolean) => void;
@@ -26,6 +30,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       difficulty: "normal",
+      cpuPersona: "balanced",
       aiSpeedMs: 1000,
       seEnabled: true,
       bgmEnabled: true,
@@ -33,6 +38,7 @@ export const useSettingsStore = create<SettingsState>()(
       randomizeStandard: false,
       randomizeChallenger: false,
       setDifficulty: (difficulty) => set({ difficulty }),
+      setCpuPersona: (cpuPersona) => set({ cpuPersona }),
       setAiSpeedMs: (aiSpeedMs) => set({ aiSpeedMs }),
       setSeEnabled: (seEnabled) => set({ seEnabled }),
       setBgmEnabled: (bgmEnabled) => set({ bgmEnabled }),

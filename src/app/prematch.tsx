@@ -1,7 +1,7 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { DIFFICULTY_LABELS } from "@/ai/difficulty";
+import { CpuPersona, DIFFICULTY_LABELS, PERSONA_EMOJI, PERSONA_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import {
@@ -33,6 +33,8 @@ export default function PrematchScreen() {
   const {
     difficulty,
     setDifficulty,
+    cpuPersona,
+    setCpuPersona,
     aiSpeedMs,
     setAiSpeedMs,
     seEnabled,
@@ -107,6 +109,20 @@ export default function PrematchScreen() {
                 label={DIFFICULTY_LABELS[d]}
                 active={difficulty === d}
                 onPress={() => setDifficulty(d)}
+              />
+            ))}
+          </View>
+        )}
+
+        {!isTutorial && <Text style={styles.sectionTitle}>CPUの個性</Text>}
+        {!isTutorial && (
+          <View style={styles.row}>
+            {(Object.keys(PERSONA_LABELS) as CpuPersona[]).map((p) => (
+              <Choice
+                key={p}
+                label={`${PERSONA_EMOJI[p]} ${PERSONA_LABELS[p]}`}
+                active={cpuPersona === p}
+                onPress={() => setCpuPersona(p)}
               />
             ))}
           </View>
