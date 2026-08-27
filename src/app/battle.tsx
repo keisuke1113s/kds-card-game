@@ -32,7 +32,7 @@ import Animated, {
   ZoomOut,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
-import { playBgm, playSe, stopBgm } from "@/audio/sound";
+import { playBgm, playSe, setBgmTense, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -324,11 +324,19 @@ export default function BattleScreen() {
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
 
-  // 画面シェイク（退場・バトル解決時）
+  // 画面シェイク（退場・バトル解決時）＋ヒットストップの押し込み
   const shakeX = useSharedValue(0);
+  const punch = useSharedValue(1);
   const shakeStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: shakeX.value }],
+    transform: [{ translateX: shakeX.value }, { scale: punch.value }],
   }));
+
+  // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
+  const [reachFx, setReachFx] = useState<{ mine: boolean } | null>(null);
+  const reachShown = useRef({ me: false, opp: false });
+
+  // オンライン対戦: 相手の考え中の経過秒数
+  const [oppThinkSec, setOppThinkSec] = useState(0);
 
   // バトル解決・退場のときに画面全体を一瞬光らせる
   const flash = useSharedValue(0);
@@ -372,12 +380,20 @@ export default function BattleScreen() {
       else if (e.type === "trackAdvanced" && e.player === ME && e.amount < 0) haptic("warning");
     }
     if (lastEvents.some((e) => e.type === "instructorRemoved" || e.type === "battleResolved")) {
-      shakeX.value = withSequence(
-        withTiming(-9, { duration: 55 }),
-        withTiming(8, { duration: 55 }),
-        withTiming(-6, { duration: 50 }),
-        withTiming(5, { duration: 50 }),
-        withTiming(0, { duration: 45 })
+      // ヒットストップ: 一瞬押し込んで止めてから揺らす
+      punch.value = withSequence(
+        withTiming(1.04, { duration: 60 }),
+        withDelay(110, withTiming(1, { duration: 160 }))
+      );
+      shakeX.value = withDelay(
+        130,
+        withSequence(
+          withTiming(-10, { duration: 55 }),
+          withTiming(9, { duration: 55 }),
+          withTiming(-6, { duration: 50 }),
+          withTiming(5, { duration: 50 }),
+          withTiming(0, { duration: 45 })
+        )
       );
       // 衝撃の白フラッシュ
       flash.value = withSequence(
@@ -387,6 +403,56 @@ export default function BattleScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
+
+  // リーチ判定: 残り時限の合計が2以下になった最初の瞬間に全画面カットイン。
+  // どちらかがリーチの間はBGMを少し速くして緊迫感を出す
+  useEffect(() => {
+    if (!view || view.phase.type === "finished") {
+      setBgmTense(false);
+      return;
+    }
+    const remain = (p: { academic: number; skill: number }) =>
+      Math.max(0, ACADEMIC_GOAL - p.academic) + Math.max(0, SKILL_GOAL - p.skill);
+    const meReach = remain(view.self) <= 2;
+    const oppReach = remain(view.opponent) <= 2;
+    if (meReach && !reachShown.current.me) {
+      reachShown.current.me = true;
+      setReachFx({ mine: true });
+      haptic("success");
+    } else if (oppReach && !reachShown.current.opp) {
+      reachShown.current.opp = true;
+      setReachFx({ mine: false });
+      haptic("warning");
+    }
+    if (!meReach) reachShown.current.me = false;
+    if (!oppReach) reachShown.current.opp = false;
+    setBgmTense(meReach || oppReach);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
+
+  // リーチ演出は少し見せて自動で閉じる
+  useEffect(() => {
+    if (!reachFx) return;
+    const t = setTimeout(() => setReachFx(null), 2000);
+    return () => clearTimeout(t);
+  }, [reachFx]);
+
+  // オンライン対戦: 相手の手番の経過時間を数える
+  useEffect(() => {
+    if (!isOnline || !view || view.phase.type === "finished") {
+      setOppThinkSec(0);
+      return;
+    }
+    const oppTurn = playerToActFromView(view) === OPP;
+    if (!oppTurn) {
+      setOppThinkSec(0);
+      return;
+    }
+    setOppThinkSec(0);
+    const timer = setInterval(() => setOppThinkSec((s) => s + 1), 1000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOnline, view]);
 
   // 実況を1件ずつ表示。表示中はCPUの次の手を待たせる（読み飛ばし防止）
   // タイマーは ref で持つ（cleanup を返すと再レンダーのたびに消えてしまうため）
@@ -699,7 +765,10 @@ export default function BattleScreen() {
       return { who: "対戦終了", detail: "", mine: false, waiting: false };
     }
     if (actor === OPP || aiThinking) {
-      return { who: `${oppLabel}の番`, detail: "考えています…", mine: false, waiting: true };
+      // オンラインでは相手の考え中の経過秒数も見せる
+      const detail =
+        isOnline && oppThinkSec >= 3 ? `考えています…（${oppThinkSec}秒）` : "考えています…";
+      return { who: `${oppLabel}の番`, detail, mine: false, waiting: true };
     }
     if (view.phase.type === "mulligan") {
       return { who: "あなたの番", detail: "手札を確認してください", mine: true, waiting: false };
@@ -747,7 +816,7 @@ export default function BattleScreen() {
             {isOnline ? (opponentName ?? "相手") : `CPU ${aiThinking ? "🤔" : ""}`}
           </Text>
           <Text style={styles.infoText}>手札 {cpu.handCount}</Text>
-          <Text style={styles.infoText}>山札 {cpu.deckCount}</Text>
+          <DeckCount count={cpu.deckCount} baseStyle={styles.infoText} />
           <Pressable
             ref={cpuOutRef}
             onPress={() => setPileView("cpuOutOfPlay")}
@@ -945,7 +1014,7 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>あなた</Text>
           {/* 山札・場外はタップで中身を確認できる */}
           <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
-            <Text style={styles.infoLink}>山札 {me.deckCount} ▸</Text>
+            <DeckCount count={me.deckCount} baseStyle={styles.infoLink} suffix=" ▸" />
           </Pressable>
           <Pressable
             ref={myOutRef}
@@ -1172,6 +1241,9 @@ export default function BattleScreen() {
           </Pressable>
         </Animated.View>
       )}
+
+      {/* リーチ演出（残り2時限以下になった瞬間の全画面カットイン） */}
+      {reachFx && <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />}
 
       {/* 相手が見つかったときの、先攻を決めるじゃんけん（待機中CPU対戦の上にかぶせる） */}
       <OnlineJanken />
@@ -1501,7 +1573,18 @@ export default function BattleScreen() {
 
       {view.phase.type === "finished" && (
         <Overlay
-          title={view.phase.winner === ME ? "🎉 勝利！" : "😢 敗北…"}
+          title={
+            view.phase.winner === ME
+              ? // 勝ち方によって見出しを変える（圧勝・接戦・通常）
+                view.phase.reason === "deckOut"
+                  ? "🎉 勝利！"
+                  : cpu.academic + cpu.skill <= (ACADEMIC_GOAL + SKILL_GOAL) / 2
+                    ? "👑 完全勝利！！"
+                    : ACADEMIC_GOAL - cpu.academic + SKILL_GOAL - cpu.skill <= 4
+                      ? "🔥 大接戦を制した！"
+                      : "🎉 勝利！"
+              : "😢 敗北…"
+          }
           entering="bounce"
         >
           <Text style={styles.resultText}>
@@ -1510,9 +1593,25 @@ export default function BattleScreen() {
                 ? `${oppLabel}の山札が切れました`
                 : "山札が切れてしまいました"
               : view.phase.winner === ME
-                ? "学科10時限・技能19時限を達成！卒業おめでとう！"
+                ? cpu.academic + cpu.skill <= (ACADEMIC_GOAL + SKILL_GOAL) / 2
+                  ? `${oppLabel}を大きく引き離しての卒業！お見事！`
+                  : "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : `${oppLabel}が先に教習を修了しました`}
           </Text>
+          {/* 連勝の勢いを見せる（3連勝で炎、5連勝で金） */}
+          {view.phase.winner === ME && record.streak >= 3 && (
+            <View
+              style={[
+                styles.streakBanner,
+                record.streak >= 5 && styles.streakBannerGold,
+              ]}
+            >
+              <Text style={styles.streakBannerText}>
+                {record.streak >= 5 ? "👑" : "🔥"} {record.streak}連勝中！
+                {record.streak >= 5 ? " 無敵の勢い！" : " ノリにノってる！"}
+              </Text>
+            </View>
+          )}
           {/* 今回の連戦と通算の成績 */}
           <View style={styles.recordRow}>
             <Text style={styles.recordSession}>
@@ -1523,7 +1622,7 @@ export default function BattleScreen() {
             <Text style={styles.recordText}>
               通算 {record.wins}勝 {record.losses}敗
             </Text>
-            {record.streak >= 2 && (
+            {record.streak >= 2 && record.streak < 3 && (
               <Text style={styles.recordStreak}>🔥 {record.streak}連勝中！</Text>
             )}
           </View>
@@ -1572,6 +1671,27 @@ function effectTextOf(view: PlayerView, uid: string): string {
 function cardIdOf(view: PlayerView, uid: string): string {
   const inst = view.self.field.find((f) => f.uid === uid);
   return inst ? inst.cardId : "";
+}
+
+/** 選べる対象カードの上で上下に跳ねる矢印 */
+function TargetArrow({ color }: { color: string }) {
+  const bounce = useSharedValue(0);
+  useEffect(() => {
+    bounce.value = withRepeat(
+      withSequence(withTiming(6, { duration: 320 }), withTiming(0, { duration: 320 })),
+      -1
+    );
+  }, [bounce]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateY: bounce.value }] }));
+  return (
+    <Animated.Text
+      style={[styles.targetArrow, { color }, style]}
+      pointerEvents="none"
+      allowFontScaling={false}
+    >
+      ▼
+    </Animated.Text>
+  );
 }
 
 function FieldRow({
@@ -1623,6 +1743,8 @@ function FieldRow({
                 },
               ]}
             >
+              {/* 選べる対象には跳ねる矢印を出して迷わせない */}
+              {highlightUids.has(inst.uid) && <TargetArrow color={highlightColor} />}
               <RestRotator rested={inst.rested}>
                 <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
               </RestRotator>
@@ -1645,6 +1767,80 @@ function FieldRow({
 }
 
 /** CPUの思考中を示す、ゆっくり明滅する点 */
+/**
+ * リーチの全画面カットイン。
+ * 自分: 金色に輝く「リーチ！」／相手: 赤い警告「相手がリーチ！」
+ */
+function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
+  const scale = useSharedValue(0.5);
+  const opacity = useSharedValue(0);
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    playSe(mine ? "janken_win" : "battle");
+    scale.value = withSequence(
+      withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 150 })
+    );
+    opacity.value = withTiming(1, { duration: 150 });
+    glow.value = withRepeat(
+      withSequence(withTiming(1, { duration: 350 }), withTiming(0.4, { duration: 350 })),
+      -1
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
+  const color = mine ? "#ffd54d" : "#ff6b6b";
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Animated.View style={[styles.reachBox, box]}>
+        <Animated.Text style={[styles.reachTitle, { color }, glowStyle]} allowFontScaling={false}>
+          {mine ? "⚡ リーチ！" : "⚠️ 相手がリーチ！"}
+        </Animated.Text>
+        <Text style={styles.reachSub}>
+          {mine
+            ? "あと少しで卒業！このまま勝ち切ろう！"
+            : `${oppName}が卒業目前！追い上げよう！`}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** 山札の枚数表示。残り3枚以下になると赤く点滅して山札切れを警告する */
+function DeckCount({
+  count,
+  baseStyle,
+  suffix = "",
+}: {
+  count: number;
+  baseStyle: object;
+  suffix?: string;
+}) {
+  const low = count <= 3;
+  const blink = useSharedValue(1);
+  useEffect(() => {
+    if (low) {
+      blink.value = withRepeat(
+        withSequence(withTiming(0.35, { duration: 450 }), withTiming(1, { duration: 450 })),
+        -1
+      );
+    } else {
+      blink.value = 1;
+    }
+  }, [low, blink]);
+  const style = useAnimatedStyle(() => ({ opacity: blink.value }));
+  return (
+    <Animated.Text style={[baseStyle, style, low && { color: colors.danger, fontWeight: "900" }]}>
+      {low ? "⚠️ " : ""}山札 {count}
+      {suffix}
+    </Animated.Text>
+  );
+}
+
 function ThinkingDots() {
   const o = useSharedValue(0.25);
   useEffect(() => {
@@ -2967,6 +3163,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  targetArrow: {
+    position: "absolute",
+    top: -20,
+    alignSelf: "center",
+    fontSize: 16,
+    fontWeight: "900",
+    zIndex: 5,
+    textShadowColor: "#000",
+    textShadowRadius: 4,
+  },
+  reachLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(8, 10, 30, 0.72)",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 60,
+  },
+  reachBox: { alignItems: "center", gap: 10, paddingHorizontal: 24 },
+  reachTitle: {
+    fontSize: 44,
+    fontWeight: "900",
+    textShadowColor: "#000",
+    textShadowRadius: 12,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  reachSub: { color: "#fff", fontSize: 15, fontWeight: "800", textAlign: "center" },
+  streakBanner: {
+    backgroundColor: "#e2604a",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    alignSelf: "center",
+  },
+  streakBannerGold: { backgroundColor: "#c9971b" },
+  streakBannerText: { color: "#fff", fontSize: 15, fontWeight: "900" },
   matchFoundLayer: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "#0b1024dd",

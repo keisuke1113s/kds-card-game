@@ -162,6 +162,24 @@ export function playBgm(key: string): boolean {
   }
 }
 
+/**
+ * 終盤（リーチ）でBGMのテンポを少し上げて緊迫感を出す。
+ * 専用の曲が無くても効果が出るよう、再生速度で表現する
+ */
+export function setBgmTense(tense: boolean): void {
+  if (!bgmPlayer) return;
+  try {
+    const p = bgmPlayer as AudioPlayer & {
+      playbackRate?: number;
+      shouldCorrectPitch?: boolean;
+    };
+    p.shouldCorrectPitch = true;
+    p.playbackRate = tense ? 1.12 : 1.0;
+  } catch {
+    // 速度変更に未対応の環境では通常速度のまま
+  }
+}
+
 export function stopBgm(): void {
   pendingBgmKey = null;
   if (bgmPlayer) {
