@@ -3,7 +3,7 @@ import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { Platform } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { PackReveal } from "@/app/scan";
+import { PackOpeningFX } from "@/app/scan";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
@@ -184,18 +184,7 @@ export default function LibraryScreen() {
         </Pressable>
       )}
       {devRevealed && (
-        <Pressable style={styles.overlayBg} onPress={() => setDevRevealed(null)}>
-          <Pressable style={styles.overlayBox} onPress={() => {}}>
-            <Text style={styles.lockedEmoji}>🎉</Text>
-            <Text style={styles.overlayTitle}>
-              「{getCard(devRevealed).name}」を開放しました！（テスト）
-            </Text>
-            <PackReveal cardId={devRevealed} />
-            <Pressable style={styles.closeButton} onPress={() => setDevRevealed(null)}>
-              <Text style={styles.closeText}>閉じる</Text>
-            </Pressable>
-          </Pressable>
-        </Pressable>
+        <PackOpeningFX cardId={devRevealed} onClose={() => setDevRevealed(null)} />
       )}
     </ScreenEnter>
   );

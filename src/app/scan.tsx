@@ -18,6 +18,7 @@ import { checkQrPayload } from "@/data/unlock";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
+import { playSe } from "@/audio/sound";
 import { colors, radius, spacing } from "@/theme";
 
 /**
@@ -103,7 +104,15 @@ export default function ScanScreen() {
         </Pressable>
       </View>
 
-      {outcome && (
+      {/* カード開放は全画面のパック開封演出で祝う */}
+      {outcome?.kind === "unlocked" && (
+        <PackOpeningFX
+          cardId={outcome.cardId}
+          onContinue={() => setOutcome(null)}
+          onClose={() => router.back()}
+        />
+      )}
+      {outcome && outcome.kind !== "unlocked" && (
         <View style={styles.resultLayer}>
           <View style={styles.resultBox}>
             {outcome.kind === "invalid" ? (
@@ -124,24 +133,11 @@ export default function ScanScreen() {
               </>
             ) : (
               <>
-                <Text style={styles.resultEmoji}>
-                  {outcome.kind === "unlocked" ? "🎉" : "✅"}
-                </Text>
+                <Text style={styles.resultEmoji}>✅</Text>
                 <Text style={styles.resultTitle}>
-                  {outcome.kind === "unlocked"
-                    ? `「${getCard(outcome.cardId).name}」を登録しました！`
-                    : `「${getCard(outcome.cardId).name}」は登録済みです`}
+                  「{getCard(outcome.cardId).name}」は登録済みです
                 </Text>
-                {outcome.kind === "unlocked" ? (
-                  <PackReveal cardId={outcome.cardId} />
-                ) : (
-                  <CardFace cardId={outcome.cardId} size="lg" />
-                )}
-                {outcome.kind === "unlocked" && (
-                  <Text style={styles.resultSub}>
-                    図鑑に追加され、デッキでも使えるようになりました
-                  </Text>
-                )}
+                <CardFace cardId={outcome.cardId} size="lg" />
               </>
             )}
             <View style={styles.resultButtons}>
@@ -168,91 +164,239 @@ export default function ScanScreen() {
 }
 
 /**
- * パック開封風の演出。
- * カード裏面が光りながら揺れ、めくれて表が現れる。まわりに紙吹雪が舞う
- * （図鑑の開発用テスト開放からも使う）
+ * QRカード開放の全画面パック開封演出（約3.6秒）。
+ * 暗転 → 光が集まる → 白フラッシュ → カードがめくれて登場 →
+ * 金色バースト＋紙吹雪 → 「NEW! ◯◯をゲット！」→ ボタン表示。
+ * 図鑑の開発用テスト開放からも使う
  */
-export function PackReveal({ cardId }: { cardId: string }) {
-  const flip = useSharedValue(0); // 0=裏 1=表
-  const glow = useSharedValue(0);
+export function PackOpeningFX({
+  cardId,
+  onContinue,
+  onClose,
+}: {
+  cardId: string;
+  onContinue?: () => void;
+  onClose: () => void;
+}) {
+  const bg = useSharedValue(0); // fx_pack 背景の入り
+  const bgScale = useSharedValue(1.25);
+  const intro = useSharedValue(0); // 裏面カードの登場（下からふわっと）
   const wobble = useSharedValue(0);
+  const pulse = useSharedValue(0.4); // 期待感の明滅
+  const flash = useSharedValue(0); // 白フラッシュ
+  const flip = useSharedValue(0); // 0=裏 1=表
+  const burst = useSharedValue(0); // fx_victory の祝福背景
+  const pop = useSharedValue(0); // 表カードの最終バウンス
+  const nameIn = useSharedValue(0); // カード名の出現
+  const buttonsIn = useSharedValue(0);
+
   useEffect(() => {
-    glow.value = withRepeat(
-      withSequence(withTiming(1, { duration: 260 }), withTiming(0.3, { duration: 260 })),
-      3
+    playSe("draw");
+    // 0.0s: 暗転して宝箱の光がゆっくり寄ってくる
+    bg.value = withTiming(1, { duration: 400 });
+    bgScale.value = withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) });
+    // 0.3s: 裏面カードが下からふわっと現れ、小刻みに震え始める
+    intro.value = withDelay(300, withTiming(1, { duration: 550, easing: Easing.out(Easing.cubic) }));
+    wobble.value = withDelay(
+      900,
+      withRepeat(withSequence(withTiming(3.2, { duration: 90 }), withTiming(-3.2, { duration: 90 })), 6)
     );
-    wobble.value = withSequence(
-      withTiming(-4, { duration: 130 }),
-      withRepeat(withSequence(withTiming(4, { duration: 110 }), withTiming(-4, { duration: 110 })), 5),
-      withTiming(0, { duration: 90 })
+    pulse.value = withRepeat(
+      withSequence(withTiming(1, { duration: 420 }), withTiming(0.45, { duration: 420 })),
+      -1
     );
-    flip.value = withDelay(
-      1400,
-      withTiming(1, { duration: 550, easing: Easing.inOut(Easing.cubic) })
+    const seTimers = [
+      setTimeout(() => playSe("support"), 1000),
+      setTimeout(() => {
+        playSe("hit");
+        haptic("heavy");
+      }, 2050),
+      setTimeout(() => {
+        playSe("janken_win");
+        haptic("success");
+      }, 2450),
+    ];
+    // 2.05s: 白フラッシュ → めくれる
+    flash.value = withDelay(
+      2050,
+      withSequence(withTiming(0.95, { duration: 110 }), withTiming(0, { duration: 420 }))
     );
+    flip.value = withDelay(2150, withTiming(1, { duration: 480, easing: Easing.inOut(Easing.cubic) }));
+    // 2.3s: 祝福の金色バーストに切り替え
+    burst.value = withDelay(2300, withTiming(1, { duration: 500 }));
+    // 2.6s: 表カードがドンとバウンス
+    pop.value = withDelay(2600, withSequence(withTiming(1.18, { duration: 180 }), withTiming(1, { duration: 220 })));
+    // 2.8s: カード名 → 3.4s: ボタン
+    nameIn.value = withDelay(2800, withTiming(1, { duration: 320, easing: Easing.out(Easing.cubic) }));
+    buttonsIn.value = withDelay(3400, withTiming(1, { duration: 300 }));
+    return () => seTimers.forEach(clearTimeout);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bg.value,
+    transform: [{ scale: bgScale.value }],
+  }));
+  const pulseStyle = useAnimatedStyle(() => ({ opacity: bg.value * pulse.value }));
+  const burstStyle = useAnimatedStyle(() => ({ opacity: burst.value }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
   const backStyle = useAnimatedStyle(() => ({
+    opacity: intro.value * (flip.value < 0.5 ? 1 : 0),
     transform: [
-      { perspective: 800 },
+      { translateY: (1 - intro.value) * 90 },
+      { perspective: 900 },
       { rotate: `${wobble.value}deg` },
       { rotateY: `${flip.value * 180}deg` },
+      { scale: 0.9 + intro.value * 0.1 },
     ],
-    opacity: flip.value < 0.5 ? 1 : 0,
   }));
   const frontStyle = useAnimatedStyle(() => ({
-    transform: [
-      { perspective: 800 },
-      { rotateY: `${flip.value * 180 - 180}deg` },
-      { scale: 1 + (flip.value > 0.5 ? (1 - flip.value) * 0.3 : 0) },
-    ],
     opacity: flip.value >= 0.5 ? 1 : 0,
+    transform: [
+      { perspective: 900 },
+      { rotateY: `${flip.value * 180 - 180}deg` },
+      { scale: pop.value > 0 ? pop.value : 1 },
+    ],
   }));
-  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value * 0.9 }));
+  const nameStyle = useAnimatedStyle(() => ({
+    opacity: nameIn.value,
+    transform: [{ translateY: (1 - nameIn.value) * 26 }],
+  }));
+  const buttonsStyle = useAnimatedStyle(() => ({ opacity: buttonsIn.value }));
 
   return (
-    <View style={styles.packWrap}>
-      <Animated.View style={[styles.packGlow, glowStyle]}>
-        {/* AI生成の宝箱風の光の背景 */}
+    <View style={styles.fxLayer}>
+      {/* 宝箱の光（前半） */}
+      <Animated.View style={[StyleSheet.absoluteFill, bgStyle]}>
         <Image
           source={require("../../assets/images/fx/fx_pack.webp")}
-          style={[StyleSheet.absoluteFill, { borderRadius: 20 }]}
+          style={StyleSheet.absoluteFill}
           contentFit="cover"
         />
       </Animated.View>
-      <Animated.View style={[styles.packFace, backStyle]}>
-        <CardFace cardId={cardId} size="lg" faceDown />
+      {/* 期待感の明滅（金色の集中線をうっすら重ねる） */}
+      <Animated.View style={[StyleSheet.absoluteFill, pulseStyle]}>
+        <Image
+          source={require("../../assets/images/fx/fx_reach_gold.webp")}
+          style={[StyleSheet.absoluteFill, { opacity: 0.5 }]}
+          contentFit="cover"
+        />
       </Animated.View>
-      <Animated.View style={[styles.packFace, frontStyle]}>
-        <CardFace cardId={cardId} size="lg" />
+      {/* 祝福バースト（後半） */}
+      <Animated.View style={[StyleSheet.absoluteFill, burstStyle]}>
+        <Image
+          source={require("../../assets/images/fx/fx_victory.webp")}
+          style={StyleSheet.absoluteFill}
+          contentFit="cover"
+        />
       </Animated.View>
-      {/* 紙吹雪 */}
+
+      {/* 光の粒が中央に集まる（前半） */}
       {Array.from({ length: 14 }, (_, i) => (
-        <ConfettiPiece key={i} index={i} />
+        <ConvergeSpark key={`s${i}`} index={i} />
       ))}
+      {/* 紙吹雪が弾ける（後半） */}
+      {Array.from({ length: 30 }, (_, i) => (
+        <ConfettiPiece key={`c${i}`} index={i} count={30} delayMs={2300} dist={200} />
+      ))}
+
+      {/* カード本体 */}
+      <View style={styles.fxCardWrap} pointerEvents="none">
+        <Animated.View style={[styles.packFace, backStyle]}>
+          <CardFace cardId={cardId} size="lg" faceDown />
+        </Animated.View>
+        <Animated.View style={[styles.packFace, frontStyle]}>
+          <CardFace cardId={cardId} size="lg" />
+        </Animated.View>
+      </View>
+
+      {/* 白フラッシュ */}
+      <Animated.View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: "#fff" }, flashStyle]}
+      />
+
+      {/* NEW! カード名 */}
+      <Animated.View style={[styles.fxNameWrap, nameStyle]} pointerEvents="none">
+        <Text style={styles.fxNewBadge}>✨ NEW! ✨</Text>
+        <Text style={styles.fxName} allowFontScaling={false}>
+          「{getCard(cardId).name}」をゲット！
+        </Text>
+        <Text style={styles.fxNameSub}>図鑑に追加され、デッキでも使えるようになりました</Text>
+      </Animated.View>
+
+      {/* ボタン（演出が終わってからフェードイン） */}
+      <Animated.View style={[styles.fxButtons, buttonsStyle]}>
+        {onContinue && (
+          <Pressable
+            style={[styles.resultButton, { backgroundColor: colors.primary }]}
+            onPress={onContinue}
+          >
+            <Text style={styles.resultButtonText}>続けて読み込む</Text>
+          </Pressable>
+        )}
+        <Pressable
+          style={[styles.resultButton, { backgroundColor: colors.textMuted }]}
+          onPress={onClose}
+        >
+          <Text style={styles.resultButtonText}>閉じる</Text>
+        </Pressable>
+      </Animated.View>
     </View>
   );
 }
 
 const CONFETTI_COLORS = ["#e2604a", "#e49c18", "#78b424", "#3d8fd0", "#c9d63a", "#8fd3ee"];
 
-function ConfettiPiece({ index }: { index: number }) {
+/** 中央へ吸い込まれていく光の粒（開封前のため込め） */
+function ConvergeSpark({ index }: { index: number }) {
   const p = useSharedValue(0);
   useEffect(() => {
     p.value = withDelay(
-      1500 + (index % 7) * 90,
+      500 + (index % 7) * 140,
+      withTiming(1, { duration: 900 + (index % 4) * 160, easing: Easing.in(Easing.quad) })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const angle = (index / 14) * Math.PI * 2 + 0.4;
+  const dist = 190 + (index % 5) * 40;
+  const style = useAnimatedStyle(() => ({
+    opacity: p.value === 0 ? 0 : (1 - p.value) * 0.4 + 0.6,
+    transform: [
+      { translateX: Math.cos(angle) * dist * (1 - p.value) },
+      { translateY: Math.sin(angle) * dist * (1 - p.value) },
+      { scale: 1.1 - p.value * 0.7 },
+    ],
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.spark, style]} />;
+}
+
+function ConfettiPiece({
+  index,
+  count,
+  delayMs,
+  dist: baseDist,
+}: {
+  index: number;
+  count: number;
+  delayMs: number;
+  dist: number;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      delayMs + (index % 7) * 90,
       withTiming(1, { duration: 1300 + (index % 5) * 220, easing: Easing.out(Easing.quad) })
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const angle = (index / 14) * Math.PI * 2;
-  const dist = 90 + (index % 4) * 30;
+  const angle = (index / count) * Math.PI * 2;
+  const dist = baseDist + (index % 4) * 40;
   const style = useAnimatedStyle(() => ({
     opacity: p.value === 0 ? 0 : 1 - Math.max(0, (p.value - 0.6) / 0.4),
     transform: [
       { translateX: Math.cos(angle) * dist * p.value },
-      { translateY: Math.sin(angle) * dist * p.value + 60 * p.value * p.value },
+      { translateY: Math.sin(angle) * dist * p.value + 80 * p.value * p.value },
       { rotate: `${p.value * (index % 2 === 0 ? 540 : -540)}deg` },
     ],
   }));
@@ -445,29 +589,72 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   resultEmoji: { fontSize: 40 },
-  packWrap: {
-    width: 150,
-    height: 210,
+  fxLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#0a0c22",
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 100,
+  },
+  fxCardWrap: {
+    width: 150,
+    height: 210,
+    marginTop: -60,
   },
   packFace: { ...StyleSheet.absoluteFill },
-  packGlow: {
+  fxNameWrap: {
     position: "absolute",
-    left: -26,
-    right: -26,
-    top: -26,
-    bottom: -26,
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: "#2a1f4d",
+    left: 24,
+    right: 24,
+    bottom: 150,
+    alignItems: "center",
+    gap: 4,
+  },
+  fxNewBadge: {
+    color: "#ffd54d",
+    fontSize: 16,
+    fontWeight: "900",
+    textShadowColor: "#000",
+    textShadowRadius: 8,
+  },
+  fxName: {
+    color: "#fff",
+    fontSize: 24,
+    fontWeight: "900",
+    textAlign: "center",
+    textShadowColor: "#000",
+    textShadowRadius: 10,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  fxNameSub: {
+    color: "#ffffffcc",
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  fxButtons: {
+    position: "absolute",
+    left: 24,
+    right: 24,
+    bottom: 60,
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 10,
+  },
+  spark: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#ffd54d",
+    shadowColor: "#ffd54d",
+    shadowOpacity: 0.9,
+    shadowRadius: 8,
   },
   confetti: {
     position: "absolute",
-    left: "50%",
-    top: "40%",
-    width: 9,
-    height: 13,
+    width: 10,
+    height: 14,
     borderRadius: 2,
   },
   resultTitle: {
