@@ -113,10 +113,26 @@ let ai: AIController | null = null;
 let humanAi: AIController | null = null;
 /** オンライン対戦のWebSocket（local のときは null） */
 let socket: WebSocket | null = null;
+/** 復帰用の接続情報（部屋コード＋セッショントークン） */
+let onlineSession: { serverUrl: string; code: string; sessionToken: string } | null = null;
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+let reconnectAttempt = 0;
+/** オンラインの受信バッファ（演出中に届いた更新をため、順に流す） */
+let pendingUpdates: { view: PlayerView; events: GameEvent[] }[] = [];
+/** 実況が捌けたときに受信バッファを流すためのフック */
+let onlineDrain: (() => void) | null = null;
 
 function closeSocket() {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectAttempt = 0;
+  pendingUpdates = [];
+  onlineDrain = null;
   if (socket) {
     try {
+      socket.onclose = null;
       socket.close();
     } catch {
       // すでに閉じていれば無視
@@ -270,7 +286,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
     setPresentationBusy: (presentationBusy) => {
       set({ presentationBusy });
-      if (!presentationBusy) scheduleAI(); // 演出が終わったらすぐ再開
+      if (!presentationBusy) {
+        scheduleAI(); // 演出が終わったらすぐ再開
+        onlineDrain?.(); // オンラインならたまった更新を流す
+      }
     },
 
     startGame: ({
@@ -316,6 +335,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       gameToken++;
       clearAiTimer();
       closeSocket();
+      onlineSession = null;
       set({
         mode: "online",
         onlineStatus: "connecting",
@@ -332,91 +352,154 @@ export const useGameStore = create<GameStore>()((set, get) => {
         autoPlay: false,
       });
 
-      let ws: WebSocket;
-      try {
-        ws = new WebSocket(serverUrl);
-      } catch (e) {
-        set({ onlineStatus: "error", onlineError: `サーバーに接続できません: ${e}` });
-        return;
-      }
-      socket = ws;
-
-      ws.onopen = () => {
-        if (mode === "create") {
-          ws.send(JSON.stringify({ type: "createRoom", name, deck }));
-        } else if (mode === "join") {
-          ws.send(JSON.stringify({ type: "joinRoom", code, name, deck }));
-        } else {
-          ws.send(JSON.stringify({ type: "joinQueue", name, deck }));
-        }
-        set({ onlineStatus: "waitingOpponent" });
-      };
-
-      ws.onmessage = (ev) => {
-        if (socket !== ws) return; // 古い接続からの残響は無視
-        let msg: {
-          type: string;
-          code?: string;
-          name?: string;
-          message?: string;
-          seq?: number;
-          view?: PlayerView;
-          events?: GameEvent[];
-        };
-        try {
-          msg = JSON.parse(String(ev.data));
-        } catch {
+      /** たまった更新を1件ずつ流す（演出中は待つ）。まとまっていたら早送り */
+      const drainUpdates = () => {
+        if (pendingUpdates.length === 0) return;
+        if (get().presentationBusy) return;
+        // 3件以上たまっていたら早送り: イベントはログへ一括、盤面は最新だけ
+        if (pendingUpdates.length >= 3) {
+          const all = pendingUpdates;
+          pendingUpdates = [];
+          const events = all.flatMap((u) => u.events);
+          set({
+            view: all[all.length - 1].view,
+            lastEvents: [],
+            eventLog: [...get().eventLog, ...events],
+          });
           return;
         }
-        switch (msg.type) {
-          case "joined":
-            // 入室できたら即、準備完了を送る（両者そろえば対局開始）
-            ws.send(JSON.stringify({ type: "ready" }));
-            break;
-          case "roomCreated":
-            set({ roomCode: msg.code ?? null });
-            break;
-          case "opponentJoined":
-            set({ opponentName: msg.name ?? null });
-            break;
-          case "matchStart":
-            set({ onlineStatus: "playing" });
-            break;
-          case "update": {
-            const view = msg.view ?? null;
-            const events = msg.events ?? [];
-            // 秘匿はサーバー側で済んでいるので、そのまま流す
-            set({
-              view,
-              lastEvents: events,
-              eventLog: [...get().eventLog, ...events],
-            });
-            playEventSounds(events);
-            break;
-          }
-          case "opponentLeft":
-            set({ onlineStatus: "opponentLeft" });
-            break;
-          case "error":
-            set({ onlineError: msg.message ?? "エラーが発生しました" });
-            break;
+        const next = pendingUpdates.shift()!;
+        set({
+          view: next.view,
+          lastEvents: next.events,
+          eventLog: [...get().eventLog, ...next.events],
+        });
+        playEventSounds(next.events);
+      };
+      onlineDrain = drainUpdates;
+
+      const open = (isReconnect: boolean) => {
+        let ws: WebSocket;
+        try {
+          ws = new WebSocket(serverUrl);
+        } catch (e) {
+          set({ onlineStatus: "error", onlineError: `サーバーに接続できません: ${e}` });
+          return;
         }
+        socket = ws;
+
+        ws.onopen = () => {
+          reconnectAttempt = 0;
+          if (isReconnect && onlineSession) {
+            ws.send(
+              JSON.stringify({
+                type: "reattach",
+                code: onlineSession.code,
+                sessionToken: onlineSession.sessionToken,
+              })
+            );
+            return;
+          }
+          if (mode === "create") {
+            ws.send(JSON.stringify({ type: "createRoom", name, deck }));
+          } else if (mode === "join") {
+            ws.send(JSON.stringify({ type: "joinRoom", code, name, deck }));
+          } else {
+            ws.send(JSON.stringify({ type: "joinQueue", name, deck }));
+          }
+          set({ onlineStatus: "waitingOpponent" });
+        };
+
+        ws.onmessage = (ev) => {
+          if (socket !== ws) return; // 古い接続からの残響は無視
+          let msg: {
+            type: string;
+            code?: string;
+            name?: string;
+            message?: string;
+            seat?: number;
+            sessionToken?: string;
+            seq?: number;
+            view?: PlayerView;
+            events?: GameEvent[];
+          };
+          try {
+            msg = JSON.parse(String(ev.data));
+          } catch {
+            return;
+          }
+          switch (msg.type) {
+            case "joined":
+              // 復帰用にトークンを控えて、準備完了を送る
+              if (msg.sessionToken) {
+                onlineSession = {
+                  serverUrl,
+                  code: onlineSession?.code ?? get().roomCode ?? code ?? "",
+                  sessionToken: msg.sessionToken,
+                };
+              }
+              ws.send(JSON.stringify({ type: "ready" }));
+              break;
+            case "roomCreated":
+              set({ roomCode: msg.code ?? null });
+              if (onlineSession) onlineSession.code = msg.code ?? "";
+              break;
+            case "opponentJoined":
+              set({ opponentName: msg.name ?? null });
+              break;
+            case "matchStart":
+              set({ onlineStatus: "playing", onlineError: null });
+              break;
+            case "update": {
+              const view = msg.view ?? null;
+              const events = msg.events ?? [];
+              if (!view) break;
+              // 秘匿はサーバー側で済んでいる。演出中はためて順に流す
+              pendingUpdates.push({ view, events });
+              drainUpdates();
+              break;
+            }
+            case "opponentLeft":
+              set({ onlineStatus: "opponentLeft" });
+              break;
+            case "error":
+              set({ onlineError: msg.message ?? "エラーが発生しました" });
+              break;
+          }
+        };
+
+        ws.onerror = () => {
+          if (socket !== ws) return;
+          if (!onlineSession) {
+            set({
+              onlineStatus: "error",
+              onlineError:
+                "サーバーに接続できません。アドレスとサーバーの起動を確認してください。",
+            });
+          }
+        };
+        ws.onclose = () => {
+          if (socket !== ws) return;
+          const st = get();
+          // 対局に入る前に切れた → エラー表示
+          if (!onlineSession || st.mode !== "online") {
+            if (st.onlineStatus !== "error" && st.mode === "online" && st.view === null) {
+              set({ onlineStatus: "error", onlineError: "接続が切れました" });
+            }
+            return;
+          }
+          // 対局中の切断 → 自動で再接続を試みる（1,2,4,8…最大15秒間隔）
+          reconnectAttempt++;
+          const delay = Math.min(15000, 1000 * 2 ** (reconnectAttempt - 1));
+          set({ onlineError: "接続が切れました。再接続しています…" });
+          reconnectTimer = setTimeout(() => {
+            reconnectTimer = null;
+            open(true);
+          }, delay);
+        };
       };
 
-      ws.onerror = () => {
-        if (socket !== ws) return;
-        set({
-          onlineStatus: "error",
-          onlineError: "サーバーに接続できません。アドレスとサーバーの起動を確認してください。",
-        });
-      };
-      ws.onclose = () => {
-        if (socket !== ws) return;
-        const st = get();
-        if (st.onlineStatus !== "error" && st.mode === "online" && st.view === null) {
-          set({ onlineStatus: "error", onlineError: "接続が切れました" });
-        }
-      };
+      open(false);
     },
 
     resignOnline: () => {
@@ -454,6 +537,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         }
       }
       closeSocket();
+      onlineSession = null;
       ai = null;
       set({
         state: null,

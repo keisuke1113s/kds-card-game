@@ -188,6 +188,46 @@ describe("RoomCore（サーバーの権威ロジック）", () => {
     void b;
   });
 
+  it("切断したまま猶予が過ぎると切断側の負けになる", () => {
+    // 手動で発火できる偽タイマーを注入する
+    const pending: (() => void)[] = [];
+    const room = new RoomCore(ctx, "TESTGRACE", {
+      setTimer: (fn) => {
+        pending.push(fn);
+        return pending.length as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimer: (t) => {
+        pending[(t as unknown as number) - 1] = () => {};
+      },
+    });
+    const a = new TestClient(21);
+    const b = new TestClient(22);
+    room.join("たろう", defaultDeck, a.send);
+    room.join("はなこ", cpuDeck, b.send);
+    room.setReady(0);
+    room.setReady(1);
+
+    // A が切断 → 猶予タイマーが仕掛かる
+    room.markDisconnected(a.seat!);
+    expect(pending.length).toBe(1);
+
+    // 復帰すればタイマーは解除され、負けにならない
+    room.reattach(a.sessionToken, a.send);
+    pending.forEach((fn) => fn());
+    expect(a.view?.phase.type).not.toBe("finished");
+
+    // もう一度切断し、今度は復帰せず猶予切れ → A の負け
+    room.markDisconnected(a.seat!);
+    const timerCount = pending.length;
+    room.markDisconnected(a.seat!); // 二重呼び出しでもタイマーは増えない
+    expect(pending.length).toBe(timerCount);
+    pending.forEach((fn) => fn());
+    expect(b.view?.phase.type).toBe("finished");
+    if (b.view?.phase.type === "finished") {
+      expect(b.view.phase.winner).toBe(b.seat);
+    }
+  });
+
   it("投了すると相手の勝ちで終局する", () => {
     const { room, a, b } = setupMatch();
     room.resign(a.seat!);

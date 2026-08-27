@@ -86,16 +86,31 @@ function deepEqual(a: unknown, b: unknown): boolean {
   );
 }
 
+/** 切断したまま復帰しないときに負けになるまでの猶予 */
+export const DISCONNECT_GRACE_MS = 60 * 1000;
+
 export class RoomCore {
   readonly id: string;
   private readonly ctx: GameContext;
   private seats: (Seat | null)[] = [null, null];
   private state: GameState | null = null;
   private seq = 0;
+  private graceTimers: (ReturnType<typeof setTimeout> | null)[] = [null, null];
+  private readonly setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+  private readonly clearTimer: (t: ReturnType<typeof setTimeout>) => void;
 
-  constructor(ctx: GameContext, id: string) {
+  constructor(
+    ctx: GameContext,
+    id: string,
+    timers?: {
+      setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+      clearTimer: (t: ReturnType<typeof setTimeout>) => void;
+    }
+  ) {
     this.ctx = ctx;
     this.id = id;
+    this.setTimer = timers?.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
+    this.clearTimer = timers?.clearTimer ?? ((t) => clearTimeout(t));
   }
 
   /** 対局が始まっているか */
@@ -134,7 +149,11 @@ export class RoomCore {
     this.seats[seatIndex] = seat;
     seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken: seat.sessionToken });
     const other = this.seats[1 - seatIndex];
-    if (other) other.send({ type: "opponentJoined", name });
+    if (other) {
+      other.send({ type: "opponentJoined", name });
+      // 後から入った側にも、すでにいる相手の名前を教える
+      seat.send({ type: "opponentJoined", name: other.name });
+    }
     return { seat: seatIndex as PlayerId, sessionToken: seat.sessionToken };
   }
 
@@ -148,6 +167,12 @@ export class RoomCore {
     const seat = this.seats[seatIndex]!;
     seat.send = send;
     seat.connected = true;
+    // 復帰できたので、切断負けの猶予タイマーを解除する
+    const timer = this.graceTimers[seatIndex];
+    if (timer) {
+      this.clearTimer(timer);
+      this.graceTimers[seatIndex] = null;
+    }
     seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken });
     if (this.state) {
       seat.send({
@@ -237,7 +262,18 @@ export class RoomCore {
 
   markDisconnected(seatIndex: PlayerId): void {
     const seat = this.seats[seatIndex];
-    if (seat) seat.connected = false;
+    if (!seat) return;
+    seat.connected = false;
+    // 対局中の切断は、猶予以内に復帰しなければ切断側の負けにする
+    if (this.state && this.state.phase.type !== "finished" && !this.graceTimers[seatIndex]) {
+      this.graceTimers[seatIndex] = this.setTimer(() => {
+        this.graceTimers[seatIndex] = null;
+        const s = this.seats[seatIndex];
+        if (s && !s.connected && this.state && this.state.phase.type !== "finished") {
+          this.resign(seatIndex);
+        }
+      }, DISCONNECT_GRACE_MS);
+    }
   }
 
   /** 全席に、それぞれの視点の盤面と秘匿済みイベントを配る */

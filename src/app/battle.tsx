@@ -69,6 +69,13 @@ const ctx = { defs: cardRegistry };
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
 
+/**
+ * 相手の呼び名。オフラインは「CPU」、オンラインは相手の名前（無ければ「相手」）。
+ * 深い部品にまで props で配るのは大げさなので、モジュール変数で共有する
+ * （BattleScreen が描画のたびに更新する）。
+ */
+let oppLabel = "CPU";
+
 /** その視点で見た、指定プレイヤーの場（自分でも相手でも同じ形で取れる） */
 function fieldOf(view: PlayerView, player: number): InstructorOnField[] {
   return player === view.playerId ? view.self.field : view.opponent.field;
@@ -144,7 +151,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         out.push({
           key: ++annSeq,
           kind: "turn",
-          text: e.player === ME ? "あなたのターン" : "CPUのターン",
+          text: e.player === ME ? "あなたのターン" : `${oppLabel}のターン`,
           mine: e.player === ME,
         });
         break;
@@ -215,7 +222,7 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         out.push({
           key: ++annSeq,
           kind: "battle",
-          text: e.attackerPlayer === OPP ? "CPUがバトルを仕掛けた！" : "あなたのバトル！",
+          text: e.attackerPlayer === OPP ? `${oppLabel}がバトルを仕掛けた！` : "あなたのバトル！",
           atkCardId: atk?.cardId,
           defCardId: def?.cardId,
           atkIsCpu: e.attackerPlayer === OPP,
@@ -290,6 +297,7 @@ export default function BattleScreen() {
   const matchMode = useGameStore((s) => s.mode);
   const opponentName = useGameStore((s) => s.opponentName);
   const isOnline = matchMode === "online";
+  oppLabel = isOnline ? (opponentName ?? "相手") : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -383,8 +391,9 @@ export default function BattleScreen() {
       annTimer.current = null;
     }
     // カード付きの実況はタップするまで表示したままにする（読み逃し防止）。
-    // ただし自動プレイ中は手が止まらないよう、少し見せてから自動で進める
-    if (!next.cardId || autoPlay) {
+    // ただし自動プレイ中とオンライン対戦では、少し見せてから自動で進める
+    // （オンラインで止めると相手を待たせてしまうため）
+    if (!next.cardId || autoPlay || isOnline) {
       annTimer.current = setTimeout(
         () => {
           annTimer.current = null;
@@ -403,7 +412,7 @@ export default function BattleScreen() {
                   : 850
       );
     }
-  }, [currentAnn, annQueue, autoPlay]);
+  }, [currentAnn, annQueue, autoPlay, isOnline]);
 
   useEffect(
     () => () => {
@@ -670,7 +679,7 @@ export default function BattleScreen() {
       return { who: "対戦終了", detail: "", mine: false, waiting: false };
     }
     if (actor === OPP || aiThinking) {
-      return { who: "CPUの番", detail: "考えています…", mine: false, waiting: true };
+      return { who: `${oppLabel}の番`, detail: "考えています…", mine: false, waiting: true };
     }
     if (view.phase.type === "mulligan") {
       return { who: "あなたの番", detail: "手札を確認してください", mine: true, waiting: false };
@@ -683,7 +692,7 @@ export default function BattleScreen() {
             mine: true,
             waiting: false,
           }
-        : { who: "CPUの番", detail: "相手の応答を待っています", mine: false, waiting: true };
+        : { who: `${oppLabel}の番`, detail: "相手の応答を待っています", mine: false, waiting: true };
     }
     if (view.phase.type === "choice") {
       return { who: "あなたの番", detail: "カードを選んでください", mine: true, waiting: false };
@@ -799,7 +808,7 @@ export default function BattleScreen() {
               <Animated.View entering={SlideInLeft.duration(320)} style={styles.battleSide}>
                 <CardFace cardId={battleInfo.attackerCardId} size="md" />
                 <Text style={styles.battleSideLabel}>
-                  {battleInfo.attackerIsCpu ? "CPU" : "あなた"}・アタック
+                  {battleInfo.attackerIsCpu ? oppLabel : "あなた"}・アタック
                 </Text>
                 <Animated.Text
                   key={`a${battleInfo.attackerTotal}`}
@@ -813,7 +822,7 @@ export default function BattleScreen() {
               <Animated.View entering={SlideInRight.duration(320)} style={styles.battleSide}>
                 <CardFace cardId={battleInfo.defenderCardId} size="md" />
                 <Text style={styles.battleSideLabel}>
-                  {battleInfo.attackerIsCpu ? "あなた" : "CPU"}・ディフェンス
+                  {battleInfo.attackerIsCpu ? "あなた" : oppLabel}・ディフェンス
                 </Text>
                 <Animated.Text
                   key={`d${battleInfo.defenderTotal}`}
@@ -1381,7 +1390,7 @@ export default function BattleScreen() {
         const title =
           pileView === "deck"
             ? `山札の中身（${cards.length}枚）`
-            : `${isCpu ? "CPUの" : "あなたの"}場外（${cards.length}枚）`;
+            : `${isCpu ? `${oppLabel}の` : "あなたの"}場外（${cards.length}枚）`;
         return (
           <Overlay title={title} onClose={() => setPileView(null)}>
             {pileView === "deck" && (
@@ -1458,11 +1467,11 @@ export default function BattleScreen() {
           <Text style={styles.resultText}>
             {view.phase.reason === "deckOut"
               ? view.phase.winner === ME
-                ? "CPUの山札が切れました"
+                ? `${oppLabel}の山札が切れました`
                 : "山札が切れてしまいました"
               : view.phase.winner === ME
                 ? "学科10時限・技能19時限を達成！卒業おめでとう！"
-                : "CPUが先に教習を修了しました"}
+                : `${oppLabel}が先に教習を修了しました`}
           </Text>
           {/* 今回の連戦と通算の成績 */}
           <View style={styles.recordRow}>
@@ -1945,8 +1954,8 @@ function BattleCutIn({
   }));
 
   // 左に攻撃側、右に守備側を置く
-  const leftLabel = atkIsCpu ? "CPU・アタック" : "あなた・アタック";
-  const rightLabel = atkIsCpu ? "あなた・ディフェンス" : "CPU・ディフェンス";
+  const leftLabel = atkIsCpu ? `${oppLabel}・アタック` : "あなた・アタック";
+  const rightLabel = atkIsCpu ? "あなた・ディフェンス" : `${oppLabel}・ディフェンス`;
 
   return (
     <Animated.View style={[styles.cutinWrap, shakeStyle]} pointerEvents="none">
@@ -2062,7 +2071,7 @@ function LessonCutIn({
       )}
       <Animated.View style={[popStyle, styles.lessonCutBody]}>
         <View style={[styles.lessonCutBadge, { backgroundColor: mine ? colors.success : colors.danger }]}>
-          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
+          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : oppLabel}</Text>
         </View>
         <Text style={[styles.lessonCutTitle, { color }]} allowFontScaling={false}>
           {TRACK_LABEL[track]} {gained ? `＋${amount}` : `−${-amount}`}
@@ -2213,7 +2222,7 @@ function PowerCutIn({
             { backgroundColor: mine ? colors.success : colors.danger },
           ]}
         >
-          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
+          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : oppLabel}</Text>
         </View>
         <Text style={[styles.powerCutTitle, { color }]} allowFontScaling={false}>
           {label} {up ? `＋${amount}` : `−${-amount}`}
@@ -2434,7 +2443,7 @@ function OwnerBadge({ owner }: { owner: Owner }) {
         { backgroundColor: isSelf ? colors.success : colors.danger },
       ]}
     >
-      <Text style={styles.ownerBadgeText}>{isSelf ? "あなた" : "CPU"}</Text>
+      <Text style={styles.ownerBadgeText}>{isSelf ? "あなた" : oppLabel}</Text>
     </View>
   );
 }
