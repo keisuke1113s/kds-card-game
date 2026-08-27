@@ -1054,10 +1054,12 @@ export default function BattleScreen() {
               ))}
             </View>
           ) : (
+            <>
+            {/* 案内文はカードを並べる箱の外に置く（中に入れると並びが崩れる） */}
+            {humanChoice.options.some((o) => o.cardId) && (
+              <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
+            )}
             <View style={styles.overlayCards}>
-              {humanChoice.options.some((o) => o.cardId) && (
-                <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
-              )}
               {humanChoice.options.map((o, i) =>
                 o.cardId ? (
                   <CardFace
@@ -1076,6 +1078,7 @@ export default function BattleScreen() {
                 )
               )}
             </View>
+            </>
           )}
         </Overlay>
       )}
