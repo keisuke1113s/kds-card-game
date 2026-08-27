@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
 import { cardThumbs } from "@/data/images";
 import { CardFace } from "./CardFace";
@@ -65,14 +65,17 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
 }
 
 const styles = StyleSheet.create({
-  scroll: { alignSelf: "stretch", maxHeight: 480 },
-  container: { alignItems: "center", gap: 10, paddingBottom: 4 },
+  scroll: {
+    alignSelf: "stretch",
+    maxHeight: Math.min(560, Dimensions.get("window").height * 0.58),
+  },
+  container: { alignItems: "center", gap: 8, paddingBottom: 8 },
   plain: { alignSelf: "stretch" },
   cardWrap: {
     alignItems: "center",
     justifyContent: "center",
     width: cardSize.lg.width + 78,
-    height: cardSize.lg.height + 30,
+    height: cardSize.lg.height + 16,
   },
   backCard: {
     position: "absolute",

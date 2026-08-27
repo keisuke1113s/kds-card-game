@@ -2,6 +2,7 @@ import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   DimensionValue,
+  Dimensions,
   Pressable,
   ScrollView,
   StyleProp,
@@ -87,6 +88,8 @@ interface Announcement {
   amount?: number;
   newValue?: number;
   goal?: number;
+  /** kind === "power" のとき、何の力か（教習力／戦闘力） */
+  powerLabel?: string;
 }
 
 let annSeq = 0;
@@ -170,6 +173,19 @@ function announcementsFor(events: GameEvent[], state: GameState | null): Announc
             text: "",
             mine: e.player === HUMAN,
             amount: e.amount,
+            powerLabel: "教習力",
+          });
+        }
+        break;
+      case "combatModApplied":
+        if (e.amount !== 0) {
+          out.push({
+            key: ++annSeq,
+            kind: "power",
+            text: "",
+            mine: e.player === HUMAN,
+            amount: e.amount,
+            powerLabel: "戦闘力",
           });
         }
         break;
@@ -386,6 +402,22 @@ export default function BattleScreen() {
   useEffect(() => {
     if (choiceActive) setPreviewHandIndex(null);
   }, [choiceActive]);
+
+  // 「場外」リンクの画面上の位置。場外へ飛ぶ演出の着地点に使う
+  const outPos = useRef<{ mine: { x: number; y: number } | null; cpu: { x: number; y: number } | null }>({
+    mine: null,
+    cpu: null,
+  });
+  const myOutRef = useRef<View>(null);
+  const cpuOutRef = useRef<View>(null);
+  const measureOutLinks = useCallback(() => {
+    myOutRef.current?.measureInWindow((x, y, w, h) => {
+      outPos.current.mine = { x: x + w / 2, y: y + h / 2 };
+    });
+    cpuOutRef.current?.measureInWindow((x, y, w, h) => {
+      outPos.current.cpu = { x: x + w / 2, y: y + h / 2 };
+    });
+  }, []);
 
   // 場外へ飛んでいくカードの演出。実況を読み終えてから再生する
   const [pendingOuts, setPendingOuts] = useState<{ cardId: string; mine: boolean }[]>([]);
@@ -660,7 +692,12 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>CPU {aiThinking ? "🤔" : ""}</Text>
           <Text style={styles.infoText}>手札 {cpu.hand.length}</Text>
           <Text style={styles.infoText}>山札 {cpu.deck.length}</Text>
-          <Pressable onPress={() => setPileView("cpuOutOfPlay")} hitSlop={6}>
+          <Pressable
+            ref={cpuOutRef}
+            onPress={() => setPileView("cpuOutOfPlay")}
+            hitSlop={6}
+            onLayout={measureOutLinks}
+          >
             <Text style={styles.infoLink}>場外 {cpu.outOfPlay.length} ▸</Text>
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
@@ -846,7 +883,12 @@ export default function BattleScreen() {
           <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
             <Text style={styles.infoLink}>山札 {me.deck.length} ▸</Text>
           </Pressable>
-          <Pressable onPress={() => setPileView("outOfPlay")} hitSlop={6}>
+          <Pressable
+            ref={myOutRef}
+            onPress={() => setPileView("outOfPlay")}
+            hitSlop={6}
+            onLayout={measureOutLinks}
+          >
             <Text style={styles.infoLink}>場外 {me.outOfPlay.length} ▸</Text>
           </Pressable>
           <PulseRing active={tantouUsable} style={tantouUsable ? styles.tantouUsable : undefined}>
@@ -935,6 +977,7 @@ export default function BattleScreen() {
               cardId={c.cardId}
               mine={c.mine}
               index={i}
+              target={c.mine ? outPos.current.mine : outPos.current.cpu}
               onDone={i === outFx.cards.length - 1 ? () => setOutFx(null) : undefined}
             />
           ))}
@@ -972,6 +1015,7 @@ export default function BattleScreen() {
               key={currentAnn.key}
               mine={currentAnn.mine ?? false}
               amount={currentAnn.amount ?? 0}
+              label={currentAnn.powerLabel ?? "教習力"}
             />
           ) : currentAnn.kind === "lesson" ? (
             <LessonCutIn
@@ -2012,14 +2056,22 @@ function FlyToOut({
   cardId,
   mine,
   index,
+  target,
   onDone,
 }: {
   cardId: string;
   mine: boolean;
   index: number;
+  /** 画面上の「場外」リンクの位置。取れなければ方向の決め打ちで飛ばす */
+  target: { x: number; y: number } | null;
   onDone?: () => void;
 }) {
   const p = useSharedValue(0);
+
+  // 画面中央からの差分で着地点を決める
+  const win = Dimensions.get("window");
+  const dx = target ? target.x - win.width / 2 : -130;
+  const dy = target ? target.y - win.height / 2 : mine ? 210 : -260;
 
   useEffect(() => {
     playSe("hit");
@@ -2033,15 +2085,15 @@ function FlyToOut({
   }, []);
 
   const style = useAnimatedStyle(() => {
-    // 出だしで少し拡大して見せてから、場外の方向へ飛ばす
+    // 出だしで少し拡大して見せてから、場外の位置へ吸い込む
     const appear = Math.min(1, p.value * 4);
     const fly = Math.max(0, (p.value - 0.3) / 0.7);
     return {
-      opacity: appear * (1 - Math.max(0, (p.value - 0.85) / 0.15)),
+      opacity: appear * (1 - Math.max(0, (p.value - 0.9) / 0.1)),
       transform: [
-        { translateX: fly * -130 },
-        { translateY: fly * (mine ? 210 : -260) },
-        { scale: 0.6 + appear * 0.7 - fly * 0.9 },
+        { translateX: fly * dx },
+        { translateY: fly * dy },
+        { scale: 0.6 + appear * 0.7 - fly * 1.05 },
         { rotate: `${fly * (mine ? 300 : -300)}deg` },
       ],
     };
@@ -2061,7 +2113,16 @@ function FlyToOut({
  * 上がり: 金色の「教習力 ＋N」が輝きとともに飛び出す。
  * 下がり: 青ざめた「教習力 −N」が沈み込み、画面が揺れる。
  */
-function PowerCutIn({ mine, amount }: { mine: boolean; amount: number }) {
+function PowerCutIn({
+  mine,
+  amount,
+  label,
+}: {
+  mine: boolean;
+  amount: number;
+  /** 教習力／戦闘力 */
+  label: string;
+}) {
   const up = amount > 0;
   const pop = useSharedValue(0);
   const glow = useSharedValue(0);
@@ -2103,8 +2164,10 @@ function PowerCutIn({ mine, amount }: { mine: boolean; amount: number }) {
     transform: [{ scale: 1.1 + glow.value * 0.35 }],
   }));
 
-  const color = up ? "#ffd54f" : "#90a4c8";
-  const emoji = up ? "\u{1F4AA}" : "\u{1F4C9}";
+  // 教習力は金色、戦闘力は炎のオレンジ。下がりは青ざめた色
+  const combat = label === "戦闘力";
+  const color = up ? (combat ? "#ff8a65" : "#ffd54f") : "#90a4c8";
+  const emoji = up ? (combat ? "\u{2694}\u{FE0F}" : "\u{1F4AA}") : "\u{1F4C9}";
 
   return (
     <View style={styles.lessonCutWrap} pointerEvents="none">
@@ -2122,7 +2185,7 @@ function PowerCutIn({ mine, amount }: { mine: boolean; amount: number }) {
           <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
         </View>
         <Text style={[styles.powerCutTitle, { color }]} allowFontScaling={false}>
-          教習力 {up ? `＋${amount}` : `−${-amount}`}
+          {label} {up ? `＋${amount}` : `−${-amount}`}
         </Text>
         <Text style={styles.lessonCutSub}>
           {up ? "インストラクターの力が上がった！" : "インストラクターの力が下がった…"}
@@ -2232,12 +2295,13 @@ function CardRain({ cardIds }: { cardIds: string[] }) {
 }
 
 function RainCard({ cardId, index }: { cardId: string; index: number }) {
-  // 見た目を散らすための固定値（乱数だと再レンダーのたびに変わってしまう）
-  const left = `${(index * 47 + 13) % 92}%`;
-  const delay = (index % 11) * 260;
-  const duration = 3000 + (index % 6) * 350;
-  const spin = (index % 2 === 0 ? 1 : -1) * (540 + (index % 4) * 120);
-  const drift = ((index % 5) - 2) * 26;
+  // 見た目を散らすための固定値（乱数だと再レンダーのたびに変わってしまう）。
+  // 黄金角ベースの散布で、位置もタイミングも画面全体に広くばらける
+  const left = `${(index * 61.8 + 7) % 95}%`;
+  const delay = Math.floor((index * 1371) % 4600);
+  const duration = 2800 + ((index * 977) % 2400);
+  const spin = (index % 2 === 0 ? 1 : -1) * (420 + ((index * 173) % 480));
+  const drift = (((index * 89) % 7) - 3) * 30;
 
   const progress = useSharedValue(0);
   useEffect(() => {
