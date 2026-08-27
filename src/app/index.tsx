@@ -57,6 +57,11 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+        {/* 社外に出さないための注意書き（最上部に固定で目立たせる） */}
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
+        </View>
+
         {/* タイトル：カード裏面を扇状に並べた上にロゴを置く */}
         <View style={styles.hero}>
           <View style={styles.fanRow}>
@@ -102,11 +107,6 @@ export default function HomeScreen() {
               <GoalChip label="技能" value="19時限" color={colors.success} />
             </View>
           </View>
-        </View>
-
-        {/* 社外に出さないための注意書き */}
-        <View style={styles.warning}>
-          <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
 
         {/* メニュー */}
@@ -361,7 +361,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     paddingVertical: 6,
     paddingHorizontal: 14,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
   },
   warningText: {
     color: colors.danger,
