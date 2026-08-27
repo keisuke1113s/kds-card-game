@@ -1,5 +1,5 @@
 import React from "react";
-import { FlatList, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -9,6 +9,7 @@ import { colors, radius, spacing } from "@/theme";
 /** 対戦記録の一覧（新しい順）。練習対戦は記録されない */
 export default function RecordsScreen() {
   const history = useRecordStore((s) => s.history);
+  const [tab, setTab] = React.useState<"list" | "stats">("list");
 
   const cpu = history.filter((h) => h.mode === "cpu");
   const online = history.filter((h) => h.mode === "online");
@@ -16,6 +17,25 @@ export default function RecordsScreen() {
 
   return (
     <ScreenEnter style={styles.root}>
+      <View style={styles.tabRow}>
+        {(
+          [
+            { key: "list", label: "📜 記録" },
+            { key: "stats", label: "📊 分析" },
+          ] as const
+        ).map((t) => (
+          <Pressable
+            key={t.key}
+            style={[styles.tabButton, tab === t.key && styles.tabButtonActive]}
+            onPress={() => setTab(t.key)}
+          >
+            <Text style={[styles.tabText, tab === t.key && styles.tabTextActive]}>{t.label}</Text>
+          </Pressable>
+        ))}
+      </View>
+      {tab === "stats" ? (
+        <StatsView history={history} />
+      ) : (
       <FlatList
         data={history}
         keyExtractor={(h) => h.at}
@@ -36,7 +56,94 @@ export default function RecordsScreen() {
         }
         renderItem={({ item }) => <RecordRow record={item} />}
       />
+      )}
     </ScreenEnter>
+  );
+}
+
+/** 集計1行（名前・勝敗・勝率バー） */
+function StatRow({ label, list }: { label: string; list: MatchRecord[] }) {
+  const wins = list.filter((h) => h.result === "win").length;
+  const total = list.length;
+  const rate = total > 0 ? wins / total : 0;
+  return (
+    <View style={styles.statRow}>
+      <Text style={styles.statLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.statTrack}>
+        <View style={[styles.statFill, { width: `${rate * 100}%` }]} />
+      </View>
+      <Text style={styles.statValue}>
+        {wins}勝{total - wins}敗（{Math.round(rate * 100)}%）
+      </Text>
+    </View>
+  );
+}
+
+/** 分析タブ: デッキ別・相手別・先攻後攻別・CPUの強さ別の勝率 */
+function StatsView({ history }: { history: MatchRecord[] }) {
+  const groupBy = (keyOf: (r: MatchRecord) => string | null) => {
+    const map = new Map<string, MatchRecord[]>();
+    for (const r of history) {
+      const k = keyOf(r);
+      if (k === null) continue;
+      map.set(k, [...(map.get(k) ?? []), r]);
+    }
+    // 対戦数の多い順
+    return [...map.entries()].sort((a, b) => b[1].length - a[1].length);
+  };
+
+  const byDeck = groupBy((r) => r.myDeckName);
+  const byOpponent = groupBy((r) => (r.mode === "online" ? (r.opponentName ?? "相手") : null));
+  const byDifficulty = groupBy((r) =>
+    r.mode === "cpu" ? (DIFFICULTY_LABELS[r.difficulty as Difficulty] ?? "ふつう") : null
+  );
+
+  if (history.length === 0) {
+    return (
+      <View style={styles.emptyBox}>
+        <Text style={styles.emptyText}>まだ記録がありません。対戦すると分析が表示されます。</Text>
+      </View>
+    );
+  }
+
+  return (
+    <FlatList
+      data={[0]}
+      keyExtractor={() => "stats"}
+      contentContainerStyle={styles.list}
+      renderItem={() => (
+        <View style={{ gap: 6 }}>
+          <Text style={styles.statsSection}>先攻・後攻</Text>
+          <StatRow label="先攻のとき" list={history.filter((r) => r.first)} />
+          <StatRow label="後攻のとき" list={history.filter((r) => !r.first)} />
+
+          <Text style={styles.statsSection}>デッキ別</Text>
+          {byDeck.map(([name, list]) => (
+            <StatRow key={name} label={name} list={list} />
+          ))}
+
+          {byDifficulty.length > 0 && (
+            <>
+              <Text style={styles.statsSection}>CPUの強さ別</Text>
+              {byDifficulty.map(([name, list]) => (
+                <StatRow key={name} label={`CPU（${name}）`} list={list} />
+              ))}
+            </>
+          )}
+
+          {byOpponent.length > 0 && (
+            <>
+              <Text style={styles.statsSection}>オンラインの相手別</Text>
+              {byOpponent.map(([name, list]) => (
+                <StatRow key={name} label={name} list={list} />
+              ))}
+            </>
+          )}
+        </View>
+      )}
+    />
   );
 }
 
@@ -97,6 +204,31 @@ function RecordRow({ record }: { record: MatchRecord }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 },
+  tabRow: { flexDirection: "row", gap: spacing.sm, padding: spacing.md, paddingBottom: 0 },
+  tabButton: {
+    flex: 1,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 9,
+    alignItems: "center",
+  },
+  tabButtonActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  tabText: { fontWeight: "800", color: colors.text, fontSize: 13 },
+  tabTextActive: { color: "#fff" },
+  statsSection: { fontSize: 14, fontWeight: "900", color: colors.text, marginTop: 10 },
+  statRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  statLabel: { width: 110, fontSize: 12, fontWeight: "800", color: colors.textMuted },
+  statTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+  },
+  statFill: { height: "100%", borderRadius: 5, backgroundColor: colors.success },
+  statValue: { width: 118, fontSize: 11, fontWeight: "800", color: colors.text, textAlign: "right" },
   summaryBox: {
     flexDirection: "row",
     backgroundColor: colors.surface,
