@@ -96,6 +96,7 @@ export default function RootLayout() {
         <Stack.Screen name="deck/[deckId]" options={{ title: "デッキ構築" }} />
         <Stack.Screen name="library/index" options={{ title: "カード図鑑" }} />
         <Stack.Screen name="scan" options={{ title: "カードのQR登録" }} />
+        <Stack.Screen name="records" options={{ title: "対戦記録" }} />
         <Stack.Screen name="admin" options={{ title: "カード管理" }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}

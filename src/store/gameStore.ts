@@ -9,6 +9,7 @@ import { DeckList } from "@/engine/deckRules";
 import { getLegalActions } from "@/engine/legalActions";
 import { applyAction, playerToAct } from "@/engine/reducer";
 import { redactEventsFor, viewFor } from "@/engine/view";
+import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useRecordStore } from "@/store/recordStore";
 import {
   GameAction,
@@ -138,6 +139,56 @@ let onlineSession: { serverUrl: string; code: string; sessionToken: string } | n
 let onlineSeat: number | null = null;
 /** じゃんけん結果の表示を自動で閉じるためのタイマー */
 let jankenTimer: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * いま進行中の対局の記録用メモ。決着時に対戦記録として保存する。
+ * 練習対戦（tutorial）は記録しない
+ */
+let matchMeta: {
+  mode: "cpu" | "online";
+  difficulty: string | null;
+  deckName: string;
+  startedAt: number;
+  tutorial: boolean;
+  turns: number;
+  firstIsMe: boolean | null;
+} | null = null;
+
+/** イベントを見て対戦メモを進め、決着していたら対戦記録に保存する */
+function trackMatchEvents(
+  events: GameEvent[],
+  viewAfter: PlayerView | null,
+  myId: PlayerId
+): void {
+  if (!matchMeta) return;
+  for (const e of events) {
+    if (e.type === "gameStarted") matchMeta.firstIsMe = e.firstPlayer === myId;
+    if (e.type === "turnStarted") matchMeta.turns = e.turnNumber;
+    if (e.type === "gameEnded") {
+      const meta = matchMeta;
+      matchMeta = null; // 二重記録を防ぐ
+      if (meta.tutorial) return; // 練習対戦は記録しない
+      const opponentName = meta.mode === "online" ? (useGameStore.getState().opponentName ?? "相手") : null;
+      useRecordStore.getState().addMatch({
+        at: new Date().toISOString(),
+        mode: meta.mode,
+        opponentName,
+        difficulty: meta.difficulty,
+        result: e.winner === myId ? "win" : "lose",
+        reason: e.reason === "deckOut" ? "deckOut" : "complete",
+        myDeckName: meta.deckName,
+        first: meta.firstIsMe ?? true,
+        turns: meta.turns,
+        durationSec: Math.max(0, Math.round((Date.now() - meta.startedAt) / 1000)),
+        myAcademic: viewAfter?.self.academic ?? 0,
+        mySkill: viewAfter?.self.skill ?? 0,
+        oppAcademic: viewAfter?.opponent.academic ?? 0,
+        oppSkill: viewAfter?.opponent.skill ?? 0,
+      });
+      return;
+    }
+  }
+}
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 /** オンラインの受信バッファ（演出中に届いた更新をため、順に流す） */
@@ -280,6 +331,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
           else rec.addLoss();
         }
       }
+      trackMatchEvents(events, get().view, HUMAN);
       playEventSounds(events);
       scheduleAI();
     } catch (e) {
@@ -369,6 +421,17 @@ export const useGameStore = create<GameStore>()((set, get) => {
         tutorial,
         autoPlay: false,
       });
+      // 対戦記録用のメモを始める（決着時に保存。練習対戦は保存しない）
+      matchMeta = {
+        mode: "cpu",
+        difficulty,
+        deckName: resolveActiveDeck(useDeckStore.getState()).name,
+        startedAt: Date.now(),
+        tutorial,
+        turns: 0,
+        firstIsMe: null,
+      };
+      trackMatchEvents(events, get().view, HUMAN);
       // マリガンはCPUが後から決めても問題ないため、人間の入力を待つ
       scheduleAI();
     },
@@ -406,11 +469,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
           const all = pendingUpdates;
           pendingUpdates = [];
           const events = all.flatMap((u) => u.events);
+          const latest = all[all.length - 1].view;
           set({
-            view: all[all.length - 1].view,
+            view: latest,
             lastEvents: [],
             eventLog: [...get().eventLog, ...events],
           });
+          trackMatchEvents(events, latest, latest.playerId);
           return;
         }
         const next = pendingUpdates.shift()!;
@@ -419,6 +484,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
           lastEvents: next.events,
           eventLog: [...get().eventLog, ...next.events],
         });
+        trackMatchEvents(next.events, next.view, next.view.playerId);
         playEventSounds(next.events);
       };
       onlineDrain = drainUpdates;
@@ -534,6 +600,16 @@ export const useGameStore = create<GameStore>()((set, get) => {
               gameToken++;
               clearAiTimer();
               pendingUpdates = [];
+              // 対戦記録用のメモ（オンライン対戦）
+              matchMeta = {
+                mode: "online",
+                difficulty: null,
+                deckName: resolveActiveDeck(useDeckStore.getState()).name,
+                startedAt: Date.now(),
+                tutorial: false,
+                turns: 0,
+                firstIsMe: null,
+              };
               set({
                 mode: "online",
                 onlineStatus: "playing",
@@ -630,6 +706,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
     quitGame: () => {
       gameToken++;
       clearAiTimer();
+      matchMeta = null; // 途中でやめた対局は記録しない
       // ランダムマッチの相手待ち中にCPU対戦をやめたときは、待ちの解除をホームで知らせる
       // （オンライン画面の「やめる」で自分から解除した場合は知らせない）
       const wasQueued = get().queueActive && get().mode === "local" && get().state !== null;

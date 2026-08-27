@@ -181,13 +181,16 @@ export default function HomeScreen() {
               {opponentDeck.name}
             </Text>
           </View>
-          {/* 通算成績（1戦でもしたら出す） */}
+          {/* 通算成績（1戦でもしたら出す）。タップで対戦記録の一覧へ */}
           {record.wins + record.losses > 0 && (
-            <Text style={styles.recordLine}>
-              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
-              <Text style={styles.recordLose}>{record.losses}敗</Text>
-              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
-            </Text>
+            <Pressable onPress={() => router.push("/records")}>
+              <Text style={styles.recordLine}>
+                通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+                <Text style={styles.recordLose}>{record.losses}敗</Text>
+                {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
+              </Text>
+              <Text style={styles.recordLink}>📜 対戦記録を見る ▸</Text>
+            </Pressable>
           )}
 
           <View style={styles.row}>
@@ -417,6 +420,13 @@ const styles = StyleSheet.create({
   },
   goalLabel: { fontSize: 12, fontWeight: "800" },
   goalValue: { fontSize: 13, fontWeight: "800", color: colors.text },
+  recordLink: {
+    textAlign: "center",
+    fontSize: 12,
+    fontWeight: "800",
+    color: colors.primary,
+    marginTop: 2,
+  },
   recordLine: {
     textAlign: "center",
     fontSize: 13,
