@@ -1,14 +1,15 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React from "react";
+import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
-import { useGameStore } from "@/store/gameStore";
+import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
+import { MatchPrep } from "@/components/MatchPrep";
 
 const speeds: { label: string; ms: number }[] = [
   { label: "はやい", ms: 700 },
@@ -39,7 +40,10 @@ export default function PrematchScreen() {
   const playerDeck = resolveActiveDeck(deckState);
   const opponentDeck = cpuDeckFor(playerDeck, deckState.builtinOverrides);
 
-  const start = () => {
+  // 説明書どおり、シャッフル → じゃんけん の順に準備してから始める
+  const [preparing, setPreparing] = useState(false);
+
+  const begin = (firstPlayerIsMe: boolean) => {
     startGame({
       playerDeck: playerDeck.list,
       cpuDeck: opponentDeck.list,
@@ -47,6 +51,7 @@ export default function PrematchScreen() {
       difficulty: isTutorial ? "easy" : difficulty,
       aiSpeedMs: isTutorial ? 1600 : aiSpeedMs,
       tutorial: isTutorial,
+      firstPlayer: firstPlayerIsMe ? HUMAN : CPU,
     });
     router.replace("/battle");
   };
@@ -132,10 +137,23 @@ export default function PrematchScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Pressable style={styles.startButton} onPress={start}>
+        <Pressable style={styles.startButton} onPress={() => setPreparing(true)}>
           <Text style={styles.startText}>{isTutorial ? "練習対戦を始める" : "この設定で対戦する"}</Text>
         </Pressable>
       </View>
+
+      {preparing && (
+        <MatchPrep
+          cardIds={[
+            ...playerDeck.list.main,
+            playerDeck.list.tantou,
+            ...opponentDeck.list.main,
+            opponentDeck.list.tantou,
+          ]}
+          onDecided={begin}
+          onCancel={() => setPreparing(false)}
+        />
+      )}
     </ScreenEnter>
   );
 }

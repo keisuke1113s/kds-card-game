@@ -87,6 +87,11 @@ export default function HomeScreen() {
           </View>
         </View>
 
+        {/* 社外に出さないための注意書き */}
+        <View style={styles.warning}>
+          <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
+        </View>
+
         {/* メニュー */}
         <Animated.View entering={FadeInDown.duration(350)} style={styles.menu}>
           {inProgress && (
@@ -100,6 +105,13 @@ export default function HomeScreen() {
             />
           )}
 
+          <AppButton
+            label="はじめての方へ（遊び方）"
+            icon="📖"
+            tone="accent"
+            fullWidth
+            onPress={() => router.push("/tutorial")}
+          />
           <AppButton
             label="CPU対戦"
             iconNode={<CrossedCards />}
@@ -119,13 +131,6 @@ export default function HomeScreen() {
             </Text>
           </View>
 
-          <AppButton
-            label="はじめての方へ（遊び方）"
-            icon="📖"
-            tone="accent"
-            fullWidth
-            onPress={() => router.push("/tutorial")}
-          />
           <View style={styles.row}>
             <AppButton
               label="デッキ構築"
@@ -302,7 +307,24 @@ const styles = StyleSheet.create({
   },
   goalLabel: { fontSize: 12, fontWeight: "800" },
   goalValue: { fontSize: 13, fontWeight: "800", color: colors.text },
-  menu: { gap: spacing.md },
+  warning: {
+    alignSelf: "center",
+    backgroundColor: "#ffe5e5",
+    borderWidth: 2,
+    borderColor: colors.danger,
+    borderRadius: radius.md,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    marginBottom: spacing.sm,
+  },
+  warningText: {
+    color: colors.danger,
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  // 余った高さはメニューの上下に均等に配ける（下だけに空白が寄らないように）
+  menu: { gap: spacing.md, flex: 1, justifyContent: "center" },
   row: { flexDirection: "row", gap: spacing.md },
   flex: { flex: 1 },
   buttonCardIcon: {
@@ -339,7 +361,6 @@ const styles = StyleSheet.create({
   matchupSide: { fontSize: 12, fontWeight: "600", color: colors.textMuted, flexShrink: 1 },
   matchupVs: { fontSize: 11, fontWeight: "900", color: colors.accent },
   footer: {
-    marginTop: "auto",
     marginBottom: spacing.md,
     textAlign: "center",
     color: colors.textMuted,

@@ -1,9 +1,10 @@
 import { Stack, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
+import { preloadAllSmall } from "@/data/preload";
 import { colors, radius } from "@/theme";
 
 /**
@@ -29,6 +30,29 @@ function HomeButton() {
 }
 
 export default function RootLayout() {
+  // カードの絵を先に読み込み、そろってから起動画面を消す。
+  // 絵が後から出てくる（一瞬文字だけになる）のを防ぐため。
+  useEffect(() => {
+    let alive = true;
+    const hideBoot = () => {
+      const el = globalThis.document?.getElementById("kds-boot");
+      if (!el) return;
+      el.classList.add("kds-hide");
+      setTimeout(() => el.remove(), 400);
+    };
+    // 読み込みが長引いても、いつまでも待たせない
+    const failsafe = setTimeout(hideBoot, 6000);
+    preloadAllSmall().finally(() => {
+      if (!alive) return;
+      clearTimeout(failsafe);
+      hideBoot();
+    });
+    return () => {
+      alive = false;
+      clearTimeout(failsafe);
+    };
+  }, []);
+
   return (
     <>
       {/*

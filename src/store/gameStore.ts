@@ -43,6 +43,8 @@ interface GameStore {
     aiSpeedMs?: number;
     seed?: number;
     tutorial?: boolean;
+    /** じゃんけんで決まった先攻。省略すると乱数で決まる */
+    firstPlayer?: PlayerId;
   }) => void;
   /** 人間のアクションを適用する。不正な手は無視（UIは合法手のみ出す前提の保険） */
   dispatch: (action: GameAction) => void;
@@ -186,7 +188,15 @@ export const useGameStore = create<GameStore>()((set, get) => {
       if (!presentationBusy) scheduleAI(); // 演出が終わったらすぐ再開
     },
 
-    startGame: ({ playerDeck, cpuDeck, difficulty, aiSpeedMs = 600, seed, tutorial = false }) => {
+    startGame: ({
+      playerDeck,
+      cpuDeck,
+      difficulty,
+      aiSpeedMs = 600,
+      seed,
+      tutorial = false,
+      firstPlayer,
+    }) => {
       gameToken++;
       clearAiTimer();
       const realSeed = seed ?? randomSeed();
@@ -194,6 +204,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       const { state, events } = createGame(ctx, {
         seed: realSeed,
         decks: [playerDeck, cpuDeck],
+        firstPlayer,
       });
       set({
         state,

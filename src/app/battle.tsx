@@ -69,9 +69,9 @@ const SlamIn = new Keyframe({
 /** 場外に行くとき: 弾かれて回転しながら落ちていく */
 const SpinOut = new Keyframe({
   0: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }, { rotate: "0deg" }] },
-  35: { opacity: 1, transform: [{ scale: 1.18 }, { translateY: -14 }, { rotate: "-10deg" }] },
-  100: { opacity: 0, transform: [{ scale: 0.45 }, { translateY: 70 }, { rotate: "38deg" }] },
-}).duration(520);
+  30: { opacity: 0.95, transform: [{ scale: 1.12 }, { translateY: -12 }, { rotate: "-10deg" }] },
+  100: { opacity: 0, transform: [{ scale: 0.4 }, { translateY: 78 }, { rotate: "38deg" }] },
+}).duration(400);
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
 
@@ -326,6 +326,23 @@ export default function BattleScreen() {
     setPresentationBusy(busy);
   }, [busy, setPresentationBusy]);
 
+  // 山札から1枚引いたときの演出。実況とぶつからないよう、実況が捌けてから出す
+  const [pendingDraw, setPendingDraw] = useState<string | null>(null);
+  const [drawFx, setDrawFx] = useState<{ key: number; cardId: string } | null>(null);
+  useEffect(() => {
+    if (!state || state.phase.type === "mulligan") return;
+    const drawn = lastEvents.find(
+      (e) => e.type === "cardDrawn" && e.player === HUMAN && e.cardId
+    );
+    if (drawn && drawn.type === "cardDrawn" && drawn.cardId) setPendingDraw(drawn.cardId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+  useEffect(() => {
+    if (!pendingDraw || busy || drawFx) return;
+    setDrawFx({ key: Date.now(), cardId: pendingDraw });
+    setPendingDraw(null);
+  }, [pendingDraw, busy, drawFx]);
+
   // 対戦中BGM（bgm_battle が無ければ bgm_main）
   useEffect(() => {
     if (bgmEnabled) {
@@ -509,8 +526,8 @@ export default function BattleScreen() {
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
-        <TrackBar label="学科" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
-        <TrackBar label="技能" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
+        <TrackBar label="学科" kind="academic" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
+        <TrackBar label="技能" kind="skill" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
           state={state}
           player={CPU}
@@ -660,8 +677,8 @@ export default function BattleScreen() {
             }
           }}
         />
-        <TrackBar label="学科" value={me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
-        <TrackBar label="技能" value={me.skill} goal={SKILL_GOAL} color={colors.success} />
+        <TrackBar label="学科" kind="academic" value={me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
+        <TrackBar label="技能" kind="skill" value={me.skill} goal={SKILL_GOAL} color={colors.success} />
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>あなた</Text>
           {/* 山札・場外はタップで中身を確認できる */}
@@ -699,6 +716,14 @@ export default function BattleScreen() {
 
       {/* ===== 手札 ===== */}
       <View style={styles.handArea}>
+        {/* 山札から引いたカードが、上から降りてきて手札に加わる */}
+        {drawFx && (
+          <DrawnCard
+            key={drawFx.key}
+            cardId={drawFx.cardId}
+            onDone={() => setDrawFx(null)}
+          />
+        )}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.hand}>
           {me.hand.map((cardId, i) => {
             const playable = handActionFor(i) !== null;
@@ -1230,6 +1255,53 @@ function LatestLogLine({ text }: { text: string }) {
   );
 }
 
+/**
+ * 山札から1枚引いたときの演出。
+ * 手札の少し上に裏向きで現れ、めくれながら手札の列に吸い込まれていく。
+ */
+function DrawnCard({ cardId, onDone }: { cardId: string; onDone: () => void }) {
+  const p = useSharedValue(0);
+  const flip = useSharedValue(0);
+
+  useEffect(() => {
+    playSe("draw");
+    haptic("light");
+    p.value = withTiming(1, { duration: 700, easing: Easing.inOut(Easing.cubic) });
+    flip.value = withDelay(120, withTiming(1, { duration: 260 }));
+    const t = setTimeout(onDone, 780);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const wrap = useAnimatedStyle(() => ({
+    // 手札に重なる直前で消して、実際のカードと入れ替わったように見せる
+    opacity: p.value > 0.8 ? (1 - p.value) * 5 : 1,
+    transform: [
+      { translateY: -70 + p.value * 70 },
+      { scale: 1.15 - p.value * 0.15 },
+      { rotate: `${(1 - p.value) * -8}deg` },
+    ],
+  }));
+
+  const back = useAnimatedStyle(() => ({
+    transform: [{ perspective: 700 }, { rotateY: `${flip.value * 180}deg` }],
+  }));
+  const front = useAnimatedStyle(() => ({
+    transform: [{ perspective: 700 }, { rotateY: `${flip.value * 180 - 180}deg` }],
+  }));
+
+  return (
+    <Animated.View style={[styles.drawFx, wrap]} pointerEvents="none">
+      <Animated.View style={[styles.dealFace, back]}>
+        <CardFace cardId="cardback" size="md" faceDown />
+      </Animated.View>
+      <Animated.View style={[styles.dealFace, styles.dealFront, front]}>
+        <CardFace cardId={cardId} size="md" />
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 /** 配るテンポ（ミリ秒） */
 const DEAL_INTERVAL = 230;
 
@@ -1247,9 +1319,14 @@ function OpeningDeal({ cards, onDone }: { cards: string[]; onDone: () => void })
 
   return (
     <View style={styles.dealLayer} pointerEvents="none">
-      <Animated.Text entering={FadeIn.duration(300)} style={styles.dealTitle}>
-        手札を配っています…
-      </Animated.Text>
+      <Animated.View entering={FadeIn.duration(300)} style={styles.dealCaption}>
+        <View style={styles.dealStep}>
+          <Text style={styles.dealStepText}>3</Text>
+        </View>
+        <Text style={styles.dealTitle}>
+          山札の上から{cards.length}枚引いて手札にします
+        </Text>
+      </Animated.View>
       <View style={styles.dealStage}>
         {/* 配り元の山札 */}
         <View style={styles.dealDeck}>
@@ -1276,9 +1353,9 @@ function DealtCard({
   const flip = useSharedValue(0); // 0=裏 1=表
 
   const center = (total - 1) / 2;
-  const targetX = (index - center) * 54;
+  const targetX = (index - center) * 60;
   const targetY = 128;
-  const targetRot = (index - center) * 7;
+  const targetRot = (index - center) * 6;
 
   useEffect(() => {
     const delay = index * DEAL_INTERVAL;
@@ -1544,17 +1621,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
-  dealTitle: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "800",
-    letterSpacing: 1,
+  dealCaption: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 16 },
+  dealStep: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "#ffffff26",
+    borderWidth: 1.5,
+    borderColor: "#ffffffaa",
+    alignItems: "center",
+    justifyContent: "center",
   },
+  dealStepText: { color: "#fff", fontWeight: "900", fontSize: 13 },
+  dealTitle: { color: "#fff", fontSize: 15, fontWeight: "800", flexShrink: 1 },
   dealStage: { width: "100%", height: 260, alignItems: "center", justifyContent: "flex-start" },
   dealDeck: { position: "absolute", top: 0 },
   dealCard: { position: "absolute", top: 0 },
   dealFace: { backfaceVisibility: "hidden" },
   dealFront: { ...StyleSheet.absoluteFill },
+  // 手札エリアの上に重ねる（手札の並びに影響させない）
+  drawFx: { position: "absolute", left: 12, bottom: 6, zIndex: 10 },
   confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
   turnFxBand: {
     paddingVertical: 12,
@@ -1671,7 +1757,7 @@ const styles = StyleSheet.create({
   infoRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   playerLabel: { fontWeight: "800", color: colors.text, fontSize: 14, flexShrink: 0 },
   infoText: { color: colors.textMuted, fontSize: 12, flexShrink: 0 },
-  fieldRow: { gap: 8, paddingVertical: 4, alignItems: "center", minHeight: 92 },
+  fieldRow: { gap: 10, paddingVertical: 4, alignItems: "center", minHeight: 92 },
   fieldSlot: {
     alignItems: "center",
     padding: 3,
