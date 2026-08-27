@@ -34,6 +34,9 @@ interface GameStore {
   presentationBusy: boolean;
   /** 練習対戦（チュートリアル）中かどうか。ヒント表示に使う */
   tutorial: boolean;
+  /** 自動プレイ。ONの間は自分の手もAIが選ぶ（観戦モード） */
+  autoPlay: boolean;
+  setAutoPlay: (v: boolean) => void;
   setPresentationBusy: (v: boolean) => void;
 
   startGame: (opts: {
@@ -74,6 +77,8 @@ function randomSeed(): number {
 }
 
 let ai: AIController | null = null;
+/** 自動プレイで自分の手を選ぶAI（常に最強設定） */
+let humanAi: AIController | null = null;
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
 let gameToken = 0; // 対局をまたいだ古いタイマーの発火防止
 
@@ -85,7 +90,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
     }
   }
 
-  /** CPUの手番なら1手ずつ間隔を空けて進める */
+  /** いま手番のプレイヤーをAIが担当するか（CPUは常に、自分は自動プレイ中のみ） */
+  function aiFor(actor: PlayerId): AIController | null {
+    if (actor === CPU) return ai;
+    return get().autoPlay ? humanAi : null;
+  }
+
+  /** AIの手番なら1手ずつ間隔を空けて進める */
   function scheduleAI() {
     const token = gameToken;
     const { state, aiSpeedMs } = get();
@@ -94,11 +105,12 @@ export const useGameStore = create<GameStore>()((set, get) => {
       set({ aiThinking: false });
       return;
     }
-    if (playerToAct(state) !== CPU) {
+    const actor = playerToAct(state);
+    if (actor === null || !aiFor(actor)) {
       set({ aiThinking: false });
       return;
     }
-    set({ aiThinking: true });
+    set({ aiThinking: actor === CPU });
     clearAiTimer();
     aiTimer = setTimeout(() => {
       if (token !== gameToken) return;
@@ -108,10 +120,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
         return;
       }
       const cur = get().state;
-      if (!cur || !ai || playerToAct(cur) !== CPU) return;
-      const legal = getLegalActions(ctx, cur, CPU);
+      if (!cur) return;
+      const curActor = playerToAct(cur);
+      if (curActor === null) return;
+      const controller = aiFor(curActor);
+      if (!controller) return;
+      const legal = getLegalActions(ctx, cur, curActor);
       if (legal.length === 0) return;
-      const action = ai.chooseAction(viewFor(cur, CPU), legal);
+      const action = controller.chooseAction(viewFor(cur, curActor), legal);
       applyAndContinue(action);
     }, get().presentationBusy ? 200 : aiSpeedMs);
   }
@@ -183,6 +199,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
     aiSpeedMs: 600,
     presentationBusy: false,
     tutorial: false,
+    autoPlay: false,
+    setAutoPlay: (autoPlay) => {
+      set({ autoPlay });
+      if (autoPlay) scheduleAI(); // ONにしたら即、自分の手番から動き出す
+    },
     setPresentationBusy: (presentationBusy) => {
       set({ presentationBusy });
       if (!presentationBusy) scheduleAI(); // 演出が終わったらすぐ再開
@@ -201,6 +222,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
       clearAiTimer();
       const realSeed = seed ?? randomSeed();
       ai = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS[difficulty], realSeed ^ 0x55aa);
+      // 自動プレイ用。自分側は常に最強設定で打つ
+      humanAi = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS.hard, realSeed ^ 0x1234);
       const { state, events } = createGame(ctx, {
         seed: realSeed,
         decks: [playerDeck, cpuDeck],
@@ -214,6 +237,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         aiSpeedMs,
         presentationBusy: false,
         tutorial,
+        autoPlay: false,
       });
       // マリガンはCPUが後から決めても問題ないため、人間の入力を待つ
       scheduleAI();

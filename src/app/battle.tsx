@@ -208,6 +208,8 @@ export default function BattleScreen() {
   const startGame = useGameStore((s) => s.startGame);
   const setPresentationBusy = useGameStore((s) => s.setPresentationBusy);
   const tutorial = useGameStore((s) => s.tutorial);
+  const autoPlay = useGameStore((s) => s.autoPlay);
+  const setAutoPlay = useGameStore((s) => s.setAutoPlay);
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -289,17 +291,18 @@ export default function BattleScreen() {
       clearTimeout(annTimer.current);
       annTimer.current = null;
     }
-    // カード付きの実況はタップするまで表示したままにする（読み逃し防止）
-    if (!next.cardId) {
+    // カード付きの実況はタップするまで表示したままにする（読み逃し防止）。
+    // ただし自動プレイ中は手が止まらないよう、少し見せてから自動で進める
+    if (!next.cardId || autoPlay) {
       annTimer.current = setTimeout(
         () => {
           annTimer.current = null;
           setCurrentAnn(null);
         },
-        next.kind === "turn" ? 750 : next.kind === "battle" ? 1250 : 850
+        next.kind === "turn" ? 750 : next.kind === "battle" ? 1250 : next.cardId ? 1600 : 850
       );
     }
-  }, [currentAnn, annQueue]);
+  }, [currentAnn, annQueue, autoPlay]);
 
   useEffect(
     () => () => {
@@ -634,6 +637,19 @@ export default function BattleScreen() {
         >
           <Text style={styles.settingsText}>⚙️ 設定</Text>
         </Pressable>
+        {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ */}
+        <Pressable
+          onPress={() => {
+            haptic("light");
+            setAutoPlay(!autoPlay);
+          }}
+          hitSlop={8}
+          style={[styles.autoButton, autoPlay && styles.autoButtonOn]}
+        >
+          <Text style={[styles.settingsText, autoPlay && styles.autoTextOn]}>
+            {autoPlay ? "⏸ 自動中" : "▶ 自動"}
+          </Text>
+        </Pressable>
         {battleInfo && (
           <Animated.View entering={ZoomIn.duration(250)} style={styles.battleBanner}>
             <View style={styles.battleRow}>
@@ -951,7 +967,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "mulligan" && !me.mulliganDecided && !dealing && (
+      {state.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !autoPlay && (
         <Overlay title="この手札で始めますか？">
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
@@ -1087,7 +1103,7 @@ export default function BattleScreen() {
       )}
 
       {/* 実況・ドロー演出が残っている間は出さない（カード記載の順どおりに見せる） */}
-      {humanChoice && !busy && !drawFx && (
+      {humanChoice && !busy && !drawFx && !autoPlay && (
         <Overlay title={humanChoice.prompt}>
           {humanChoice.purpose === "janken" ? (
             <View style={styles.jankenRow}>
@@ -2247,6 +2263,20 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 1,
   },
+  autoButton: {
+    position: "absolute",
+    top: 4,
+    right: 88,
+    zIndex: 5,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 999,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  autoButtonOn: { backgroundColor: colors.primary, borderColor: colors.primary },
+  autoTextOn: { color: "#fff" },
   settingsButton: {
     position: "absolute",
     top: 4,
