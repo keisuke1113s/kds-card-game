@@ -571,8 +571,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
     quitGame: () => {
       gameToken++;
       clearAiTimer();
-      // ランダムマッチの相手待ち中にやめたときは、待ちの解除をホームで知らせる
-      const wasQueued = get().queueActive;
+      // ランダムマッチの相手待ち中にCPU対戦をやめたときは、待ちの解除をホームで知らせる
+      // （オンライン画面の「やめる」で自分から解除した場合は知らせない）
+      const wasQueued = get().queueActive && get().mode === "local" && get().state !== null;
       if (socket) {
         try {
           socket.send(JSON.stringify({ type: "leave" }));

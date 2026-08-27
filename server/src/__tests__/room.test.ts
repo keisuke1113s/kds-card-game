@@ -248,6 +248,50 @@ describe("Matchmaker（部屋の管理）", () => {
     expect(mm.findRoom("ZZZZZZ")).toBeNull();
   });
 
+  it("待機中に切断した幽霊とはマッチせず、待ち人数にも数えない", () => {
+    const mm = new Matchmaker(ctx);
+    const first = mm.joinQueue();
+    const ghost = new TestClient(30);
+    const joined = first.room.join("ゆうれい", defaultDeck, ghost.send);
+    expect("seat" in joined).toBe(true);
+    expect(mm.waitingCount).toBe(1);
+    // 待機中にタブを閉じた（対局前なので猶予タイマーは掛からない）
+    first.room.markDisconnected(ghost.seat!);
+    expect(mm.waitingCount).toBe(0);
+    // 次の人は幽霊の部屋ではなく新しい部屋で待つ
+    const second = mm.joinQueue();
+    expect(second.code).not.toBe(first.code);
+  });
+
+  it("開始時点で切断していた席は猶予切れで相手の不戦勝になる", () => {
+    const pending: (() => void)[] = [];
+    const room = new RoomCore(ctx, "TESTGHOST", {
+      setTimer: (fn) => {
+        pending.push(fn);
+        return pending.length as unknown as ReturnType<typeof setTimeout>;
+      },
+      clearTimer: (t) => {
+        pending[(t as unknown as number) - 1] = () => {};
+      },
+    });
+    const a = new TestClient(31);
+    const b = new TestClient(32);
+    room.join("ゆうれい", defaultDeck, a.send);
+    room.join("いきてる", cpuDeck, b.send);
+    // A は ready 送信後に切断（対局前なのでタイマーは仕掛からない）
+    room.setReady(a.seat!);
+    room.markDisconnected(a.seat!);
+    expect(pending.length).toBe(0);
+    // B の ready で対局開始 → 開始時に A の猶予タイマーが仕掛かる
+    room.setReady(b.seat!);
+    expect(pending.length).toBe(1);
+    pending.forEach((fn) => fn());
+    expect(b.view?.phase.type).toBe("finished");
+    if (b.view?.phase.type === "finished") {
+      expect(b.view.phase.winner).toBe(b.seat);
+    }
+  });
+
   it("ランダムマッチは2人目が同じ部屋に入る", () => {
     const mm = new Matchmaker(ctx);
     const first = mm.joinQueue();

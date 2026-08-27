@@ -77,7 +77,15 @@ export class Matchmaker {
     this.sweep();
     if (this.queueRoomCode) {
       const waiting = this.rooms.get(this.queueRoomCode);
-      if (waiting && waiting.room.playerCount === 1 && !waiting.room.started) {
+      // 待っている人の接続が生きている部屋だけマッチさせる。
+      // 待機中にタブを閉じた「幽霊」と組むと、開始直後から相手が
+      // 手を打たないまま固まってしまうため
+      if (
+        waiting &&
+        waiting.room.playerCount === 1 &&
+        waiting.room.connectedCount === 1 &&
+        !waiting.room.started
+      ) {
         const code = this.queueRoomCode;
         this.queueRoomCode = null;
         return { code, room: waiting.room };
@@ -94,12 +102,12 @@ export class Matchmaker {
     return this.rooms.size;
   }
 
-  /** ランダムマッチで相手を待っている人数（0か1） */
+  /** ランダムマッチで相手を待っている人数（0か1）。切断済みの幽霊は数えない */
   get waitingCount(): number {
     this.sweep();
     if (!this.queueRoomCode) return 0;
     const entry = this.rooms.get(this.queueRoomCode);
     if (!entry || entry.room.started) return 0;
-    return entry.room.playerCount;
+    return entry.room.connectedCount;
   }
 }

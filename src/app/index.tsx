@@ -59,7 +59,7 @@ export default function HomeScreen() {
   // ランダムマッチの相手待ちを解除して戻ってきたときのお知らせ。数秒で自動的に消す
   useEffect(() => {
     if (!queueCancelledNotice) return;
-    const timer = setTimeout(clearQueueCancelledNotice, 6000);
+    const timer = setTimeout(clearQueueCancelledNotice, 3200);
     return () => clearTimeout(timer);
   }, [queueCancelledNotice, clearQueueCancelledNotice]);
 
@@ -79,14 +79,6 @@ export default function HomeScreen() {
           <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
 
-        {/* ランダムマッチの相手待ちをやめて戻ってきたときのお知らせ */}
-        {queueCancelledNotice && (
-          <Pressable style={styles.queueNotice} onPress={clearQueueCancelledNotice}>
-            <Text style={styles.queueNoticeText}>
-              🌐 オンライン対戦の相手待ちを解除しました
-            </Text>
-          </Pressable>
-        )}
 
         {/* 開発版デモ（/dev/）のときだけ目印を出す。本番デモとネイティブでは出さない */}
         {IS_DEV_DEMO && (
@@ -240,6 +232,11 @@ export default function HomeScreen() {
 
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
         </ScrollView>
+
+        {/* ランダムマッチの相手待ちをやめて戻ってきたときの全画面のお知らせ */}
+        {queueCancelledNotice && (
+          <QueueCancelledOverlay onClose={clearQueueCancelledNotice} />
+        )}
       </SafeAreaView>
     </LinearGradient>
   );
@@ -310,6 +307,35 @@ function GoalChip({ label, value, color }: { label: string; value: string; color
       <Text style={[styles.goalLabel, { color }]}>{label}</Text>
       <Text style={styles.goalValue}>{value}</Text>
     </View>
+  );
+}
+
+/** 相手待ち解除の全画面お知らせ。ポンと出て、タップか数秒で消える */
+function QueueCancelledOverlay({ onClose }: { onClose: () => void }) {
+  const scale = useSharedValue(0.6);
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    scale.value = withSequence(
+      withTiming(1.06, { duration: 200 }),
+      withTiming(1, { duration: 120 })
+    );
+    opacity.value = withTiming(1, { duration: 180 });
+  }, [scale, opacity]);
+  const boxStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  return (
+    <Pressable style={styles.queueOverlayBg} onPress={onClose}>
+      <Animated.View style={[styles.queueOverlayBox, boxStyle]}>
+        <Text style={styles.queueOverlayEmoji}>🌐</Text>
+        <Text style={styles.queueOverlayTitle}>相手待ちを解除しました</Text>
+        <Text style={styles.queueOverlaySub}>
+          オンライン対戦のランダムマッチ待機を終了しました。{"\n"}
+          また遊ぶときは「オンライン対戦」からどうぞ。
+        </Text>
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -421,15 +447,32 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   devBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900" },
-  queueNotice: {
-    backgroundColor: "#4a3f9f",
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignSelf: "center",
-    marginTop: 8,
+  queueOverlayBg: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(12, 18, 46, 0.78)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 28,
+    zIndex: 50,
   },
-  queueNoticeText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  queueOverlayBox: {
+    alignSelf: "stretch",
+    backgroundColor: "#4a3f9f",
+    borderRadius: 20,
+    paddingVertical: 30,
+    paddingHorizontal: 22,
+    alignItems: "center",
+    gap: 8,
+  },
+  queueOverlayEmoji: { fontSize: 44 },
+  queueOverlayTitle: { color: "#fff", fontSize: 21, fontWeight: "900" },
+  queueOverlaySub: {
+    color: "#ffffffcc",
+    fontSize: 13,
+    fontWeight: "700",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   warning: {
     alignSelf: "center",
     backgroundColor: "#ffe5e5",

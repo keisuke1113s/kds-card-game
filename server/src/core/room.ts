@@ -122,6 +122,11 @@ export class RoomCore {
     return this.seats.filter((s) => s !== null).length;
   }
 
+  /** いま接続が生きている席の数（待機中に閉じた「幽霊」を見分けるため） */
+  get connectedCount(): number {
+    return this.seats.filter((s) => s?.connected).length;
+  }
+
   /**
    * 入室。デッキはこの時点で検証し、不正なら断る（対戦中の中断を防ぐ）。
    * 成功したら席番号と復帰用トークンを返す。
@@ -206,6 +211,12 @@ export class RoomCore {
     this.state = state;
     this.seats.forEach((s, i) => s?.send({ type: "matchStart", seat: i as PlayerId }));
     this.broadcast(events);
+    // 開始時点ですでに切断している席（待機中にタブを閉じた等）は、
+    // 対局開始前の切断には猶予タイマーが無いためここで仕掛け直す。
+    // 復帰しなければ猶予切れで相手の不戦勝になり、永遠の待ちを防ぐ
+    this.seats.forEach((s, i) => {
+      if (s && !s.connected) this.markDisconnected(i as PlayerId);
+    });
   }
 
   /** クライアントからの手。検証してから適用する */

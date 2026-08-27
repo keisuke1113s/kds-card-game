@@ -1,8 +1,13 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated, { FadeIn, FadeOut, SlideInLeft, SlideInRight, runOnJS } from "react-native-reanimated";
+import Animated, {
+  FadeIn,
+  FadeOut,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { getCard } from "@/data/cards";
@@ -34,15 +39,36 @@ export default function TutorialScreen() {
   };
 
   // 横スワイプでも前後に移動できるようにする。
-  // 縦のスクロールを邪魔しないよう、横に大きく動いたときだけ反応する
-  const swipe = Gesture.Pan()
-    .activeOffsetX([-24, 24])
-    .failOffsetY([-16, 16])
-    .onEnd((e) => {
-      // 練習対戦の開始はボタンだけ。最終ページの左スワイプでは何もしない
-      if (e.translationX < -60 && !isLast) runOnJS(next)();
-      else if (e.translationX > 60 && safeIndex > 0) runOnJS(prev)();
-    });
+  // ジェスチャー部品で包むとWebで縦スクロールが効かなくなるため、
+  // タッチの始点と終点だけを見て「横に大きく・縦に小さく」動いたときのみ反応する
+  const touchStart = React.useRef<{ x: number; y: number } | null>(null);
+  // ネイティブは nativeEvent 直下、Webのタッチは changedTouches に座標が入る
+  const pointOf = (e: {
+    nativeEvent: {
+      pageX?: number;
+      pageY?: number;
+      changedTouches?: ArrayLike<{ pageX: number; pageY: number }>;
+    };
+  }) => {
+    const ne = e.nativeEvent;
+    const t = ne.changedTouches?.[0] ?? ne;
+    return { x: t.pageX ?? 0, y: t.pageY ?? 0 };
+  };
+  const onTouchStart = (e: Parameters<typeof pointOf>[0]) => {
+    touchStart.current = pointOf(e);
+  };
+  const onTouchEnd = (e: Parameters<typeof pointOf>[0]) => {
+    const s = touchStart.current;
+    touchStart.current = null;
+    if (!s) return;
+    const p = pointOf(e);
+    const dx = p.x - s.x;
+    const dy = p.y - s.y;
+    if (Math.abs(dx) < 60 || Math.abs(dy) > 40) return;
+    // 練習対戦の開始はボタンだけ。最終ページの左スワイプでは何もしない
+    if (dx < 0 && !isLast) next();
+    else if (dx > 0 && safeIndex > 0) prev();
+  };
 
   return (
     <View style={styles.root}>
@@ -60,12 +86,12 @@ export default function TutorialScreen() {
         ))}
       </View>
 
-      <GestureDetector gesture={swipe}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <Animated.View
-          key={safeIndex}
-          entering={(dir === "fwd" ? SlideInRight : SlideInLeft).duration(250)}
-        >
+      <ScrollView
+        contentContainerStyle={styles.content}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        <SlideEnter key={safeIndex} fromRight={dir === "fwd"}>
           <Text style={styles.stepLabel}>
             {safeIndex + 1} / {lessons.length}
           </Text>
@@ -96,9 +122,8 @@ export default function TutorialScreen() {
               <Text style={styles.tipText}>{lesson.tip}</Text>
             </View>
           )}
-        </Animated.View>
+        </SlideEnter>
       </ScrollView>
-      </GestureDetector>
 
       {safeIndex === 0 && (
         <Text style={styles.swipeHint}>← 画面を横にスワイプしても進めます →</Text>
@@ -131,6 +156,22 @@ export default function TutorialScreen() {
       )}
     </View>
   );
+}
+
+/** スライドの入場アニメーション。
+    reanimated の entering はWebでレイアウトが崩れることがあるため共有値で行う */
+function SlideEnter({ fromRight, children }: { fromRight: boolean; children: React.ReactNode }) {
+  const tx = useSharedValue(fromRight ? 48 : -48);
+  const opacity = useSharedValue(0);
+  React.useEffect(() => {
+    tx.value = withTiming(0, { duration: 220 });
+    opacity.value = withTiming(1, { duration: 220 });
+  }, [tx, opacity]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: tx.value }],
+    opacity: opacity.value,
+  }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
