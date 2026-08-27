@@ -64,6 +64,11 @@ export default function HomeScreen() {
           <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
 
+        {/* この画面がオンライン対戦の開発版であることの目印 */}
+        <View style={styles.devBadge}>
+          <Text style={styles.devBadgeText}>🔧 オンライン対戦 開発版（動作確認用）</Text>
+        </View>
+
         {/* タイトル：カード裏面を扇状に並べた上にロゴを置く */}
         <View style={styles.hero}>
           <View style={styles.fanRow}>
@@ -372,6 +377,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     textAlign: "center",
   },
+  devBadge: {
+    alignSelf: "center",
+    backgroundColor: "#4a148c",
+    borderRadius: radius.md,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    marginBottom: spacing.sm,
+  },
+  devBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   warning: {
     alignSelf: "center",
     backgroundColor: "#ffe5e5",
