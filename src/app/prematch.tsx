@@ -4,8 +4,15 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
-import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import {
+  CHALLENGER_DECK_ID,
+  DEFAULT_DECK_ID,
+  cpuDeckFor,
+  resolveActiveDeck,
+  useDeckStore,
+} from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
+import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -35,6 +42,10 @@ export default function PrematchScreen() {
     setBgmEnabled,
     hapticsEnabled,
     setHapticsEnabled,
+    randomizeStandard,
+    setRandomizeStandard,
+    randomizeChallenger,
+    setRandomizeChallenger,
   } = useSettingsStore();
 
   const playerDeck = resolveActiveDeck(deckState);
@@ -44,9 +55,19 @@ export default function PrematchScreen() {
   const [preparing, setPreparing] = useState(false);
 
   const begin = (firstPlayerIsMe: boolean) => {
+    // ここからが新しい連戦。前回の連戦スコアはリセットする
+    useRecordStore.getState().resetSession();
+    // 設定に応じて、対戦のたびに組み込みデッキをランダムに組み直す
+    const deckStore = useDeckStore.getState();
+    if (randomizeStandard) deckStore.randomizeBuiltin(DEFAULT_DECK_ID);
+    if (randomizeChallenger) deckStore.randomizeBuiltin(CHALLENGER_DECK_ID);
+    // 組み直した内容で解決し直す
+    const latest = useDeckStore.getState();
+    const player = resolveActiveDeck(latest);
+    const opponent = cpuDeckFor(player, latest.builtinOverrides);
     startGame({
-      playerDeck: playerDeck.list,
-      cpuDeck: opponentDeck.list,
+      playerDeck: player.list,
+      cpuDeck: opponent.list,
       // 練習対戦はいちばん弱いCPU・ゆっくりの手で固定する
       difficulty: isTutorial ? "easy" : difficulty,
       aiSpeedMs: isTutorial ? 1600 : aiSpeedMs,
@@ -108,7 +129,39 @@ export default function PrematchScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>サウンド</Text>
+        <Text style={styles.sectionTitle}>デッキの入れ替え（対戦するごと）</Text>
+      <View style={styles.rowWrap}>
+        <Text style={styles.deckRandomLabel}>スタンダードデッキ</Text>
+        <View style={styles.row}>
+          <Choice
+            label="入れ替える"
+            active={randomizeStandard}
+            onPress={() => setRandomizeStandard(true)}
+          />
+          <Choice
+            label="入れ替えない"
+            active={!randomizeStandard}
+            onPress={() => setRandomizeStandard(false)}
+          />
+        </View>
+      </View>
+      <View style={styles.rowWrap}>
+        <Text style={styles.deckRandomLabel}>チャレンジャーデッキ</Text>
+        <View style={styles.row}>
+          <Choice
+            label="入れ替える"
+            active={randomizeChallenger}
+            onPress={() => setRandomizeChallenger(true)}
+          />
+          <Choice
+            label="入れ替えない"
+            active={!randomizeChallenger}
+            onPress={() => setRandomizeChallenger(false)}
+          />
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>サウンド</Text>
         <View style={styles.row}>
           <Choice
             label={`効果音 ${seEnabled ? "ON" : "OFF"}`}
@@ -193,6 +246,8 @@ function Choice({
 }
 
 const styles = StyleSheet.create({
+  rowWrap: { gap: 6, marginBottom: 4 },
+  deckRandomLabel: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 10, paddingBottom: 24 },
   matchupBox: {

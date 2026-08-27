@@ -25,7 +25,7 @@ export default function TutorialScreen() {
 
   const next = () => {
     setDir("fwd");
-    if (isLast) router.replace("/prematch?tutorial=1");
+    if (isLast) router.push("/prematch?tutorial=1");
     else setIndex((i) => Math.min(i + 1, lessons.length - 1));
   };
   const prev = () => {
@@ -39,7 +39,8 @@ export default function TutorialScreen() {
     .activeOffsetX([-24, 24])
     .failOffsetY([-16, 16])
     .onEnd((e) => {
-      if (e.translationX < -60) runOnJS(next)();
+      // 練習対戦の開始はボタンだけ。最終ページの左スワイプでは何もしない
+      if (e.translationX < -60 && !isLast) runOnJS(next)();
       else if (e.translationX > 60 && safeIndex > 0) runOnJS(prev)();
     });
 

@@ -2,7 +2,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
-import { DeckList, validateDeck } from "@/engine/deckRules";
+import { DeckList, randomDeckList, validateDeck } from "@/engine/deckRules";
 
 export interface SavedDeck {
   id: string;
@@ -33,6 +33,8 @@ interface DeckState {
   deleteDeck: (id: string) => void;
   /** 組み込みデッキを初期構成に戻す */
   resetBuiltin: (id: string) => void;
+  /** 組み込みデッキをルールを満たすランダム構成に組み直す */
+  randomizeBuiltin: (id: string) => void;
 }
 
 export const useDeckStore = create<DeckState>()(
@@ -58,6 +60,15 @@ export const useDeckStore = create<DeckState>()(
           const next = { ...s.builtinOverrides };
           delete next[id];
           return { builtinOverrides: next };
+        }),
+      randomizeBuiltin: (id) =>
+        set((s) => {
+          const seed =
+            typeof globalThis.crypto?.getRandomValues === "function"
+              ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
+              : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
+          const { deck } = randomDeckList(cardRegistry, seed);
+          return { builtinOverrides: { ...s.builtinOverrides, [id]: deck } };
         }),
     }),
     {

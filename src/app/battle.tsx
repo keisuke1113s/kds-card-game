@@ -52,7 +52,13 @@ import { TrackBar } from "@/components/TrackBar";
 import { eventText } from "@/components/eventText";
 import { hintFor } from "@/tutorial/hints";
 import { viewFor } from "@/engine/view";
-import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import {
+  CHALLENGER_DECK_ID,
+  DEFAULT_DECK_ID,
+  cpuDeckFor,
+  resolveActiveDeck,
+  useDeckStore,
+} from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -674,10 +680,16 @@ export default function BattleScreen() {
   })();
 
   const rematch = () => {
-    const deck = resolveActiveDeck(deckState);
+    // 「対戦するごとに入れ替える」設定なら、もう一度遊ぶときも組み直す
+    const st = useSettingsStore.getState();
+    const ds = useDeckStore.getState();
+    if (st.randomizeStandard) ds.randomizeBuiltin(DEFAULT_DECK_ID);
+    if (st.randomizeChallenger) ds.randomizeBuiltin(CHALLENGER_DECK_ID);
+    const latest = useDeckStore.getState();
+    const deck = resolveActiveDeck(latest);
     startGame({
       playerDeck: deck.list,
-      cpuDeck: cpuDeckFor(deck, deckState.builtinOverrides).list,
+      cpuDeck: cpuDeckFor(deck, latest.builtinOverrides).list,
       difficulty,
       aiSpeedMs,
     });
@@ -1435,11 +1447,15 @@ export default function BattleScreen() {
                 ? "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : "CPUが先に教習を修了しました"}
           </Text>
-          {/* 通算成績 */}
+          {/* 今回の連戦と通算の成績 */}
           <View style={styles.recordRow}>
+            <Text style={styles.recordSession}>
+              今回の連戦{" "}
+              <Text style={styles.recordWin}>{record.sessionWins}勝</Text>{" "}
+              <Text style={styles.recordLose}>{record.sessionLosses}敗</Text>
+            </Text>
             <Text style={styles.recordText}>
-              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
-              <Text style={styles.recordLose}>{record.losses}敗</Text>
+              通算 {record.wins}勝 {record.losses}敗
             </Text>
             {record.streak >= 2 && (
               <Text style={styles.recordStreak}>🔥 {record.streak}連勝中！</Text>
@@ -2958,7 +2974,8 @@ const styles = StyleSheet.create({
   jankenEmoji: { fontSize: 30 },
   jankenLabel: { color: "#fff", fontWeight: "700" },
   recordRow: { alignItems: "center", gap: 2 },
-  recordText: { fontSize: 16, fontWeight: "800", color: colors.text },
+  recordSession: { fontSize: 18, fontWeight: "900", color: colors.text },
+  recordText: { fontSize: 13, fontWeight: "700", color: colors.textMuted },
   recordWin: { color: colors.success, fontSize: 20, fontWeight: "900" },
   recordLose: { color: colors.danger, fontSize: 20, fontWeight: "900" },
   recordStreak: { fontSize: 14, fontWeight: "900", color: colors.accentDark },
