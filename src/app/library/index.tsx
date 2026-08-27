@@ -39,6 +39,12 @@ export default function LibraryScreen() {
             <Text style={styles.scanHint}>
               実物のKDSカードのQRコードを読み込むと、そのカードが使えるようになるよ
             </Text>
+            {/* 実カード配布の案内（ホームと同じトーンで目立たせる） */}
+            <View style={styles.promoBadge}>
+              <Text style={styles.promoText}>
+                🎁 KDSに入校すると教習毎にトレーディングカードを1枚もらえるよ！
+              </Text>
+            </View>
           </View>
         }
         renderItem={({ item: section }) => (
@@ -112,6 +118,26 @@ const styles = StyleSheet.create({
   },
   scanButtonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
   scanHint: { fontSize: 12, color: colors.textMuted, textAlign: "center", lineHeight: 18 },
+  promoBadge: {
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 9,
+    paddingHorizontal: 16,
+    marginTop: 2,
+    alignSelf: "stretch",
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  promoText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "900",
+    textAlign: "center",
+    lineHeight: 19,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "800",
