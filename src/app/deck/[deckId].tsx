@@ -35,6 +35,9 @@ export default function DeckEditScreen() {
   const [main, setMain] = useState<string[]>(existing?.list.main ?? []);
   const [tantou, setTantou] = useState<string>(existing?.list.tantou ?? "t_kuji");
   const [detailId, setDetailId] = useState<string | null>(null);
+  const [mainFilter, setMainFilter] = useState<"all" | "instructor" | "support" | "inDeck">(
+    "all"
+  );
 
   const errors = useMemo(
     () => validateDeck(cardRegistry, { main, tantou }),
@@ -109,9 +112,36 @@ export default function DeckEditScreen() {
           )}
         </View>
 
-        <Text style={styles.counter}>
-          {main.length}枚（20枚以上）・サポート {supportCount}/{supportMax}
-        </Text>
+        {/* デッキ内訳を色分きバーで見せる */}
+        <View style={styles.breakdownBox}>
+          <View style={styles.breakdownBar}>
+            <View
+              style={[
+                styles.breakdownSeg,
+                {
+                  flex: Math.max(main.length - supportCount, 0.0001),
+                  backgroundColor: colors.instructor,
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.breakdownSeg,
+                { flex: Math.max(supportCount, 0.0001), backgroundColor: colors.support },
+              ]}
+            />
+          </View>
+          <Text style={styles.counter}>
+            合計 {main.length}枚（20枚以上）｜
+            <Text style={{ color: colors.instructor, fontWeight: "800" }}>
+              インストラクター {main.length - supportCount}
+            </Text>
+            ｜
+            <Text style={{ color: colors.support, fontWeight: "800" }}>
+              サポート {supportCount}/{supportMax}
+            </Text>
+          </Text>
+        </View>
         {errors.map((e) => (
           <Text key={e} style={styles.error}>
             ⚠️ {e}
@@ -128,15 +158,46 @@ export default function DeckEditScreen() {
         </View>
 
         <Text style={styles.sectionTitle}>メインデッキ（タップで詳細・追加/除外）</Text>
+        {/* 一覧の絞り込み */}
+        <View style={styles.filterRow}>
+          {(
+            [
+              { key: "all", label: "すべて" },
+              { key: "instructor", label: "インストラクター" },
+              { key: "support", label: "サポート" },
+              { key: "inDeck", label: "デッキ内" },
+            ] as const
+          ).map((f) => (
+            <Pressable
+              key={f.key}
+              style={[styles.filterChip, mainFilter === f.key && styles.filterChipActive]}
+              onPress={() => setMainFilter(f.key)}
+            >
+              <Text
+                style={[styles.filterText, mainFilter === f.key && styles.filterTextActive]}
+              >
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
         <View style={styles.grid}>
-          {mainCards.map((c) => {
-            const inDeck = main.includes(c.id);
-            return (
-              <View key={c.id} style={inDeck ? styles.selected : undefined}>
-                <CardFace cardId={c.id} size="md" dimmed={!inDeck} onPress={() => setDetailId(c.id)} />
-              </View>
-            );
-          })}
+          {mainCards
+            .filter((c) =>
+              mainFilter === "all"
+                ? true
+                : mainFilter === "inDeck"
+                  ? main.includes(c.id)
+                  : c.type === mainFilter
+            )
+            .map((c) => {
+              const inDeck = main.includes(c.id);
+              return (
+                <View key={c.id} style={inDeck ? styles.selected : undefined}>
+                  <CardFace cardId={c.id} size="md" dimmed={!inDeck} onPress={() => setDetailId(c.id)} />
+                </View>
+              );
+            })}
         </View>
       </ScrollView>
 
@@ -221,7 +282,28 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   toolButtonText: { color: "#fff", fontWeight: "700", fontSize: 13 },
-  counter: { marginTop: 10, fontWeight: "700", color: colors.text },
+  counter: { fontWeight: "700", color: colors.text, fontSize: 12 },
+  breakdownBox: { marginTop: 10, gap: 5 },
+  breakdownBar: {
+    flexDirection: "row",
+    height: 10,
+    borderRadius: 5,
+    overflow: "hidden",
+    backgroundColor: colors.border,
+  },
+  breakdownSeg: { height: "100%" },
+  filterRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterText: { fontSize: 12, fontWeight: "800", color: colors.text },
+  filterTextActive: { color: "#fff" },
   error: { color: colors.danger, fontSize: 12, marginTop: 4 },
   sectionTitle: {
     fontSize: 15,

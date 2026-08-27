@@ -50,6 +50,17 @@ export default function DeckListScreen() {
   // Web では Alert.alert が動かないため、確認は自前のオーバーレイで行う
   const confirmDelete = (deck: SavedDeck) => setDeleting(deck);
 
+  /** デッキを複製して新しいマイデッキとして保存する（元のデッキはそのまま） */
+  const copyDeck = (deck: SavedDeck) => {
+    const id = `deck-${Date.now()}`;
+    saveDeck({
+      id,
+      name: `${deck.name}のコピー`.slice(0, 20),
+      list: { main: [...deck.list.main], tantou: deck.list.tantou },
+    });
+    setActiveDeck(id);
+  };
+
   return (
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -84,6 +95,7 @@ export default function DeckListScreen() {
               <View style={styles.deckActions}>
                 <SmallButton label="中身を見る" onPress={() => setViewing(deck)} />
                 <SmallButton label="中身を変える" onPress={() => router.push(`/deck/${deck.id}`)} />
+                <SmallButton label="コピー" onPress={() => copyDeck(deck)} />
                 {!isBuiltinDeck(deck.id) && (
                   <SmallButton label="削除" danger onPress={() => confirmDelete(deck)} />
                 )}
