@@ -59,7 +59,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 8,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
   overlayBg: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "#000000aa",

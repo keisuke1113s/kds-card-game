@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
     marginTop: 10,
     marginBottom: 6,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 , justifyContent: "center" },
   closeButton: {
     backgroundColor: colors.textMuted,
     borderRadius: 10,

@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
     marginTop: 16,
     marginBottom: 8,
   },
-  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  grid: { flexDirection: "row", flexWrap: "wrap", gap: 8 , justifyContent: "center" },
   selected: {
     borderColor: colors.primary,
     borderWidth: 2,
