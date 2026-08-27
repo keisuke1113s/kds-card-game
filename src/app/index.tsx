@@ -192,6 +192,9 @@ export default function HomeScreen() {
               <Text style={styles.recordLink}>📜 対戦記録を見る ▸</Text>
             </Pressable>
           )}
+          <Pressable onPress={() => router.push("/achievements")}>
+            <Text style={styles.recordLink}>🏅 実績と称号 ▸</Text>
+          </Pressable>
 
           <View style={styles.row}>
             <AppButton

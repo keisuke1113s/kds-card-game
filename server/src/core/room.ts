@@ -34,7 +34,7 @@ export type JankenHand = "rock" | "scissors" | "paper";
 /** サーバー→クライアントのメッセージ */
 export type ServerMessage =
   | { type: "joined"; seat: PlayerId; sessionToken: string }
-  | { type: "opponentJoined"; name: string }
+  | { type: "opponentJoined"; name: string; title?: string }
   | { type: "jankenStart" }
   | { type: "jankenResult"; hands: [JankenHand, JankenHand]; winner: PlayerId | null }
   | { type: "matchStart"; seat: PlayerId }
@@ -44,6 +44,8 @@ export type ServerMessage =
 
 export interface Seat {
   name: string;
+  /** 実績で獲得した称号（表示用） */
+  title?: string;
   deck: DeckList;
   sessionToken: string;
   ready: boolean;
@@ -159,7 +161,8 @@ export class RoomCore {
   join(
     name: string,
     deck: DeckList,
-    send: (msg: ServerMessage) => void
+    send: (msg: ServerMessage) => void,
+    title?: string
   ): { seat: PlayerId; sessionToken: string } | { error: string } {
     const errors = validateDeck(this.ctx.defs, deck);
     if (errors.length > 0) {
@@ -170,6 +173,7 @@ export class RoomCore {
 
     const seat: Seat = {
       name,
+      title,
       deck,
       sessionToken: randomToken(),
       ready: false,
@@ -180,9 +184,9 @@ export class RoomCore {
     seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken: seat.sessionToken });
     const other = this.seats[1 - seatIndex];
     if (other) {
-      other.send({ type: "opponentJoined", name });
+      other.send({ type: "opponentJoined", name, title });
       // 後から入った側にも、すでにいる相手の名前を教える
-      seat.send({ type: "opponentJoined", name: other.name });
+      seat.send({ type: "opponentJoined", name: other.name, title: other.title });
     }
     return { seat: seatIndex as PlayerId, sessionToken: seat.sessionToken };
   }

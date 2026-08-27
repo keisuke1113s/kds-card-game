@@ -17,17 +17,20 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("createRoom"),
     name: z.string().max(24),
+    title: z.string().max(24).optional(),
     deck: deckListSchema,
   }),
   z.object({
     type: z.literal("joinRoom"),
     code: z.string().min(4).max(8),
     name: z.string().max(24),
+    title: z.string().max(24).optional(),
     deck: deckListSchema,
   }),
   z.object({
     type: z.literal("joinQueue"),
     name: z.string().max(24),
+    title: z.string().max(24).optional(),
     deck: deckListSchema,
   }),
   z.object({
@@ -57,4 +60,16 @@ export function sanitizeName(raw: string): string {
     .trim()
     .slice(0, 12);
   return cleaned || "教習生";
+}
+
+/** 称号の整形。空なら undefined（称号なし） */
+export function sanitizeTitle(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const cleaned = raw
+    .normalize("NFKC")
+    // eslint-disable-next-line no-control-regex
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .trim()
+    .slice(0, 12);
+  return cleaned || undefined;
 }

@@ -14,6 +14,7 @@ import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { getCard } from "@/data/cards";
 import { checkQrPayload } from "@/data/unlock";
+import { evaluateAchievements } from "@/store/achievementStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
 import { colors, radius, spacing } from "@/theme";
@@ -62,6 +63,8 @@ export default function ScanScreen() {
     useUnlockStore.getState().unlock(cardId);
     haptic("heavy");
     setOutcome({ kind: "unlocked", cardId });
+    // コレクション系の実績を判定する
+    evaluateAchievements();
   };
 
   return (

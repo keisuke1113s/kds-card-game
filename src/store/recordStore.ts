@@ -1,6 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { DeckList } from "@/engine/deckRules";
+import { GameAction, PlayerId } from "@/engine/types";
 
 /**
  * 対戦成績。端末に保存され、アプリを閉じても消えない。
@@ -32,7 +34,24 @@ export interface MatchRecord {
   mySkill: number;
   oppAcademic: number;
   oppSkill: number;
+  /**
+   * リプレイ用データ（CPU対戦のみ）。
+   * このゲームは同じ種と同じ手順から必ず同じ展開になるため、
+   * これだけで対局を完全に再現できる
+   */
+  replay?: ReplayData;
 }
+
+export interface ReplayData {
+  seed: number;
+  playerDeck: DeckList;
+  cpuDeck: DeckList;
+  firstPlayer: PlayerId;
+  actions: GameAction[];
+}
+
+/** リプレイ付きで保存する件数（データが大きいため直近だけ残す） */
+const REPLAY_LIMIT = 30;
 
 /** 保存する対戦記録の上限（古いものから消える） */
 const HISTORY_LIMIT = 1000;
@@ -78,7 +97,18 @@ export const useRecordStore = create<RecordState>()(
           streak: 0,
           sessionLosses: s.sessionLosses + 1,
         })),
-      addMatch: (m) => set((s) => ({ history: [m, ...s.history].slice(0, HISTORY_LIMIT) })),
+      addMatch: (m) =>
+        set((s) => {
+          const history = [m, ...s.history].slice(0, HISTORY_LIMIT);
+          // リプレイデータは直近の分だけ残し、古い記録からは落とす
+          let withReplay = 0;
+          for (const r of history) {
+            if (!r.replay) continue;
+            withReplay++;
+            if (withReplay > REPLAY_LIMIT) delete r.replay;
+          }
+          return { history };
+        }),
       resetSession: () => set({ sessionWins: 0, sessionLosses: 0 }),
       reset: () =>
         set({ wins: 0, losses: 0, streak: 0, sessionWins: 0, sessionLosses: 0, history: [] }),

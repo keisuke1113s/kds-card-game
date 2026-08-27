@@ -4,7 +4,7 @@ import { cardRegistry } from "@/data/cards";
 import { GameContext, PlayerId } from "@/engine/types";
 import { Matchmaker } from "../core/matchmaker";
 import { RoomCore, ServerMessage } from "../core/room";
-import { clientMessageSchema, sanitizeName } from "../protocol/messages";
+import { clientMessageSchema, sanitizeName, sanitizeTitle } from "../protocol/messages";
 import { config } from "../config";
 
 /**
@@ -80,7 +80,7 @@ export function startServer(port: number): http.Server {
 
         case "createRoom": {
           const { code, room } = matchmaker.createRoom();
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send);
+          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;
@@ -98,7 +98,7 @@ export function startServer(port: number): http.Server {
             send({ type: "error", message: "その合言葉の部屋が見つかりません" });
             return;
           }
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send);
+          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;
@@ -111,7 +111,7 @@ export function startServer(port: number): http.Server {
 
         case "joinQueue": {
           const { code, room } = matchmaker.joinQueue();
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send);
+          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;

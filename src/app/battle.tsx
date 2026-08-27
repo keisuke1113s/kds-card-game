@@ -300,6 +300,10 @@ export default function BattleScreen() {
   const queueActive = useGameStore((s) => s.queueActive);
   const matchFound = useGameStore((s) => s.matchFound);
   const clearMatchFound = useGameStore((s) => s.clearMatchFound);
+  const opponentTitle = useGameStore((s) => s.opponentTitle);
+  const replayActive = useGameStore((s) => s.replayActive);
+  const replaySpeed = useGameStore((s) => s.replaySpeed);
+  const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
   const isOnline = matchMode === "online";
   oppLabel = isOnline ? (opponentName ?? "相手") : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
@@ -815,6 +819,12 @@ export default function BattleScreen() {
           <Text style={styles.playerLabel}>
             {isOnline ? (opponentName ?? "相手") : `CPU ${aiThinking ? "🤔" : ""}`}
           </Text>
+          {/* 相手の称号（実績で獲得したもの） */}
+          {isOnline && opponentTitle && (
+            <View style={styles.titleBadge}>
+              <Text style={styles.titleBadgeText}>{opponentTitle}</Text>
+            </View>
+          )}
           <Text style={styles.infoText}>手札 {cpu.handCount}</Text>
           <DeckCount count={cpu.deckCount} baseStyle={styles.infoText} />
           <Pressable
@@ -1242,6 +1252,30 @@ export default function BattleScreen() {
         </Animated.View>
       )}
 
+      {/* リプレイ中: 操作を受け付けず、終了と速度の操作バーだけを出す */}
+      {replayActive && (
+        <View style={styles.replayBar} pointerEvents="box-none">
+          <View style={styles.replayBadge}>
+            <Text style={styles.replayBadgeText}>▶ リプレイ再生中</Text>
+          </View>
+          <Pressable
+            style={styles.replayButton}
+            onPress={() => setReplaySpeed(replaySpeed === 1 ? 2 : 1)}
+          >
+            <Text style={styles.replayButtonText}>{replaySpeed === 1 ? "×1" : "×2"} 速さ</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.replayButton, { backgroundColor: colors.danger }]}
+            onPress={() => {
+              quitGame();
+              router.replace("/records");
+            }}
+          >
+            <Text style={styles.replayButtonText}>終了</Text>
+          </Pressable>
+        </View>
+      )}
+
       {/* リーチ演出（残り2時限以下になった瞬間の全画面カットイン） */}
       {reachFx && <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />}
 
@@ -1627,7 +1661,17 @@ export default function BattleScreen() {
             )}
           </View>
           <View style={styles.overlayButtons}>
-            {!isOnline && (
+            {replayActive && (
+              <ActionButton
+                label="記録へ戻る"
+                color={colors.primary}
+                onPress={() => {
+                  quitGame();
+                  router.replace("/records");
+                }}
+              />
+            )}
+            {!isOnline && !replayActive && (
               <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
             )}
             <ActionButton
@@ -3163,6 +3207,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  titleBadge: {
+    backgroundColor: "#c9971b",
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  titleBadgeText: { color: "#fff", fontSize: 10, fontWeight: "900" },
+  replayBar: {
+    position: "absolute",
+    top: 6,
+    left: 0,
+    right: 0,
+    zIndex: 70,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  replayBadge: {
+    backgroundColor: "#c9971b",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
+  replayBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  replayButton: {
+    backgroundColor: colors.textMuted,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  replayButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
   targetArrow: {
     position: "absolute",
     top: -20,

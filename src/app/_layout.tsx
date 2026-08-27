@@ -4,7 +4,9 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
+import { AchievementToast } from "@/components/AchievementToast";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
+import { evaluateAchievements } from "@/store/achievementStore";
 import { ensureInitialSet } from "@/store/unlockStore";
 import { colors, radius } from "@/theme";
 
@@ -37,6 +39,9 @@ export default function RootLayout() {
   // 初回起動なら、ランダムな22枚（デッキ1つ分）をこの端末の初期セットとして配る
   useEffect(() => {
     ensureInitialSet();
+    // 取りこぼした実績があれば起動時に拾う（お知らせは次の達成時のみ）
+    const t = setTimeout(evaluateAchievements, 1500);
+    return () => clearTimeout(t);
   }, []);
 
   // アプリに戻ってきたとき、カードの絵を温め直す。
@@ -116,6 +121,7 @@ export default function RootLayout() {
         <Stack.Screen name="library/index" options={{ title: "カード図鑑" }} />
         <Stack.Screen name="scan" options={{ title: "カードのQR登録" }} />
         <Stack.Screen name="records" options={{ title: "対戦記録" }} />
+        <Stack.Screen name="achievements" options={{ title: "実績と称号" }} />
         <Stack.Screen name="admin" options={{ title: "カード管理" }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
@@ -124,6 +130,8 @@ export default function RootLayout() {
           options={{ title: "設定", headerLeft: () => null, animation: "slide_from_bottom" }}
         />
       </Stack>
+      {/* 実績達成の全画面お知らせ（アプリ全体で1つ） */}
+      <AchievementToast />
     </>
   );
 }

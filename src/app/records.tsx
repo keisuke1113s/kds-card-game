@@ -1,8 +1,10 @@
+import { useRouter } from "expo-router";
 import React from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { ScreenEnter } from "@/components/ScreenEnter";
+import { useGameStore } from "@/store/gameStore";
 import { MatchRecord, useRecordStore } from "@/store/recordStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -172,6 +174,8 @@ function formatDuration(sec: number): string {
 }
 
 function RecordRow({ record }: { record: MatchRecord }) {
+  const router = useRouter();
+  const startReplay = useGameStore((s) => s.startReplay);
   const win = record.result === "win";
   const opponent =
     record.mode === "online"
@@ -197,6 +201,17 @@ function RecordRow({ record }: { record: MatchRecord }) {
         あなた 学科{record.myAcademic} 技能{record.mySkill} ─ あいて 学科{record.oppAcademic} 技能
         {record.oppSkill}
       </Text>
+      {record.replay && (
+        <Pressable
+          style={styles.replayButton}
+          onPress={() => {
+            startReplay(record.replay!);
+            router.push("/battle");
+          }}
+        >
+          <Text style={styles.replayButtonText}>▶ この対戦をリプレイで見る</Text>
+        </Pressable>
+      )}
     </View>
   );
 }
@@ -263,4 +278,13 @@ const styles = StyleSheet.create({
   date: { fontSize: 11, color: colors.textMuted, fontWeight: "700" },
   detail: { fontSize: 12, color: colors.textMuted, fontWeight: "700" },
   tracks: { fontSize: 11, color: colors.textMuted },
+  replayButton: {
+    marginTop: 4,
+    alignSelf: "flex-start",
+    backgroundColor: colors.primary,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  replayButtonText: { color: "#fff", fontSize: 12, fontWeight: "900" },
 });

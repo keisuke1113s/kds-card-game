@@ -10,7 +10,8 @@ import { getLegalActions } from "@/engine/legalActions";
 import { applyAction, playerToAct } from "@/engine/reducer";
 import { redactEventsFor, viewFor } from "@/engine/view";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
-import { useRecordStore } from "@/store/recordStore";
+import { evaluateAchievements, useAchievementStore } from "@/store/achievementStore";
+import { ReplayData, useRecordStore } from "@/store/recordStore";
 import {
   GameAction,
   GameContext,
@@ -64,6 +65,8 @@ interface GameStore {
   /** 合言葉（部屋コード）。相手に伝えて入ってもらう */
   roomCode: string | null;
   opponentName: string | null;
+  /** 相手が名乗っている称号（実績で獲得したもの） */
+  opponentTitle: string | null;
   /** オンライン対戦を開始する（部屋を作る／合言葉で入る／ランダム） */
   connectOnline: (opts: {
     serverUrl: string;
@@ -105,6 +108,11 @@ interface GameStore {
   /** ランダムマッチの相手待ちを解除して終了したことをホーム画面で知らせるための印 */
   queueCancelledNotice: boolean;
   clearQueueCancelledNotice: () => void;
+  /** リプレイ再生（CPU対戦の記録を再現する） */
+  replayActive: boolean;
+  replaySpeed: 1 | 2;
+  setReplaySpeed: (s: 1 | 2) => void;
+  startReplay: (replay: ReplayData) => void;
 }
 
 /**
@@ -152,7 +160,16 @@ let matchMeta: {
   tutorial: boolean;
   turns: number;
   firstIsMe: boolean | null;
+  /** リプレイ用（CPU対戦のみ）: 種・デッキ・全アクション */
+  replaySeed: number | null;
+  replayDecks: [DeckList, DeckList] | null;
+  replayFirst: PlayerId | null;
+  replayActions: GameAction[];
 } | null = null;
+
+/** リプレイ再生用のタイマーと残り手順 */
+let replayTimer: ReturnType<typeof setTimeout> | null = null;
+let replayQueue: GameAction[] = [];
 
 /** イベントを見て対戦メモを進め、決着していたら対戦記録に保存する */
 function trackMatchEvents(
@@ -162,7 +179,10 @@ function trackMatchEvents(
 ): void {
   if (!matchMeta) return;
   for (const e of events) {
-    if (e.type === "gameStarted") matchMeta.firstIsMe = e.firstPlayer === myId;
+    if (e.type === "gameStarted") {
+      matchMeta.firstIsMe = e.firstPlayer === myId;
+      matchMeta.replayFirst = e.firstPlayer;
+    }
     if (e.type === "turnStarted") matchMeta.turns = e.turnNumber;
     if (e.type === "gameEnded") {
       const meta = matchMeta;
@@ -184,7 +204,23 @@ function trackMatchEvents(
         mySkill: viewAfter?.self.skill ?? 0,
         oppAcademic: viewAfter?.opponent.academic ?? 0,
         oppSkill: viewAfter?.opponent.skill ?? 0,
+        // CPU対戦はリプレイできるよう手順一式も残す
+        replay:
+          meta.mode === "cpu" &&
+          meta.replaySeed !== null &&
+          meta.replayDecks !== null &&
+          meta.replayFirst !== null
+            ? {
+                seed: meta.replaySeed,
+                playerDeck: meta.replayDecks[0],
+                cpuDeck: meta.replayDecks[1],
+                firstPlayer: meta.replayFirst,
+                actions: meta.replayActions,
+              }
+            : undefined,
       });
+      // 新しく達成した実績があればお知らせを出す
+      evaluateAchievements();
       return;
     }
   }
@@ -311,6 +347,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
   function applyAndContinue(action: GameAction) {
     const prev = get().state;
     if (!prev) return;
+    // リプレイ用に全アクションを順番どおり控える（CPU対戦のみ）
+    if (matchMeta?.mode === "cpu" && !get().replayActive) {
+      matchMeta.replayActions.push(action);
+    }
     try {
       const { state, events } = applyAction(ctx, prev, action);
       // UI に渡すイベントは、人間視点の秘匿処理を必ず通す。
@@ -340,6 +380,40 @@ export const useGameStore = create<GameStore>()((set, get) => {
     }
   }
 
+  /** リプレイ: 記録された手順を一定間隔で1手ずつ適用する */
+  function scheduleReplayStep() {
+    if (replayTimer) clearTimeout(replayTimer);
+    const token = gameToken;
+    const step = () => {
+      if (token !== gameToken) return;
+      const st = get();
+      if (!st.replayActive || !st.state || st.state.phase.type === "finished") return;
+      // 演出中は捌けるまで待つ
+      if (st.presentationBusy) {
+        replayTimer = setTimeout(step, 200);
+        return;
+      }
+      const action = replayQueue.shift();
+      if (!action) return;
+      try {
+        const { state, events } = applyAction(ctx, st.state, action);
+        const visible = redactEventsFor(events, HUMAN);
+        set({
+          state,
+          view: viewFor(state, HUMAN),
+          lastEvents: visible,
+          eventLog: [...get().eventLog, ...visible],
+        });
+        playEventSounds(events);
+      } catch (e) {
+        console.warn("リプレイの再生に失敗しました:", e);
+        return;
+      }
+      replayTimer = setTimeout(step, Math.max(260, 900 / get().replaySpeed));
+    };
+    replayTimer = setTimeout(step, 900);
+  }
+
   return {
     state: null,
     view: null,
@@ -348,11 +422,52 @@ export const useGameStore = create<GameStore>()((set, get) => {
     onlineError: null,
     roomCode: null,
     opponentName: null,
+    opponentTitle: null,
     queueActive: false,
     matchFound: null,
     clearMatchFound: () => set({ matchFound: null }),
     queueCancelledNotice: false,
     clearQueueCancelledNotice: () => set({ queueCancelledNotice: false }),
+    replayActive: false,
+    replaySpeed: 1 as const,
+    setReplaySpeed: (replaySpeed) => set({ replaySpeed }),
+    startReplay: (replay) => {
+      // 進行中の対局や接続を片づけてから、記録どおりに対局を作り直す
+      gameToken++;
+      clearAiTimer();
+      if (replayTimer) clearTimeout(replayTimer);
+      closeSocket();
+      onlineSession = null;
+      matchMeta = null; // リプレイは対戦記録に入れない
+      ai = null;
+      const { state, events } = createGame(ctx, {
+        seed: replay.seed,
+        decks: [replay.playerDeck, replay.cpuDeck],
+        firstPlayer: replay.firstPlayer,
+      });
+      replayQueue = [...replay.actions];
+      const visible = redactEventsFor(events, HUMAN);
+      set({
+        state,
+        view: viewFor(state, HUMAN),
+        mode: "local",
+        onlineStatus: "idle",
+        onlineError: null,
+        roomCode: null,
+        opponentName: null,
+        queueActive: false,
+        matchFound: null,
+        eventLog: visible,
+        lastEvents: visible,
+        aiThinking: false,
+        presentationBusy: false,
+        tutorial: false,
+        autoPlay: true, // 実況を自動送りにする
+        replayActive: true,
+        replaySpeed: 1,
+      });
+      scheduleReplayStep();
+    },
     jankenActive: false,
     jankenHand: null,
     jankenResult: null,
@@ -420,6 +535,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         presentationBusy: false,
         tutorial,
         autoPlay: false,
+        replayActive: false,
       });
       // 対戦記録用のメモを始める（決着時に保存。練習対戦は保存しない）
       matchMeta = {
@@ -430,6 +546,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
         tutorial,
         turns: 0,
         firstIsMe: null,
+        replaySeed: realSeed,
+        replayDecks: [playerDeck, cpuDeck],
+        replayFirst: firstPlayer ?? null,
+        replayActions: [],
       };
       trackMatchEvents(events, get().view, HUMAN);
       // マリガンはCPUが後から決めても問題ないため、人間の入力を待つ
@@ -511,12 +631,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
             );
             return;
           }
+          // 実績で選んだ称号があれば一緒に名乗る
+          const title = useAchievementStore.getState().selectedTitle ?? undefined;
           if (mode === "create") {
-            ws.send(JSON.stringify({ type: "createRoom", name, deck }));
+            ws.send(JSON.stringify({ type: "createRoom", name, title, deck }));
           } else if (mode === "join") {
-            ws.send(JSON.stringify({ type: "joinRoom", code, name, deck }));
+            ws.send(JSON.stringify({ type: "joinRoom", code, name, title, deck }));
           } else {
-            ws.send(JSON.stringify({ type: "joinQueue", name, deck }));
+            ws.send(JSON.stringify({ type: "joinQueue", name, title, deck }));
           }
           set({ onlineStatus: "waitingOpponent" });
         };
@@ -527,6 +649,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
             type: string;
             code?: string;
             name?: string;
+            title?: string;
             message?: string;
             seat?: number;
             sessionToken?: string;
@@ -559,7 +682,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
               if (onlineSession) onlineSession.code = msg.code ?? "";
               break;
             case "opponentJoined":
-              set({ opponentName: msg.name ?? null });
+              set({ opponentName: msg.name ?? null, opponentTitle: msg.title ?? null });
               break;
             case "jankenStart":
               // 先攻を決めるじゃんけん。CPU対戦中でも全画面で選択画面をかぶせる
@@ -600,7 +723,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
               gameToken++;
               clearAiTimer();
               pendingUpdates = [];
-              // 対戦記録用のメモ（オンライン対戦）
+              // 対戦記録用のメモ（オンライン対戦。リプレイは保存しない）
               matchMeta = {
                 mode: "online",
                 difficulty: null,
@@ -609,6 +732,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
                 tutorial: false,
                 turns: 0,
                 firstIsMe: null,
+                replaySeed: null,
+                replayDecks: null,
+                replayFirst: null,
+                replayActions: [],
               };
               set({
                 mode: "online",
@@ -624,6 +751,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
                 presentationBusy: false,
                 tutorial: false,
                 autoPlay: false,
+                replayActive: false,
               });
               break;
             }
@@ -684,6 +812,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
 
     dispatch: (action) => {
+      // リプレイ中は操作を受け付けない（記録どおりに進める）
+      if (get().replayActive) return;
       // オンラインでは手をサーバーに送るだけ。適用と検証はサーバーが行う
       if (get().mode === "online") {
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -707,6 +837,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
       gameToken++;
       clearAiTimer();
       matchMeta = null; // 途中でやめた対局は記録しない
+      if (replayTimer) {
+        clearTimeout(replayTimer);
+        replayTimer = null;
+      }
+      replayQueue = [];
       // ランダムマッチの相手待ち中にCPU対戦をやめたときは、待ちの解除をホームで知らせる
       // （オンライン画面の「やめる」で自分から解除した場合は知らせない）
       const wasQueued = get().queueActive && get().mode === "local" && get().state !== null;
@@ -731,6 +866,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         jankenActive: false,
         jankenHand: null,
         jankenResult: null,
+        replayActive: false,
       });
       ai = null;
       set({
@@ -741,6 +877,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         onlineError: null,
         roomCode: null,
         opponentName: null,
+        opponentTitle: null,
         eventLog: [],
         lastEvents: [],
         aiThinking: false,
