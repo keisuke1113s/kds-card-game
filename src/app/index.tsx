@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
@@ -45,6 +45,8 @@ const brand = {
 export default function HomeScreen() {
   const router = useRouter();
   const inProgress = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
+  const queueCancelledNotice = useGameStore((s) => s.queueCancelledNotice);
+  const clearQueueCancelledNotice = useGameStore((s) => s.clearQueueCancelledNotice);
   const deckState = useDeckStore();
 
   // BGMは対戦中のみ。ホームに戻ったら止める
@@ -53,6 +55,13 @@ export default function HomeScreen() {
       stopBgm();
     }, [])
   );
+
+  // ランダムマッチの相手待ちを解除して戻ってきたときのお知らせ。数秒で自動的に消す
+  useEffect(() => {
+    if (!queueCancelledNotice) return;
+    const timer = setTimeout(clearQueueCancelledNotice, 6000);
+    return () => clearTimeout(timer);
+  }, [queueCancelledNotice, clearQueueCancelledNotice]);
 
   const activeDeck = resolveActiveDeck(deckState);
   const record = useRecordStore();
@@ -69,6 +78,15 @@ export default function HomeScreen() {
         <View style={styles.warning}>
           <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
+
+        {/* ランダムマッチの相手待ちをやめて戻ってきたときのお知らせ */}
+        {queueCancelledNotice && (
+          <Pressable style={styles.queueNotice} onPress={clearQueueCancelledNotice}>
+            <Text style={styles.queueNoticeText}>
+              🌐 オンライン対戦の相手待ちを解除しました
+            </Text>
+          </Pressable>
+        )}
 
         {/* 開発版デモ（/dev/）のときだけ目印を出す。本番デモとネイティブでは出さない */}
         {IS_DEV_DEMO && (
@@ -403,6 +421,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   devBadgeText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  queueNotice: {
+    backgroundColor: "#4a3f9f",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignSelf: "center",
+    marginTop: 8,
+  },
+  queueNoticeText: { color: "#fff", fontSize: 13, fontWeight: "800" },
   warning: {
     alignSelf: "center",
     backgroundColor: "#ffe5e5",

@@ -1,14 +1,20 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Clipboard from "expo-clipboard";
+import * as Linking from "expo-linking";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
-import { haptic } from "@/audio/haptics";
+import { DIFFICULTY_LABELS } from "@/ai/difficulty";
+import { Difficulty } from "@/ai/types";
+import { HAPTICS_AVAILABLE, haptic } from "@/audio/haptics";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { allDecks, cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { useGameStore } from "@/store/gameStore";
+import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
+import { DeckList } from "@/engine/deckRules";
+import { MatchPrep } from "@/components/MatchPrep";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 /**
@@ -29,6 +35,13 @@ export const DEFAULT_SERVER_URL = "wss://kds-taisen.fly.dev";
 
 /** サーバーアドレス欄は開発ビルドのときだけ見せる（公開版では常に本番へ接続） */
 const SHOW_SERVER_FIELD = typeof __DEV__ !== "undefined" && __DEV__;
+
+/** CPUの手の速さの選択肢（対戦準備画面と同じ） */
+const SPEEDS: { label: string; ms: number }[] = [
+  { label: "はやい", ms: 700 },
+  { label: "ふつう", ms: 1000 },
+  { label: "ゆっくり", ms: 1600 },
+];
 
 const useOnlinePrefs = create<OnlinePrefs>()(
   persist(
@@ -68,6 +81,10 @@ export default function OnlineScreen() {
     null
   );
   const [nameDraft, setNameDraft] = React.useState("");
+  // 待機中CPU対戦の設定パネル。cpuDeckId は null で「おまかせ」
+  const [cpuOptionsOpen, setCpuOptionsOpen] = React.useState(false);
+  const [cpuDeckId, setCpuDeckId] = React.useState<string | null>(null);
+  const settings = useSettingsStore();
 
   const deck = resolveActiveDeck(deckState);
   // アドレス欄を出さない公開版では、保存値がどうであれ必ず本番サーバーへつなぐ
@@ -138,6 +155,63 @@ export default function OnlineScreen() {
 
   const waiting = onlineStatus === "connecting" || onlineStatus === "waitingOpponent";
 
+  /** 合言葉をコピーする。押した直後だけ「コピーしました」に変わる */
+  const [codeCopied, setCodeCopied] = React.useState(false);
+  const copyCode = async () => {
+    if (!roomCode) return;
+    haptic("light");
+    try {
+      await Clipboard.setStringAsync(roomCode);
+      setCodeCopied(true);
+      setTimeout(() => setCodeCopied(false), 2500);
+    } catch {
+      // コピーできない環境では何もしない（コードは画面に見えている）
+    }
+  };
+
+  /** 合言葉をLINEで送る（LINEの共有画面が開く） */
+  const shareCodeToLine = () => {
+    if (!roomCode) return;
+    haptic("light");
+    const message = `KDSカードゲームで対戦しよう！\n合言葉: ${roomCode}\nhttps://keisuke1113s.github.io/kds-card-game/`;
+    void Linking.openURL(`https://line.me/R/share?text=${encodeURIComponent(message)}`);
+  };
+
+  /** 待機を維持したままCPU対戦を始める前の準備（シャッフル→じゃんけん）。
+      通常のCPU対戦と同じ流れで先攻後攻を決める */
+  const [cpuPrep, setCpuPrep] = React.useState<{
+    playerList: DeckList;
+    cpuList: DeckList;
+  } | null>(null);
+
+  const startCpuWhileWaiting = () => {
+    haptic("medium");
+    const latest = useDeckStore.getState();
+    const player = resolveActiveDeck(latest);
+    const chosen =
+      cpuDeckId === null
+        ? cpuDeckFor(player, latest.builtinOverrides)
+        : (allDecks(latest.customDecks, latest.builtinOverrides).find((d) => d.id === cpuDeckId) ??
+          cpuDeckFor(player, latest.builtinOverrides));
+    setCpuPrep({ playerList: player.list, cpuList: chosen.list });
+  };
+
+  /** じゃんけんで先攻が決まったらCPU対戦を開始する。
+      相手が見つかったらCPU対戦は打ち切られ、オンライン対戦に切り替わる */
+  const beginCpuMatch = (firstPlayerIsMe: boolean) => {
+    if (!cpuPrep) return;
+    const st = useSettingsStore.getState();
+    startGame({
+      playerDeck: cpuPrep.playerList,
+      cpuDeck: cpuPrep.cpuList,
+      difficulty: st.difficulty,
+      aiSpeedMs: st.aiSpeedMs,
+      firstPlayer: firstPlayerIsMe ? HUMAN : CPU,
+    });
+    setCpuPrep(null);
+    router.replace("/battle");
+  };
+
   return (
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
@@ -171,6 +245,21 @@ export default function OnlineScreen() {
               <>
                 <Text style={styles.waitTitle}>合言葉を相手に伝えてください</Text>
                 <Text style={styles.codeText}>{roomCode}</Text>
+                <View style={styles.shareRow}>
+                  <Pressable style={styles.shareButton} onPress={copyCode}>
+                    <Text style={styles.shareButtonText}>
+                      {codeCopied ? "✅ コピーしました" : "📋 コピー"}
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.shareButton, styles.lineButton]}
+                    onPress={shareCodeToLine}
+                  >
+                    <Text style={[styles.shareButtonText, { color: "#fff" }]}>
+                      💬 LINEで送る
+                    </Text>
+                  </Pressable>
+                </View>
                 <Text style={styles.waitNote}>
                   相手が「合言葉で入る」にこのコードを入力すると対戦が始まります
                 </Text>
@@ -188,23 +277,85 @@ export default function OnlineScreen() {
                 style={styles.cpuWhileWaitButton}
                 onPress={() => {
                   haptic("medium");
-                  // 待機を維持したままCPU対戦を開始する。
-                  // 相手が見つかったらCPU対戦は打ち切られ、オンライン対戦に切り替わる
-                  const latest = useDeckStore.getState();
-                  const player = resolveActiveDeck(latest);
-                  const st = useSettingsStore.getState();
-                  startGame({
-                    playerDeck: player.list,
-                    cpuDeck: cpuDeckFor(player, latest.builtinOverrides).list,
-                    difficulty: st.difficulty,
-                    aiSpeedMs: st.aiSpeedMs,
-                  });
-                  router.replace("/battle");
+                  setCpuOptionsOpen((v) => !v);
                 }}
               >
                 <Text style={styles.bigButtonText}>🤖 待っている間にCPU対戦</Text>
-                <Text style={styles.bigButtonSub}>相手が見つかったら自動で切り替わります</Text>
+                <Text style={styles.bigButtonSub}>
+                  {cpuOptionsOpen ? "▼ 下の設定を選んで開始してください" : "相手が見つかったら自動で切り替わります"}
+                </Text>
               </Pressable>
+            )}
+
+            {queueActive && cpuOptionsOpen && (
+              <View style={styles.cpuOptions}>
+                <Text style={styles.cpuOptionTitle}>CPUの強さ</Text>
+                <View style={styles.choiceRow}>
+                  {(Object.keys(DIFFICULTY_LABELS) as Difficulty[]).map((d) => (
+                    <Choice
+                      key={d}
+                      label={DIFFICULTY_LABELS[d]}
+                      active={settings.difficulty === d}
+                      onPress={() => settings.setDifficulty(d)}
+                    />
+                  ))}
+                </View>
+
+                <Text style={styles.cpuOptionTitle}>CPUの手の速さ</Text>
+                <View style={styles.choiceRow}>
+                  {SPEEDS.map((s) => (
+                    <Choice
+                      key={s.ms}
+                      label={s.label}
+                      active={settings.aiSpeedMs === s.ms}
+                      onPress={() => settings.setAiSpeedMs(s.ms)}
+                    />
+                  ))}
+                </View>
+
+                <Text style={styles.cpuOptionTitle}>サウンド</Text>
+                <View style={styles.choiceRow}>
+                  <Choice
+                    label={`効果音 ${settings.seEnabled ? "ON" : "OFF"}`}
+                    active={settings.seEnabled}
+                    onPress={() => settings.setSeEnabled(!settings.seEnabled)}
+                  />
+                  <Choice
+                    label={`BGM ${settings.bgmEnabled ? "ON" : "OFF"}`}
+                    active={settings.bgmEnabled}
+                    onPress={() => settings.setBgmEnabled(!settings.bgmEnabled)}
+                  />
+                  <Choice
+                    label={HAPTICS_AVAILABLE ? `振動 ${settings.hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
+                    active={HAPTICS_AVAILABLE && settings.hapticsEnabled}
+                    disabled={!HAPTICS_AVAILABLE}
+                    onPress={() =>
+                      HAPTICS_AVAILABLE && settings.setHapticsEnabled(!settings.hapticsEnabled)
+                    }
+                  />
+                </View>
+
+                <Text style={styles.cpuOptionTitle}>CPUのデッキ</Text>
+                <View style={styles.choiceWrap}>
+                  <Choice
+                    label="おまかせ"
+                    active={cpuDeckId === null}
+                    onPress={() => setCpuDeckId(null)}
+                  />
+                  {allDecks(deckState.customDecks, deckState.builtinOverrides).map((d) => (
+                    <Choice
+                      key={d.id}
+                      label={d.name}
+                      active={cpuDeckId === d.id}
+                      onPress={() => setCpuDeckId(d.id)}
+                    />
+                  ))}
+                </View>
+
+                <Pressable style={styles.cpuStartButton} onPress={startCpuWhileWaiting}>
+                  <Text style={styles.bigButtonText}>この設定でCPU対戦を始める</Text>
+                </Pressable>
+              </View>
             )}
             <Pressable
               style={styles.cancelButton}
@@ -315,6 +466,20 @@ export default function OnlineScreen() {
         )}
       </ScrollView>
 
+      {/* 待機中CPU対戦の準備（シャッフル→じゃんけんで先攻を決める） */}
+      {cpuPrep && (
+        <MatchPrep
+          cardIds={[
+            ...cpuPrep.playerList.main,
+            cpuPrep.playerList.tantou,
+            ...cpuPrep.cpuList.main,
+            cpuPrep.cpuList.tantou,
+          ]}
+          onDecided={beginCpuMatch}
+          onCancel={() => setCpuPrep(null)}
+        />
+      )}
+
       {/* 名前が未入力のまま参加しようとしたときの必須入力ダイアログ */}
       <Modal visible={namePrompt !== null} transparent animationType="fade">
         <View style={styles.nameModalLayer}>
@@ -354,6 +519,41 @@ export default function OnlineScreen() {
   );
 }
 
+/** 対戦準備画面と同じ見た目の選択ボタン */
+function Choice({
+  label,
+  active,
+  onPress,
+  disabled,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        styles.choice,
+        active && { backgroundColor: colors.primary, borderColor: colors.primary },
+        disabled && styles.choiceDisabled,
+      ]}
+    >
+      <Text
+        style={[
+          styles.choiceText,
+          active && { color: "#fff" },
+          disabled && { color: colors.textMuted },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 },
@@ -387,6 +587,41 @@ const styles = StyleSheet.create({
   deckName: { fontSize: 16, fontWeight: "800", color: colors.text },
   deckChange: { color: colors.primary, fontWeight: "700" },
   nameRowText: { fontSize: 14, fontWeight: "700", color: colors.textMuted },
+  shareRow: { flexDirection: "row", gap: 10 },
+  shareButton: {
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+  },
+  shareButtonText: { fontWeight: "800", color: colors.text, fontSize: 13 },
+  lineButton: { backgroundColor: "#06c755", borderColor: "#06c755" },
+  cpuOptions: { alignSelf: "stretch", gap: 6 },
+  cpuOptionTitle: { fontSize: 13, fontWeight: "800", color: colors.textMuted, marginTop: 4 },
+  choiceRow: { flexDirection: "row", gap: 8 },
+  choiceWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  choice: {
+    flexGrow: 1,
+    flexBasis: "28%",
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: "center",
+  },
+  choiceText: { fontWeight: "700", color: colors.text, fontSize: 13 },
+  choiceDisabled: { borderStyle: "dashed" },
+  cpuStartButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: "center",
+    marginTop: 6,
+  },
   nameModalLayer: {
     flex: 1,
     backgroundColor: "rgba(10, 20, 40, 0.55)",

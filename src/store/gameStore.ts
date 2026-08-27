@@ -93,6 +93,9 @@ interface GameStore {
   dispatch: (action: GameAction) => void;
   legalActions: () => GameAction[];
   quitGame: () => void;
+  /** ランダムマッチの相手待ちを解除して終了したことをホーム画面で知らせるための印 */
+  queueCancelledNotice: boolean;
+  clearQueueCancelledNotice: () => void;
 }
 
 /**
@@ -284,6 +287,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     queueActive: false,
     matchFound: null,
     clearMatchFound: () => set({ matchFound: null }),
+    queueCancelledNotice: false,
+    clearQueueCancelledNotice: () => set({ queueCancelledNotice: false }),
     eventLog: [],
     lastEvents: [],
     aiThinking: false,
@@ -566,6 +571,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     quitGame: () => {
       gameToken++;
       clearAiTimer();
+      // ランダムマッチの相手待ち中にやめたときは、待ちの解除をホームで知らせる
+      const wasQueued = get().queueActive;
       if (socket) {
         try {
           socket.send(JSON.stringify({ type: "leave" }));
@@ -575,7 +582,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
       closeSocket();
       onlineSession = null;
-      set({ queueActive: false, matchFound: null });
+      set({ queueActive: false, matchFound: null, queueCancelledNotice: wasQueued });
       ai = null;
       set({
         state: null,

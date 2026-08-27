@@ -17,6 +17,7 @@ const speeds: { label: string; ms: number }[] = [
 export default function SettingsScreen() {
   const router = useRouter();
   const quitGame = useGameStore((s) => s.quitGame);
+  const queueActive = useGameStore((s) => s.queueActive);
   const inBattle = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
   const [confirmQuit, setConfirmQuit] = useState(false);
   const {
@@ -111,7 +112,11 @@ export default function SettingsScreen() {
         <Pressable style={styles.overlayBg} onPress={() => setConfirmQuit(false)}>
           <Pressable style={styles.overlayBox} onPress={() => {}}>
             <Text style={styles.overlayTitle}>対戦をやめますか？</Text>
-            <Text style={styles.note}>この対局は失われます。</Text>
+            <Text style={styles.note}>
+              {queueActive
+                ? "この対局は失われます。ランダムマッチの相手待ちも解除されます。"
+                : "この対局は失われます。"}
+            </Text>
             <Pressable
               style={[styles.wideButton, { backgroundColor: colors.danger }]}
               onPress={() => {
