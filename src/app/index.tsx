@@ -225,6 +225,13 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/rules")}
           />
+          <AppButton
+            label="設定"
+            icon="⚙️"
+            tone="ghost"
+            fullWidth
+            onPress={() => router.push("/settings")}
+          />
 
           {/* ホーム画面に追加できる環境でだけ出る案内 */}
           <InstallPrompt />
