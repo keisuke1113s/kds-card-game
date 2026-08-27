@@ -21,6 +21,7 @@ import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
+import { ScreenEnter } from "@/components/ScreenEnter";
 
 /** カード実物のロゴから採色した色 */
 const brand = {
@@ -103,7 +104,7 @@ export default function HomeScreen() {
         </View>
 
         {/* メニュー */}
-        <Animated.View entering={FadeInDown.duration(350)} style={styles.menu}>
+        <ScreenEnter style={styles.menu} delay={80} keepVisible>
           {inProgress && (
             <AppButton
               label="対戦に戻る"
@@ -179,7 +180,7 @@ export default function HomeScreen() {
 
           {/* ホーム画面に追加できる環境でだけ出る案内 */}
           <InstallPrompt />
-        </Animated.View>
+        </ScreenEnter>
 
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
         </ScrollView>

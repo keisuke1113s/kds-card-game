@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
-import Animated, { FadeInDown, FadeOut } from "react-native-reanimated";
+
 import { haptic } from "@/audio/haptics";
+import { ScreenEnter } from "@/components/ScreenEnter";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 /**
@@ -126,11 +127,7 @@ export function InstallPrompt() {
   if (mode === "none") return null;
 
   return (
-    <Animated.View
-      entering={FadeInDown.duration(320)}
-      exiting={FadeOut.duration(200)}
-      style={styles.card}
-    >
+    <ScreenEnter style={styles.card}>
       <View style={styles.textWrap}>
         <Text style={styles.title}>ホーム画面に追加できます</Text>
         {mode === "android" ? (
@@ -156,7 +153,7 @@ export function InstallPrompt() {
           <Text style={styles.closeText}>{mode === "android" ? "あとで" : "わかりました"}</Text>
         </Pressable>
       </View>
-    </Animated.View>
+    </ScreenEnter>
   );
 }
 

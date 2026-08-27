@@ -21,6 +21,7 @@ export function ScreenEnter({
   delay = 0,
   distance = 16,
   duration = 320,
+  keepVisible = false,
 }: {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
@@ -29,6 +30,12 @@ export function ScreenEnter({
   /** 下から持ち上げる距離 */
   distance?: number;
   duration?: number;
+  /**
+   * 透明にせず、動きだけで見せる。
+   * 端末によってアニメーションが始まらないことがあり、
+   * 消えては困るもの（ホームのメニューなど）はこちらを使う。
+   */
+  keepVisible?: boolean;
 }) {
   const progress = useSharedValue(0);
 
@@ -41,7 +48,7 @@ export function ScreenEnter({
   }, []);
 
   const animated = useAnimatedStyle(() => ({
-    opacity: progress.value,
+    opacity: keepVisible ? 1 : progress.value,
     transform: [{ translateY: (1 - progress.value) * distance }],
   }));
 
