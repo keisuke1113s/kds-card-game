@@ -91,6 +91,12 @@ export default function HomeScreen() {
               <Text style={styles.catchDark}>なる!!</Text>
             </Text>
             <Text style={styles.title}>トレーディングカードゲーム</Text>
+            {/* 実カード配布の案内 */}
+            <View style={styles.realCardNote}>
+              <Text style={styles.realCardNoteText}>
+                KDSに入校したら、本物のカードをもらえるよ♪
+              </Text>
+            </View>
             <View style={styles.goalRow}>
               <GoalChip label="学科" value="10時限" color={colors.primary} />
               <GoalChip label="技能" value="19時限" color={colors.success} />
@@ -328,6 +334,25 @@ const styles = StyleSheet.create({
   },
   goalLabel: { fontSize: 12, fontWeight: "800" },
   goalValue: { fontSize: 13, fontWeight: "800", color: colors.text },
+  realCardNote: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    marginTop: 8,
+    shadowColor: "#000",
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+  realCardNoteText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.2,
+    textAlign: "center",
+  },
   warning: {
     alignSelf: "center",
     backgroundColor: "#ffe5e5",

@@ -2337,9 +2337,9 @@ const styles = StyleSheet.create({
     position: "absolute",
     alignSelf: "center",
     top: "50%",
-    marginTop: -80,
-    width: 160,
-    height: 160,
+    marginTop: -120,
+    width: 240,
+    height: 240,
     opacity: 0.08,
   },
   middle: {
