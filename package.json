@@ -30,13 +30,16 @@
     "react-native-screens": "~4.26.0",
     "react-native-web": "~0.21.0",
     "react-native-worklets": "0.10.1",
+    "ws": "^8.21.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "@types/ws": "^8.18.1",
     "eslint": "^9.0.0",
     "eslint-config-expo": "~57.0.2",
+    "tsx": "^4.23.12",
     "typescript": "~6.0.3",
     "vitest": "^4.1.11"
   },
@@ -50,7 +53,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "deploy:pages": "bash scripts/deploy-pages.sh"
+    "deploy:pages": "bash scripts/deploy-pages.sh",
+    "server": "tsx server/src/main.ts"
   },
   "private": true
 }
