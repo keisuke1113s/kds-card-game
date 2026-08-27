@@ -4,6 +4,8 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { cardRegistry, getCard } from "@/data/cards";
+import { registryForUnlocked } from "@/data/unlock";
+import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { randomDeckList, validateDeck } from "@/engine/deckRules";
 import {
   allDecks,
@@ -34,7 +36,11 @@ export default function DeckListScreen() {
       typeof globalThis.crypto?.getRandomValues === "function"
         ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
         : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
-    const { deck } = randomDeckList(cardRegistry, seed);
+    // ランダム生成は開放済みのカードだけから選ぶ
+    const { deck } = randomDeckList(
+      registryForUnlocked(unlockedSet(useUnlockStore.getState())),
+      seed
+    );
     const id = `deck-${Date.now()}`;
     const count = customDecks.length + 1;
     saveDeck({ id, name: `ランダムデッキ${count}`, list: deck });

@@ -11,6 +11,8 @@ import {
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { allCards, cardRegistry } from "@/data/cards";
+import { registryForUnlocked } from "@/data/unlock";
+import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { randomDeckList, validateDeck } from "@/engine/deckRules";
 import {
   allDecks,
@@ -27,6 +29,8 @@ export default function DeckEditScreen() {
   const existing = allDecks(customDecks, builtinOverrides).find((d) => d.id === deckId);
   const builtin = isBuiltinDeck(deckId ?? "");
 
+  const unlockState = useUnlockStore();
+  const unlocked = unlockedSet(unlockState);
   const [name, setName] = useState(existing?.name ?? "マイデッキ");
   const [main, setMain] = useState<string[]>(existing?.list.main ?? []);
   const [tantou, setTantou] = useState<string>(existing?.list.tantou ?? "t_kuji");
@@ -49,7 +53,8 @@ export default function DeckEditScreen() {
       typeof globalThis.crypto?.getRandomValues === "function"
         ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
         : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
-    const { deck } = randomDeckList(cardRegistry, seed, {
+    // ランダム生成は開放済みのカードだけから選ぶ
+    const { deck } = randomDeckList(registryForUnlocked(unlocked), seed, {
       size: Math.max(21, main.length),
     });
     setMain(deck.main);
@@ -68,8 +73,13 @@ export default function DeckEditScreen() {
     router.back();
   };
 
-  const mainCards = allCards.filter((c) => c.type !== "tantou");
-  const tantouCards = allCards.filter((c) => c.type === "tantou");
+  // 開放されていないカードはデッキに入れられない（すでに入っている分は表示される）
+  const mainCards = allCards.filter(
+    (c) => c.type !== "tantou" && (unlocked.has(c.id) || main.includes(c.id))
+  );
+  const tantouCards = allCards.filter(
+    (c) => c.type === "tantou" && (unlocked.has(c.id) || tantou === c.id)
+  );
   const supportCount = main.filter((id) => cardRegistry[id].type === "support").length;
   const supportMax = cardRegistry[tantou]?.supportLimit ?? 5;
 

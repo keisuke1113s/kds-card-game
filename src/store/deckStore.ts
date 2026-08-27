@@ -2,6 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
+import { registryForUnlocked } from "@/data/unlock";
+import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DeckList, randomDeckList, validateDeck } from "@/engine/deckRules";
 
 export interface SavedDeck {
@@ -67,7 +69,11 @@ export const useDeckStore = create<DeckState>()(
             typeof globalThis.crypto?.getRandomValues === "function"
               ? globalThis.crypto.getRandomValues(new Uint32Array(1))[0] | 0
               : (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) | 0;
-          const { deck } = randomDeckList(cardRegistry, seed);
+          // 入れ替えも開放済みのカードだけから選ぶ
+          const { deck } = randomDeckList(
+            registryForUnlocked(unlockedSet(useUnlockStore.getState())),
+            seed
+          );
           return { builtinOverrides: { ...s.builtinOverrides, [id]: deck } };
         }),
     }),
