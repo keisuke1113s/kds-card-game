@@ -156,7 +156,9 @@ export default function HomeScreen() {
           <AppButton
             label="オンライン対戦"
             icon="🌐"
-            tone="accent"
+            tone="primary"
+            size="lg"
+            feel="medium"
             fullWidth
             onPress={() => router.push("/online")}
           />

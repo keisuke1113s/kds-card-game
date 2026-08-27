@@ -27,6 +27,9 @@ interface OnlinePrefs {
 /** 本番サーバー（Fly.io 東京）。GitHub Pages からは wss が必須 */
 export const DEFAULT_SERVER_URL = "wss://kds-taisen.fly.dev";
 
+/** サーバーアドレス欄は開発ビルドのときだけ見せる（公開版では常に本番へ接続） */
+const SHOW_SERVER_FIELD = typeof __DEV__ !== "undefined" && __DEV__;
+
 const useOnlinePrefs = create<OnlinePrefs>()(
   persist(
     (set) => ({
@@ -62,6 +65,8 @@ export default function OnlineScreen() {
 
   const deck = resolveActiveDeck(deckState);
   const name = prefs.name || "教習生";
+  // アドレス欄を出さない公開版では、保存値がどうであれ必ず本番サーバーへつなぐ
+  const serverUrl = SHOW_SERVER_FIELD ? prefs.serverUrl.trim() : DEFAULT_SERVER_URL;
 
   // 対局が始まったら対戦画面へ
   useEffect(() => {
@@ -71,10 +76,7 @@ export default function OnlineScreen() {
   // ランダムマッチで待っている人がいるか、10秒ごとに確認する
   useEffect(() => {
     let alive = true;
-    const httpUrl = prefs.serverUrl
-      .trim()
-      .replace(/^wss:/, "https:")
-      .replace(/^ws:/, "http:");
+    const httpUrl = serverUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
     const check = async () => {
       try {
         const res = await fetch(`${httpUrl}/lobby`);
@@ -90,12 +92,12 @@ export default function OnlineScreen() {
       alive = false;
       clearInterval(timer);
     };
-  }, [prefs.serverUrl]);
+  }, [serverUrl]);
 
   const start = (mode: "create" | "join" | "queue") => {
     haptic("medium");
     connectOnline({
-      serverUrl: prefs.serverUrl.trim(),
+      serverUrl,
       mode,
       code: joinCode.trim().toUpperCase(),
       name,
@@ -222,21 +224,22 @@ export default function OnlineScreen() {
           </View>
         )}
 
-        <Text style={styles.sectionTitle}>サーバーアドレス</Text>
-        <TextInput
-          style={styles.input}
-          value={prefs.serverUrl}
-          onChangeText={prefs.setServerUrl}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Text style={styles.hint}>
-          ふだんは変更しないでください。開発時のみ、ローカルサーバーのアドレスに変更できます。
-        </Text>
-        {prefs.serverUrl.trim() !== DEFAULT_SERVER_URL && (
-          <Pressable onPress={() => prefs.setServerUrl(DEFAULT_SERVER_URL)}>
-            <Text style={styles.resetLink}>▸ 標準のサーバーに戻す</Text>
-          </Pressable>
+        {SHOW_SERVER_FIELD && (
+          <>
+            <Text style={styles.sectionTitle}>サーバーアドレス（開発時のみ表示）</Text>
+            <TextInput
+              style={styles.input}
+              value={prefs.serverUrl}
+              onChangeText={prefs.setServerUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            {prefs.serverUrl.trim() !== DEFAULT_SERVER_URL && (
+              <Pressable onPress={() => prefs.setServerUrl(DEFAULT_SERVER_URL)}>
+                <Text style={styles.resetLink}>▸ 標準のサーバーに戻す</Text>
+              </Pressable>
+            )}
+          </>
         )}
       </ScrollView>
     </ScreenEnter>
@@ -334,6 +337,5 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   errorText: { color: colors.danger, fontWeight: "800" },
-  hint: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   resetLink: { fontSize: 13, color: colors.primary, fontWeight: "700", paddingVertical: 4 },
 });
