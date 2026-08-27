@@ -53,6 +53,7 @@ import { hintFor } from "@/tutorial/hints";
 import { viewFor } from "@/engine/view";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
+import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
@@ -69,8 +70,8 @@ type Owner = "self" | "cpu";
  */
 interface Announcement {
   key: number;
-  /** "turn"=帯 / "battle"=バトルのカットイン / "lesson"=教習の増減 / "text"=実況（カード付きはタップ待ち） */
-  kind: "text" | "turn" | "battle" | "lesson";
+  /** "turn"=帯 / "battle"=バトル / "lesson"=教習の増減 / "power"=教習力の増減 / "text"=実況 */
+  kind: "text" | "turn" | "battle" | "lesson" | "power";
   text: string;
   cardId?: string;
   emph?: boolean;
@@ -161,6 +162,17 @@ function announcementsFor(events: GameEvent[], state: GameState | null): Announc
         if (e.player === CPU)
           add(`「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
+      case "lessonModApplied":
+        if (e.amount !== 0) {
+          out.push({
+            key: ++annSeq,
+            kind: "power",
+            text: "",
+            mine: e.player === HUMAN,
+            amount: e.amount,
+          });
+        }
+        break;
       case "battleDeclared": {
         // 宣言直後は両者とも場にいるので、uid からカードを引ける
         const atk = state?.players[e.attackerPlayer].field.find((f) => f.uid === e.attackerUid);
@@ -242,6 +254,7 @@ export default function BattleScreen() {
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
+  const record = useRecordStore();
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
@@ -332,7 +345,7 @@ export default function BattleScreen() {
           ? 900
           : next.kind === "battle"
             ? 2400
-            : next.kind === "lesson"
+            : next.kind === "lesson" || next.kind === "power"
               ? 2000
               : next.cardId
                 ? 1600
@@ -932,13 +945,20 @@ export default function BattleScreen() {
             styles.annLayer,
             currentAnn.kind === "turn" && styles.annLayerBand,
             currentAnn.kind === "battle" && styles.annLayerBattle,
-            currentAnn.kind === "lesson" && styles.annLayerLesson,
+            (currentAnn.kind === "lesson" || currentAnn.kind === "power") &&
+              styles.annLayerLesson,
             currentAnn.kind === "text" && currentAnn.emph && styles.annLayerEmph,
             currentAnn.cardId && styles.annLayerDim,
           ]}
           onPress={dismissAnn}
         >
-          {currentAnn.kind === "lesson" ? (
+          {currentAnn.kind === "power" ? (
+            <PowerCutIn
+              key={currentAnn.key}
+              mine={currentAnn.mine ?? false}
+              amount={currentAnn.amount ?? 0}
+            />
+          ) : currentAnn.kind === "lesson" ? (
             <LessonCutIn
               key={currentAnn.key}
               mine={currentAnn.mine ?? false}
@@ -1337,6 +1357,11 @@ export default function BattleScreen() {
         </>
       )}
 
+      {/* 敗北: 画面が暗く沈み、雨が降り、カードが力なく落ちていく */}
+      {state.phase.type === "finished" && state.phase.winner === CPU && (
+        <LossScene cardIds={[...me.hand, ...me.field.map((f) => f.cardId), me.tantou]} />
+      )}
+
       {state.phase.type === "finished" && (
         <Overlay
           title={state.phase.winner === HUMAN ? "🎉 勝利！" : "😢 敗北…"}
@@ -1351,6 +1376,16 @@ export default function BattleScreen() {
                 ? "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : "CPUが先に教習を修了しました"}
           </Text>
+          {/* 通算成績 */}
+          <View style={styles.recordRow}>
+            <Text style={styles.recordText}>
+              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+              <Text style={styles.recordLose}>{record.losses}敗</Text>
+            </Text>
+            {record.streak >= 2 && (
+              <Text style={styles.recordStreak}>🔥 {record.streak}連勝中！</Text>
+            )}
+          </View>
           <View style={styles.overlayButtons}>
             <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
             <ActionButton
@@ -1996,6 +2031,168 @@ function FlyToOut({
 }
 
 /**
+ * 教習力（インストラクターの力）が上がった／下がったときの全画面カットイン。
+ * 上がり: 金色の「教習力 ＋N」が輝きとともに飛び出す。
+ * 下がり: 青ざめた「教習力 −N」が沈み込み、画面が揺れる。
+ */
+function PowerCutIn({ mine, amount }: { mine: boolean; amount: number }) {
+  const up = amount > 0;
+  const pop = useSharedValue(0);
+  const glow = useSharedValue(0);
+  const shake = useSharedValue(0);
+
+  useEffect(() => {
+    playSe(up ? "support" : "hit");
+    pop.value = withDelay(100, withSpring(1, { damping: 9, stiffness: 170 }));
+    glow.value = withRepeat(
+      withSequence(withTiming(1, { duration: 450 }), withTiming(0.4, { duration: 450 })),
+      -1,
+      false
+    );
+    if (!up) {
+      shake.value = withDelay(
+        220,
+        withSequence(
+          withTiming(-7, { duration: 50 }),
+          withTiming(6, { duration: 50 }),
+          withTiming(-4, { duration: 45 }),
+          withTiming(0, { duration: 40 })
+        )
+      );
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const popStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, pop.value * 2),
+    transform: [
+      { scale: 0.4 + pop.value * 0.6 },
+      { translateX: shake.value },
+      // 下がりは沈み込む
+      { translateY: up ? 0 : pop.value * 10 },
+    ],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glow.value * (up ? 0.5 : 0.3),
+    transform: [{ scale: 1.1 + glow.value * 0.35 }],
+  }));
+
+  const color = up ? "#ffd54f" : "#90a4c8";
+  const emoji = up ? "\u{1F4AA}" : "\u{1F4C9}";
+
+  return (
+    <View style={styles.lessonCutWrap} pointerEvents="none">
+      {/* 背後で明滅する輝き */}
+      <Animated.Text style={[styles.lessonCutEmoji, glowStyle]} allowFontScaling={false}>
+        {emoji}
+      </Animated.Text>
+      <Animated.View style={[popStyle, styles.lessonCutBody]}>
+        <View
+          style={[
+            styles.lessonCutBadge,
+            { backgroundColor: mine ? colors.success : colors.danger },
+          ]}
+        >
+          <Text style={styles.lessonCutBadgeText}>{mine ? "あなた" : "CPU"}</Text>
+        </View>
+        <Text style={[styles.powerCutTitle, { color }]} allowFontScaling={false}>
+          教習力 {up ? `＋${amount}` : `−${-amount}`}
+        </Text>
+        <Text style={styles.lessonCutSub}>
+          {up ? "インストラクターの力が上がった！" : "インストラクターの力が下がった…"}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * 敗北の演出。
+ * 画面全体が青暗く沈み、雨がしとしと降り続け、
+ * 手札と場のカードが力なくひらひらと落ちていく。
+ */
+function LossScene({ cardIds }: { cardIds: string[] }) {
+  const dim = useSharedValue(0);
+  useEffect(() => {
+    dim.value = withTiming(1, { duration: 1200 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value * 0.55 }));
+
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {/* 青暗い沈み込み */}
+      <Animated.View style={[styles.lossDim, dimStyle]} />
+      {/* 雨 */}
+      {Array.from({ length: 26 }, (_, i) => (
+        <RainDrop key={`r${i}`} index={i} />
+      ))}
+      {/* 力なく落ちるカード */}
+      {cardIds.slice(0, 8).map((id, i) => (
+        <SinkingCard key={`c${i}`} cardId={id} index={i} />
+      ))}
+    </View>
+  );
+}
+
+/** 上から落ち続ける雨の線 */
+function RainDrop({ index }: { index: number }) {
+  const left = `${(index * 41 + 7) % 97}%`;
+  const delay = (index % 13) * 140;
+  const duration = 900 + (index % 5) * 160;
+
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: Easing.in(Easing.quad) }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: p.value < 0.08 ? p.value * 8 : p.value > 0.85 ? (1 - p.value) * 6 : 0.55,
+    transform: [{ translateY: -60 + p.value * 1150 }],
+  }));
+
+  return <Animated.View style={[styles.rainDrop, { left: left as DimensionValue }, style]} />;
+}
+
+/** 力なくひらひらと落ちていくカード */
+function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
+  const left = `${(index * 37 + 10) % 80}%`;
+  const delay = index * 700;
+  const duration = 5200 + (index % 4) * 700;
+  const sway = ((index % 3) - 1) * 40 + 22;
+
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: Easing.in(Easing.quad) }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: p.value < 0.06 ? p.value * 10 : p.value > 0.85 ? (1 - p.value) * 4 : 0.6,
+    transform: [
+      { translateY: -140 + p.value * 1250 },
+      // 木の葉のように左右へ揺れながら落ちる
+      { translateX: Math.sin(p.value * 7) * sway },
+      { rotate: `${Math.sin(p.value * 5) * 32}deg` },
+      { scale: 0.8 },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.rainCard, { left: left as DimensionValue }, style]}>
+      <CardFace cardId={cardId} size="sm" />
+    </Animated.View>
+  );
+}
+
+/**
  * 勝利のお祝い。デッキのカードが紙吹雪と一緒に画面いっぱいに舞う。
  */
 function CardRain({ cardIds }: { cardIds: string[] }) {
@@ -2213,9 +2410,17 @@ const styles = StyleSheet.create({
     textShadowRadius: 16,
   },
   lessonCutUnit: { fontSize: 24, fontWeight: "900" },
+  powerCutTitle: {
+    fontSize: 52,
+    fontWeight: "900",
+    letterSpacing: 2,
+    textShadowColor: "#000",
+    textShadowRadius: 16,
+  },
   lessonCutSub: {
     color: "#ffffffee",
-    fontSize: 19,
+    fontSize: 17,
+    paddingHorizontal: 20,
     fontWeight: "800",
     textAlign: "center",
     textShadowColor: "#000",
@@ -2328,6 +2533,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   rainCard: { position: "absolute", top: 0 },
+  lossDim: { ...StyleSheet.absoluteFill, backgroundColor: "#0b1024" },
+  rainDrop: {
+    position: "absolute",
+    top: 0,
+    width: 2,
+    height: 46,
+    borderRadius: 1,
+    backgroundColor: "#9fb3c8",
+  },
   turnFxBand: {
     paddingVertical: 22,
     alignItems: "center",
@@ -2650,5 +2864,10 @@ const styles = StyleSheet.create({
   },
   jankenEmoji: { fontSize: 30 },
   jankenLabel: { color: "#fff", fontWeight: "700" },
+  recordRow: { alignItems: "center", gap: 2 },
+  recordText: { fontSize: 16, fontWeight: "800", color: colors.text },
+  recordWin: { color: colors.success, fontSize: 20, fontWeight: "900" },
+  recordLose: { color: colors.danger, fontSize: 20, fontWeight: "900" },
+  recordStreak: { fontSize: 14, fontWeight: "900", color: colors.accentDark },
   resultText: { textAlign: "center", color: colors.text, lineHeight: 22 },
 });

@@ -9,6 +9,7 @@ import { DeckList } from "@/engine/deckRules";
 import { getLegalActions } from "@/engine/legalActions";
 import { applyAction, playerToAct } from "@/engine/reducer";
 import { viewFor } from "@/engine/view";
+import { useRecordStore } from "@/store/recordStore";
 import {
   GameAction,
   GameContext,
@@ -183,6 +184,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
         lastEvents: events,
         eventLog: [...get().eventLog, ...events],
       });
+      // 決着したら成績に記録する（途中でやめた対局は数えない）
+      for (const e of events) {
+        if (e.type === "gameEnded") {
+          const rec = useRecordStore.getState();
+          if (e.winner === HUMAN) rec.addWin();
+          else rec.addLoss();
+        }
+      }
       playEventSounds(events);
       scheduleAI();
     } catch (e) {

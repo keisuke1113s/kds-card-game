@@ -19,6 +19,7 @@ import { Image } from "expo-image";
 import { cardSmalls } from "@/data/images";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
+import { useRecordStore } from "@/store/recordStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -48,6 +49,7 @@ export default function HomeScreen() {
   );
 
   const activeDeck = resolveActiveDeck(deckState);
+  const record = useRecordStore();
   const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
 
   return (
@@ -147,6 +149,14 @@ export default function HomeScreen() {
               {opponentDeck.name}
             </Text>
           </View>
+          {/* 通算成績（1戦でもしたら出す） */}
+          {record.wins + record.losses > 0 && (
+            <Text style={styles.recordLine}>
+              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+              <Text style={styles.recordLose}>{record.losses}敗</Text>
+              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
+            </Text>
+          )}
 
           <View style={styles.row}>
             <AppButton
@@ -334,6 +344,15 @@ const styles = StyleSheet.create({
   },
   goalLabel: { fontSize: 12, fontWeight: "800" },
   goalValue: { fontSize: 13, fontWeight: "800", color: colors.text },
+  recordLine: {
+    textAlign: "center",
+    fontSize: 13,
+    fontWeight: "800",
+    color: colors.textMuted,
+    marginTop: -6,
+  },
+  recordWin: { color: colors.success, fontWeight: "900" },
+  recordLose: { color: colors.danger, fontWeight: "900" },
   realCardNote: {
     backgroundColor: colors.accent,
     borderRadius: radius.pill,

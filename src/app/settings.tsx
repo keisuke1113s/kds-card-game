@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
+import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -29,9 +30,22 @@ export default function SettingsScreen() {
     setHapticsEnabled,
   } = useSettingsStore();
 
+  const record = useRecordStore();
+
   return (
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>対戦成績</Text>
+      <View style={styles.recordBox}>
+        <Text style={styles.recordText}>
+          通算 {record.wins}勝 {record.losses}敗
+          {record.streak >= 2 ? `（${record.streak}連勝中）` : ""}
+        </Text>
+        <Pressable style={styles.recordReset} onPress={() => record.reset()} hitSlop={6}>
+          <Text style={styles.recordResetText}>成績をリセット</Text>
+        </Pressable>
+      </View>
+
       <Text style={styles.sectionTitle}>CPUの手の速さ</Text>
       <View style={styles.row}>
         {speeds.map((s) => (
@@ -157,6 +171,25 @@ function Choice({
 }
 
 const styles = StyleSheet.create({
+  recordBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  recordText: { fontSize: 15, fontWeight: "800", color: colors.text },
+  recordReset: {
+    backgroundColor: colors.cancel,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  recordResetText: { color: "#fff", fontWeight: "800", fontSize: 12 },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
   sectionTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 8 },
