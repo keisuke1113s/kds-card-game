@@ -178,39 +178,71 @@ export default function OnlineScreen() {
           </View>
         ) : (
           <>
-            <Text style={styles.sectionTitle}>対戦のしかた</Text>
-            <Pressable style={[styles.bigButton, { backgroundColor: colors.primary }]} onPress={() => start("create")}>
-              <Text style={styles.bigButtonText}>🔑 合言葉を作って待つ</Text>
-              <Text style={styles.bigButtonSub}>6文字のコードを相手に伝えます</Text>
-            </Pressable>
+            <Text style={styles.sectionTitle}>対戦のしかた（2つの方法があります）</Text>
 
-            <View style={styles.joinRow}>
-              <TextInput
-                style={[styles.input, styles.joinInput]}
-                value={joinCode}
-                onChangeText={setJoinCode}
-                placeholder="合言葉（6文字）"
-                autoCapitalize="characters"
-                maxLength={6}
-              />
-              <Pressable
-                style={[styles.joinButton, joinCode.trim().length < 6 && styles.buttonDisabled]}
-                onPress={() => joinCode.trim().length >= 6 && start("join")}
-              >
-                <Text style={styles.bigButtonText}>入る</Text>
+            {/* 方法1: 合言葉で決まった相手と対戦する */}
+            <View style={styles.methodCard}>
+              <View style={styles.methodHeader}>
+                <View style={[styles.methodNumber, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.methodNumberText}>方法1</Text>
+                </View>
+                <Text style={styles.methodTitle}>🔑 合言葉で対戦</Text>
+              </View>
+              <Text style={styles.methodDesc}>
+                友だちや決まった相手と対戦する方法です。どちらかが合言葉を作り、もう1人がその合言葉を入力すると対戦が始まります。
+              </Text>
+              <Pressable style={[styles.bigButton, { backgroundColor: colors.primary }]} onPress={() => start("create")}>
+                <Text style={styles.bigButtonText}>合言葉を作って待つ</Text>
+                <Text style={styles.bigButtonSub}>6文字のコードを相手に伝えます</Text>
               </Pressable>
+              <View style={styles.joinRow}>
+                <TextInput
+                  style={[styles.input, styles.joinInput]}
+                  value={joinCode}
+                  onChangeText={setJoinCode}
+                  placeholder="合言葉（6文字）"
+                  autoCapitalize="characters"
+                  maxLength={6}
+                />
+                <Pressable
+                  style={[styles.joinButton, joinCode.trim().length < 6 && styles.buttonDisabled]}
+                  onPress={() => joinCode.trim().length >= 6 && start("join")}
+                >
+                  <Text style={styles.bigButtonText}>入る</Text>
+                </Pressable>
+              </View>
+              <Text style={styles.methodNote}>相手から合言葉を聞いたら、ここに入力してください</Text>
             </View>
 
-            <Pressable style={[styles.bigButton, { backgroundColor: colors.success }]} onPress={() => start("queue")}>
-              <Text style={styles.bigButtonText}>🎲 ランダムマッチ</Text>
-              <Text style={styles.bigButtonSub}>
-                {lobbyWaiting === null
-                  ? "待っている誰かとすぐ対戦"
-                  : lobbyWaiting > 0
-                    ? "✅ いま待っている人がいます！すぐ対戦できます"
-                    : "いま待っている人はいません（あなたが最初になれます）"}
+            {/* 区切り */}
+            <View style={styles.orRow}>
+              <View style={styles.orLine} />
+              <Text style={styles.orText}>または</Text>
+              <View style={styles.orLine} />
+            </View>
+
+            {/* 方法2: ランダムマッチ */}
+            <View style={styles.methodCard}>
+              <View style={styles.methodHeader}>
+                <View style={[styles.methodNumber, { backgroundColor: colors.success }]}>
+                  <Text style={styles.methodNumberText}>方法2</Text>
+                </View>
+                <Text style={styles.methodTitle}>🎲 ランダムマッチ</Text>
+              </View>
+              <Text style={styles.methodDesc}>
+                相手を決めずに、いま待っている誰かとすぐ対戦する方法です。合言葉はいりません。
               </Text>
-            </Pressable>
+              <Pressable style={[styles.bigButton, { backgroundColor: colors.success }]} onPress={() => start("queue")}>
+                <Text style={styles.bigButtonText}>相手を探して対戦</Text>
+                <Text style={styles.bigButtonSub}>
+                  {lobbyWaiting === null
+                    ? "待っている誰かとすぐ対戦"
+                    : lobbyWaiting > 0
+                      ? "✅ いま待っている人がいます！すぐ対戦できます"
+                      : "いま待っている人はいません（あなたが最初になれます）"}
+                </Text>
+              </Pressable>
+            </View>
           </>
         )}
 
@@ -278,6 +310,33 @@ const styles = StyleSheet.create({
   },
   deckName: { fontSize: 16, fontWeight: "800", color: colors.text },
   deckChange: { color: colors.primary, fontWeight: "700" },
+  methodCard: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    gap: spacing.sm,
+    ...shadow.card,
+  },
+  methodHeader: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  methodNumber: {
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  methodNumberText: { color: "#fff", fontSize: 12, fontWeight: "900" },
+  methodTitle: { fontSize: 17, fontWeight: "900", color: colors.text },
+  methodDesc: { fontSize: 13, color: colors.textMuted, lineHeight: 19 },
+  methodNote: { fontSize: 12, color: colors.textMuted, textAlign: "center" },
+  orRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginVertical: 2,
+  },
+  orLine: { flex: 1, height: 1, backgroundColor: colors.border },
+  orText: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
   bigButton: {
     borderRadius: radius.lg,
     paddingVertical: 16,
