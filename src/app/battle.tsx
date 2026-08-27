@@ -333,7 +333,7 @@ export default function BattleScreen() {
           : next.kind === "battle"
             ? 2400
             : next.kind === "lesson"
-              ? 1400
+              ? 2000
               : next.cardId
                 ? 1600
                 : next.emph
@@ -932,7 +932,7 @@ export default function BattleScreen() {
             styles.annLayer,
             currentAnn.kind === "turn" && styles.annLayerBand,
             currentAnn.kind === "battle" && styles.annLayerBattle,
-            currentAnn.kind === "lesson" && styles.annLayerEmph,
+            currentAnn.kind === "lesson" && styles.annLayerLesson,
             currentAnn.kind === "text" && currentAnn.emph && styles.annLayerEmph,
             currentAnn.cardId && styles.annLayerDim,
           ]}
@@ -1876,7 +1876,7 @@ function LessonCutIn({
 
   useEffect(() => {
     playSe(gained ? "advance" : "hit");
-    run.value = withTiming(1, { duration: 900, easing: Easing.inOut(Easing.cubic) });
+    run.value = withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) });
     pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
     if (!gained) {
       shake.value = withDelay(
@@ -1895,9 +1895,9 @@ function LessonCutIn({
   const emojiStyle = useAnimatedStyle(() => ({
     transform: gained
       ? [
-          // 画面を左から右へ走り抜ける
-          { translateX: -160 + run.value * 320 },
-          { translateY: Math.sin(run.value * 10) * 5 },
+          // 画面の端から端まで走り抜ける
+          { translateX: -260 + run.value * 520 },
+          { translateY: Math.sin(run.value * 10) * 6 },
         ]
       : [
           // 力なく落ちて傾く
@@ -2185,32 +2185,39 @@ const styles = StyleSheet.create({
   annLayerBattle: { backgroundColor: "#0b1024ee", padding: 0, alignItems: "stretch" },
   // 強調実況（じゃんけん勝敗・教習戻され・バトル解決）は全画面暗転で大きく
   annLayerEmph: { backgroundColor: "#0b1024cc" },
+  // 教習カットインは余白なしの全画面（絵文字が途中で切れないように）
+  annLayerLesson: {
+    backgroundColor: "#0b1024cc",
+    padding: 0,
+    alignItems: "stretch",
+  },
   lessonCutWrap: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
   },
-  lessonCutEmoji: { position: "absolute", fontSize: 84, opacity: 0.45 },
-  lessonCutBody: { alignItems: "center", gap: 10 },
+  lessonCutEmoji: { position: "absolute", fontSize: 130, opacity: 0.4 },
+  lessonCutBody: { alignItems: "center", gap: 12 },
   lessonCutBadge: {
-    paddingVertical: 4,
-    paddingHorizontal: 16,
+    paddingVertical: 6,
+    paddingHorizontal: 22,
     borderRadius: 999,
   },
-  lessonCutBadgeText: { color: "#fff", fontWeight: "900", fontSize: 14 },
+  lessonCutBadgeText: { color: "#fff", fontWeight: "900", fontSize: 17 },
   lessonCutTitle: {
-    fontSize: 56,
+    fontSize: 54,
     fontWeight: "900",
     letterSpacing: 2,
     textShadowColor: "#000",
-    textShadowRadius: 14,
+    textShadowRadius: 16,
   },
-  lessonCutUnit: { fontSize: 22, fontWeight: "900" },
+  lessonCutUnit: { fontSize: 24, fontWeight: "900" },
   lessonCutSub: {
     color: "#ffffffee",
-    fontSize: 16,
+    fontSize: 19,
     fontWeight: "800",
+    textAlign: "center",
     textShadowColor: "#000",
     textShadowRadius: 8,
   },
