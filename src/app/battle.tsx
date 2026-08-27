@@ -327,6 +327,8 @@ export default function BattleScreen() {
   }, [busy, setPresentationBusy]);
 
   // 山札から1枚引いたときの演出。実況とぶつからないよう、実況が捌けてから出す
+  // 読み終えたヒント。盤面が変わって別の内容になれば、また出す
+  const [readHint, setReadHint] = useState<string | null>(null);
   const [pendingDraw, setPendingDraw] = useState<string | null>(null);
   const [drawFx, setDrawFx] = useState<{ key: number; cardId: string } | null>(null);
   useEffect(() => {
@@ -604,17 +606,6 @@ export default function BattleScreen() {
             />
           </View>
         )}
-        {hint && !currentAnn && (
-          <Animated.View
-            key={hint.title}
-            entering={FadeIn.duration(200)}
-            style={styles.hintBox}
-          >
-            <Text style={styles.hintLabel}>ヒント</Text>
-            <Text style={styles.hintTitle}>{hint.title}</Text>
-            <Text style={styles.hintBody}>{hint.body}</Text>
-          </Animated.View>
-        )}
         {status && (
           <View
             style={[
@@ -811,6 +802,33 @@ export default function BattleScreen() {
             </Animated.View>
           )}
         </Pressable>
+      )}
+
+      {/*
+       * 練習対戦のヒント。
+       * 実況やターン帯より手前に、手札のすぐ上へ固定して出す
+       * （中央に置くと演出に隠れて読めなくなるため）。
+       */}
+      {hint && hint.title !== readHint && !dealing && state.phase.type !== "finished" && (
+        <Animated.View
+          key={hint.title}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(160)}
+          style={styles.hintBox}
+        >
+          <Text style={styles.hintLabel}>ヒント</Text>
+          <Text style={styles.hintTitle}>{hint.title}</Text>
+          <Text style={styles.hintBody}>{hint.body}</Text>
+          <Pressable
+            onPress={() => {
+              haptic("light");
+              setReadHint(hint.title);
+            }}
+            style={styles.hintOk}
+          >
+            <Text style={styles.hintOkText}>OK</Text>
+          </Pressable>
+        </Animated.View>
       )}
 
       {/* ===== オーバーレイ ===== */}
@@ -1729,6 +1747,12 @@ const styles = StyleSheet.create({
   logButton: { fontSize: 11, color: colors.primary, fontWeight: "800" },
   logButtonRow: { alignSelf: "flex-start", paddingVertical: 2 },
   hintBox: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    // 手札の上に重ならない高さ
+    bottom: 128,
+    zIndex: 50,
     backgroundColor: "#fff8e1",
     borderRadius: 12,
     borderWidth: 2,
@@ -1736,10 +1760,24 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     paddingHorizontal: 14,
     gap: 3,
+    shadowColor: "#000",
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 10,
   },
   hintLabel: { fontSize: 10, fontWeight: "800", color: colors.accent },
   hintTitle: { fontSize: 15, fontWeight: "800", color: colors.text },
   hintBody: { fontSize: 13, lineHeight: 19, color: colors.text },
+  hintOk: {
+    alignSelf: "flex-end",
+    marginTop: 4,
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 22,
+  },
+  hintOkText: { color: "#fff", fontWeight: "900", fontSize: 13 },
   infoLink: { color: colors.primary, fontSize: 12, fontWeight: "700" },
   pileNote: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   pileScroll: { alignSelf: "stretch", maxHeight: 380 },
