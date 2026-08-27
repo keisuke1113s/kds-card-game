@@ -29,6 +29,25 @@ let pendingBgmKey: string | null = null;
 if (Platform.OS === "web" && typeof document !== "undefined") {
   const unlock = () => {
     unlocked = true;
+    // iOS Safari は「ユーザー操作の中で一度再生した音」しか後から鳴らせない。
+    // このタップの中で全ての効果音プレイヤーを作って無音で慣らしておくことで、
+    // 以降のタイマー起点の再生（演出中の効果音）も拒否されなくなる。
+    try {
+      for (const key of Object.keys(seAssets)) {
+        if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+        const pl = sePlayers[key];
+        pl.volume = 0;
+        safePlay(pl);
+        try {
+          pl.pause();
+        } catch {
+          // 再生前の pause は環境により失敗するが問題ない
+        }
+        pl.volume = 1;
+      }
+    } catch {
+      // 慣らしに失敗しても、通常の再生時にもう一度試みる
+    }
     if (pendingBgmKey) {
       const key = pendingBgmKey;
       pendingBgmKey = null;
@@ -38,6 +57,13 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
   document.addEventListener("pointerdown", unlock, { once: true });
   document.addEventListener("touchend", unlock, { once: true });
   document.addEventListener("keydown", unlock, { once: true });
+
+  // それでも拒否された場合（NotAllowedError）は、音を諦めるだけで
+  // アプリを止めない。この文言のエラーだけを握りつぶす
+  window.addEventListener("unhandledrejection", (ev) => {
+    const msg = String(ev.reason?.message ?? ev.reason ?? "");
+    if (msg.includes("not allowed by the user agent")) ev.preventDefault();
+  });
 }
 
 /** play() が Promise を返す環境（Web）では拒否を握りつぶす */
@@ -52,6 +78,21 @@ function safePlay(player: AudioPlayer) {
     }
   } catch {
     // 自動再生ブロック等は無視（次のユーザー操作で再開される）
+  }
+}
+
+/** seekTo も環境により Promise を返すため、拒否を握りつぶす */
+function safeSeek(player: AudioPlayer, seconds: number) {
+  try {
+    const result = player.seekTo(seconds) as unknown;
+    if (
+      result &&
+      typeof (result as Promise<void>).catch === "function"
+    ) {
+      (result as Promise<void>).catch(() => {});
+    }
+  } catch {
+    // 頭出しに失敗しても再生自体は続行できる
   }
 }
 
@@ -85,7 +126,7 @@ export function playSe(key: SeKey): void {
       p = createAudioPlayer(asset);
       sePlayers[key] = p;
     }
-    p.seekTo(0);
+    safeSeek(p, 0);
     safePlay(p);
   } catch (e) {
     console.warn("効果音を再生できませんでした:", e);
