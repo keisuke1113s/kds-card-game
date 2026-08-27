@@ -35,7 +35,7 @@ export interface MatchRecord {
 }
 
 /** 保存する対戦記録の上限（古いものから消える） */
-const HISTORY_LIMIT = 300;
+const HISTORY_LIMIT = 1000;
 
 interface RecordState {
   wins: number;
