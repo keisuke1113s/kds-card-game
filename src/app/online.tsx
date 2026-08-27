@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { haptic } from "@/audio/haptics";
@@ -62,9 +62,12 @@ export default function OnlineScreen() {
   const queueActive = useGameStore((s) => s.queueActive);
   const startGame = useGameStore((s) => s.startGame);
   const [joinCode, setJoinCode] = React.useState("");
+  // 名前が未入力のまま参加ボタンを押したときに出す入力ダイアログ。
+  // どの参加方法を押したかを覚えておき、入力後にその方法で続行する
+  const [namePrompt, setNamePrompt] = React.useState<"create" | "join" | "queue" | null>(null);
+  const [nameDraft, setNameDraft] = React.useState("");
 
   const deck = resolveActiveDeck(deckState);
-  const name = prefs.name || "教習生";
   // アドレス欄を出さない公開版では、保存値がどうであれ必ず本番サーバーへつなぐ
   const serverUrl = SHOW_SERVER_FIELD ? prefs.serverUrl.trim() : DEFAULT_SERVER_URL;
 
@@ -96,6 +99,30 @@ export default function OnlineScreen() {
 
   const start = (mode: "create" | "join" | "queue") => {
     haptic("medium");
+    const name = prefs.name.trim();
+    // 名前は必須。未入力なら入力ダイアログを出し、入力後に続行する
+    if (!name) {
+      setNameDraft("");
+      setNamePrompt(mode);
+      return;
+    }
+    connectOnline({
+      serverUrl,
+      mode,
+      code: joinCode.trim().toUpperCase(),
+      name,
+      deck: deck.list,
+    });
+  };
+
+  /** 名前ダイアログで「決定」を押したとき: 名前を保存してから参加を続行する */
+  const confirmName = () => {
+    const name = nameDraft.trim();
+    if (!name || !namePrompt) return;
+    prefs.setName(name);
+    const mode = namePrompt;
+    setNamePrompt(null);
+    haptic("medium");
     connectOnline({
       serverUrl,
       mode,
@@ -115,7 +142,7 @@ export default function OnlineScreen() {
           style={styles.input}
           value={prefs.name}
           onChangeText={prefs.setName}
-          placeholder="教習生"
+          placeholder="対戦相手に表示されます"
           maxLength={12}
         />
 
@@ -274,6 +301,40 @@ export default function OnlineScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* 名前が未入力のまま参加しようとしたときの必須入力ダイアログ */}
+      <Modal visible={namePrompt !== null} transparent animationType="fade">
+        <View style={styles.nameModalLayer}>
+          <View style={styles.nameModalBox}>
+            <Text style={styles.nameModalTitle}>名前を入力してください</Text>
+            <Text style={styles.nameModalSub}>対戦相手にこの名前が表示されます</Text>
+            <TextInput
+              style={styles.input}
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              placeholder="例: たろう"
+              maxLength={12}
+              autoFocus
+              onSubmitEditing={confirmName}
+            />
+            <Pressable
+              style={[styles.nameModalOk, nameDraft.trim().length === 0 && styles.buttonDisabled]}
+              onPress={confirmName}
+            >
+              <Text style={styles.bigButtonText}>この名前で参加する</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.cancelButton, { alignSelf: "center" }]}
+              onPress={() => {
+                haptic("light");
+                setNamePrompt(null);
+              }}
+            >
+              <Text style={styles.cancelText}>やめる</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </ScreenEnter>
   );
 }
@@ -310,6 +371,30 @@ const styles = StyleSheet.create({
   },
   deckName: { fontSize: 16, fontWeight: "800", color: colors.text },
   deckChange: { color: colors.primary, fontWeight: "700" },
+  nameModalLayer: {
+    flex: 1,
+    backgroundColor: "rgba(10, 20, 40, 0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
+  nameModalBox: {
+    alignSelf: "stretch",
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.xl,
+    gap: spacing.sm,
+    alignItems: "stretch",
+    ...shadow.card,
+  },
+  nameModalTitle: { fontSize: 18, fontWeight: "900", color: colors.text, textAlign: "center" },
+  nameModalSub: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
+  nameModalOk: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 13,
+    alignItems: "center",
+  },
   methodCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
