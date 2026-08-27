@@ -421,6 +421,27 @@ export default function BattleScreen() {
   };
 
   /**
+   * 手札の一覧に出す短い札。「薄いのはなぜか」をカードを開かずに分かるようにする。
+   * （バトル専用のサポートは自分の番では使えないため、薄いまま並ぶ）
+   */
+  const handTagFor = (index: number): string | null => {
+    if (handActionFor(index) !== null) return null;
+    const cardId = me.hand[index];
+    if (cardId === undefined) return null;
+    const def = getCard(cardId);
+
+    if (state.phase.type === "battleSupport") {
+      if (def.type === "instructor") return "バトル後";
+      if (def.timing === "main") return "自分の番用";
+      return null;
+    }
+    if (state.turnPlayer !== HUMAN) return null;
+    if (def.type === "instructor") return "次のターン";
+    if (def.timing === "battle") return "バトル用";
+    return null;
+  };
+
+  /**
    * その手札が今使えない理由。使えるときは null。
    * 「引いたのに使えない」と迷わせないよう、拡大表示で理由を伝える。
    */
@@ -771,6 +792,17 @@ export default function BattleScreen() {
                       dimmed={!playable && (isMyMain || state.phase.type === "battleSupport")}
                       onPress={() => setPreviewHandIndex(i)}
                     />
+                    {(() => {
+                      const tag = handTagFor(i);
+                      if (!tag) return null;
+                      return (
+                        <View style={styles.handTag} pointerEvents="none">
+                          <Text style={styles.handTagText} numberOfLines={1}>
+                            {tag}
+                          </Text>
+                        </View>
+                      );
+                    })()}
                   </View>
                 </FloatIdle>
               </Animated.View>
@@ -1917,6 +1949,19 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   hand: { gap: 6, alignItems: "center", paddingRight: 8 },
+  // カードの下端に、使えない理由を短く重ねる
+  handTag: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "#16283cdd",
+    paddingVertical: 2,
+    alignItems: "center",
+    borderBottomLeftRadius: 6,
+    borderBottomRightRadius: 6,
+  },
+  handTagText: { color: "#fff", fontSize: 9, fontWeight: "800" },
   playableCard: {
     borderColor: colors.highlight,
     borderWidth: 2,
