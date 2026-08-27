@@ -53,6 +53,15 @@ export function preloadAllSmall(): Promise<void> {
   return warm(Object.values(cardSmalls));
 }
 
+/**
+ * 起動時に全カードの拡大用の絵（300px）もそろえる。
+ * 実況や拡大表示で絵が一瞬遅れて出るのを防ぐ。
+ * 原寸（868px・合計6MB）は重すぎるので読み込まない。
+ */
+export function preloadAllThumbs(): Promise<void> {
+  return warm(Object.values(cardThumbs));
+}
+
 /** 対戦で使うカードだけ、拡大表示用の絵もそろえる */
 export function preloadForMatch(cardIds: string[]): Promise<void> {
   const ids = [...new Set([...cardIds, "cardback"])];

@@ -4,7 +4,7 @@ import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
-import { preloadAllSmall } from "@/data/preload";
+import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
 import { colors, radius } from "@/theme";
 
 /**
@@ -32,6 +32,7 @@ function HomeButton() {
 export default function RootLayout() {
   // カードの絵を先に読み込み、そろってから起動画面を消す。
   // 絵が後から出てくる（一瞬文字だけになる）のを防ぐため。
+  // 一覧用（150px）と拡大用（300px）の全カードぶんをここで読み込む。
   useEffect(() => {
     let alive = true;
     const hideBoot = () => {
@@ -41,8 +42,8 @@ export default function RootLayout() {
       setTimeout(() => el.remove(), 400);
     };
     // 読み込みが長引いても、いつまでも待たせない
-    const failsafe = setTimeout(hideBoot, 6000);
-    preloadAllSmall().finally(() => {
+    const failsafe = setTimeout(hideBoot, 8000);
+    Promise.all([preloadAllSmall(), preloadAllThumbs()]).finally(() => {
       if (!alive) return;
       clearTimeout(failsafe);
       hideBoot();
