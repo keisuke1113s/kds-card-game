@@ -14,7 +14,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   BounceIn,
   Easing,
-  Keyframe,
   FadeIn,
   FadeInDown,
   FadeOut,
@@ -57,21 +56,6 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
-
-/** 場に出るとき: 大きく振りかぶって、盤面に叩きつけるように着地する */
-const SlamIn = new Keyframe({
-  0: { opacity: 0, transform: [{ scale: 1.7 }, { translateY: -30 }, { rotate: "-12deg" }] },
-  55: { opacity: 1, transform: [{ scale: 0.92 }, { translateY: 5 }, { rotate: "3deg" }] },
-  80: { opacity: 1, transform: [{ scale: 1.05 }, { translateY: -2 }, { rotate: "-1deg" }] },
-  100: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }, { rotate: "0deg" }] },
-}).duration(430);
-
-/** 場外に行くとき: 弾かれて回転しながら落ちていく */
-const SpinOut = new Keyframe({
-  0: { opacity: 1, transform: [{ scale: 1 }, { translateY: 0 }, { rotate: "0deg" }] },
-  30: { opacity: 0.95, transform: [{ scale: 1.12 }, { translateY: -12 }, { rotate: "-10deg" }] },
-  100: { opacity: 0, transform: [{ scale: 0.4 }, { translateY: 78 }, { rotate: "38deg" }] },
-}).duration(400);
 
 const TRACK_LABEL: Record<Track, string> = { academic: "学科", skill: "技能" };
 
@@ -1285,11 +1269,7 @@ function FieldRow({
         const combat = effectiveCombat(ctx, state, player, inst);
         const base = getCard(inst.cardId).combat ?? 0;
         return (
-          <Animated.View
-            key={inst.uid}
-            entering={SlamIn}
-            exiting={SpinOut}
-          >
+          <SlamEnter key={inst.uid}>
             <Pressable
               onPress={() => onPress(inst.uid)}
               style={[
@@ -1314,7 +1294,7 @@ function FieldRow({
                 {combat !== base ? `戦${combat}` : ""}
               </Text>
             </Pressable>
-          </Animated.View>
+          </SlamEnter>
         );
       })}
     </ScrollView>
@@ -1498,6 +1478,28 @@ function DealtCard({
       </Animated.View>
     </Animated.View>
   );
+}
+
+/**
+ * 場に出た瞬間、大きく振りかぶって叩きつけるように着地する。
+ * entering ではなく共有値で動かす（web では entering 中のカードが
+ * レイアウトから外れ、左端に重なって見えることがあるため）。
+ */
+function SlamEnter({ children }: { children: React.ReactNode }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withSpring(1, { damping: 13, stiffness: 140 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    opacity: Math.min(1, p.value * 3),
+    transform: [
+      { scale: 1.6 - p.value * 0.6 },
+      { translateY: (1 - p.value) * -26 },
+      { rotate: `${(1 - p.value) * -10}deg` },
+    ],
+  }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 /**
@@ -1741,7 +1743,8 @@ const styles = StyleSheet.create({
   dealFace: { backfaceVisibility: "hidden" },
   dealFront: { ...StyleSheet.absoluteFill },
   // 手札エリアの上に重ねる（手札の並びに影響させない）
-  drawFx: { position: "absolute", left: 12, bottom: 6, zIndex: 10 },
+  // 引いたカードは手札の右端に加わるので、演出も右端に出す
+  drawFx: { position: "absolute", right: 12, bottom: 6, zIndex: 10 },
   confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
   turnFxBand: {
     paddingVertical: 12,
