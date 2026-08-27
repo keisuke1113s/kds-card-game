@@ -23,6 +23,8 @@ interface UnlockState {
   addIssued: (entry: { id: string; name: string; at: string }) => void;
   /** 管理画面用: QRで開放したカードをすべて未開放に戻す（動作確認用） */
   resetScanned: () => void;
+  /** 動作確認用: 初回配布からやり直す（開放状態をすべて消す） */
+  resetAll: () => void;
 }
 
 export const useUnlockStore = create<UnlockState>()(
@@ -41,6 +43,7 @@ export const useUnlockStore = create<UnlockState>()(
           s.issued.some((e) => e.id === entry.id) ? s : { issued: [...s.issued, entry] }
         ),
       resetScanned: () => set({ scannedIds: [] }),
+      resetAll: () => set({ initialSet: null, scannedIds: [] }),
     }),
     {
       name: "kds-unlocks",

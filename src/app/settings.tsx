@@ -1,10 +1,11 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
 
@@ -13,6 +14,13 @@ const speeds: { label: string; ms: number }[] = [
   { label: "ふつう", ms: 1000 },
   { label: "ゆっくり", ms: 1600 },
 ];
+
+/** 開発版デモ（/dev/）か、開発中の起動か（テスト用機能を出す条件） */
+const IS_DEV_BUILD =
+  (typeof __DEV__ !== "undefined" && __DEV__) ||
+  (Platform.OS === "web" &&
+    typeof window !== "undefined" &&
+    window.location.pathname.includes("/dev/"));
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -81,6 +89,8 @@ export default function SettingsScreen() {
           アプリ版では振動します。
         </Text>
       )}
+
+      {!inBattle && IS_DEV_BUILD && <DevCardReset />}
 
       {!inBattle && (
         <Pressable
@@ -172,6 +182,38 @@ function Choice({
         {label}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * 開発版だけに出す、カード配布のやり直しボタン（動作確認用）。
+ * iPhoneでサイトデータを消さなくても、初回のランダム配布を再体験できる
+ */
+function DevCardReset() {
+  const unlockState = useUnlockStore();
+  const count = unlockedSet(unlockState).size;
+  const [done, setDone] = useState(false);
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>開発版のテスト用</Text>
+      <Text style={styles.note}>
+        いまの開放カードは {count} 枚です。リセットすると、QRで開放した分も消えて、
+        新しいランダム22枚が配り直されます。
+      </Text>
+      <Pressable
+        style={[styles.wideButton, { backgroundColor: colors.danger }]}
+        onPress={() => {
+          unlockState.resetAll();
+          ensureInitialSet();
+          setDone(true);
+          setTimeout(() => setDone(false), 3000);
+        }}
+      >
+        <Text style={styles.wideButtonText}>
+          {done ? "✅ 配り直しました！図鑑で確認できます" : "🔄 カード配布をリセット（テスト用）"}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
