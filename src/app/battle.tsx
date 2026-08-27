@@ -68,8 +68,8 @@ type Owner = "self" | "cpu";
  */
 interface Announcement {
   key: number;
-  /** "turn" は画面を横切る帯、"text" は実況（カード付きはタップ待ち） */
-  kind: "text" | "turn";
+  /** "turn" は画面を横切る帯、"battle" は全画面のカットイン、"text" は実況（カード付きはタップ待ち） */
+  kind: "text" | "turn" | "battle";
   text: string;
   cardId?: string;
   emph?: boolean;
@@ -152,7 +152,11 @@ function announcementsFor(events: GameEvent[]): Announcement[] {
           add(`「${getCard(e.cardId).name}」の力を使った！`, e.cardId, false, "cpu");
         break;
       case "battleDeclared":
-        add(e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "バトル開始！", undefined, true);
+        out.push({
+          key: ++annSeq,
+          kind: "battle",
+          text: e.attackerPlayer === CPU ? "CPUがバトルを仕掛けた！" : "あなたのバトル！",
+        });
         break;
       case "trackAdvanced":
         if (e.player === HUMAN && e.amount < 0) {
@@ -292,7 +296,7 @@ export default function BattleScreen() {
           annTimer.current = null;
           setCurrentAnn(null);
         },
-        next.kind === "turn" ? 750 : 850
+        next.kind === "turn" ? 750 : next.kind === "battle" ? 1250 : 850
       );
     }
   }, [currentAnn, annQueue]);
@@ -309,6 +313,32 @@ export default function BattleScreen() {
   useEffect(() => {
     setPresentationBusy(busy);
   }, [busy, setPresentationBusy]);
+
+  // 選択が発生したら、開いていた手札の拡大表示を閉じる
+  // （選択画面と重なって、どちらも操作できなくなるため）
+  const choiceActive =
+    state?.phase.type === "choice" && state.phase.pending.player === HUMAN;
+  useEffect(() => {
+    if (choiceActive) setPreviewHandIndex(null);
+  }, [choiceActive]);
+
+  // 場外へ飛んでいくカードの演出。実況を読み終えてから再生する
+  const [pendingOuts, setPendingOuts] = useState<{ cardId: string; mine: boolean }[]>([]);
+  const [outFx, setOutFx] = useState<{ key: number; cards: { cardId: string; mine: boolean }[] } | null>(null);
+  useEffect(() => {
+    const outs = lastEvents
+      .filter((e) => e.type === "instructorRemoved" || e.type === "cardDiscarded")
+      .map((e) => ({
+        cardId: (e as { cardId: string }).cardId,
+        mine: (e as { player: number }).player === HUMAN,
+      }));
+    if (outs.length > 0) setPendingOuts((q) => [...q, ...outs]);
+  }, [lastEvents]);
+  useEffect(() => {
+    if (pendingOuts.length === 0 || busy || outFx) return;
+    setOutFx({ key: Date.now(), cards: pendingOuts });
+    setPendingOuts([]);
+  }, [pendingOuts, busy, outFx]);
 
   // 山札から1枚引いたときの演出。実況とぶつからないよう、実況が捌けてから出す
   // 読み終えたヒント。盤面が変わって別の内容になれば、また出す
@@ -798,6 +828,21 @@ export default function BattleScreen() {
 
       </Animated.View>
 
+      {/* 場外へ飛んでいくカード */}
+      {outFx && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {outFx.cards.map((c, i) => (
+            <FlyToOut
+              key={`${outFx.key}-${i}`}
+              cardId={c.cardId}
+              mine={c.mine}
+              index={i}
+              onDone={i === outFx.cards.length - 1 ? () => setOutFx(null) : undefined}
+            />
+          ))}
+        </View>
+      )}
+
       {/* 衝撃の白フラッシュ（バトル解決・退場） */}
       <Animated.View style={[styles.flashLayer, flashStyle]} pointerEvents="none" />
 
@@ -816,11 +861,14 @@ export default function BattleScreen() {
           style={[
             styles.annLayer,
             currentAnn.kind === "turn" && styles.annLayerBand,
+            currentAnn.kind === "battle" && styles.annLayerBattle,
             currentAnn.cardId && styles.annLayerDim,
           ]}
           onPress={dismissAnn}
         >
-          {currentAnn.kind === "turn" ? (
+          {currentAnn.kind === "battle" ? (
+            <BattleCutIn key={currentAnn.key} subtitle={currentAnn.text} />
+          ) : currentAnn.kind === "turn" ? (
             <Animated.View
               key={currentAnn.key}
               entering={SlideInLeft.duration(260)}
@@ -1006,7 +1054,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {previewHandIndex !== null && me.hand[previewHandIndex] !== undefined && (
+      {previewHandIndex !== null && me.hand[previewHandIndex] !== undefined && !humanChoice && (
         <Overlay
           title={getCard(me.hand[previewHandIndex]).name}
           onClose={() => setPreviewHandIndex(null)}
@@ -1180,7 +1228,21 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {state.phase.type === "finished" && state.phase.winner === HUMAN && <Confetti />}
+      {state.phase.type === "finished" && state.phase.winner === HUMAN && (
+        <>
+          <Confetti />
+          {/* 自分のデッキの全カード（担当含む）が舞う */}
+          <CardRain
+            cardIds={[
+              ...me.deck,
+              ...me.hand,
+              ...me.field.map((f) => f.cardId),
+              ...me.outOfPlay,
+              me.tantou,
+            ]}
+          />
+        </>
+      )}
 
       {state.phase.type === "finished" && (
         <Overlay
@@ -1588,6 +1650,159 @@ function PulseRing({
   return <Animated.View style={[style, animated]}>{children}</Animated.View>;
 }
 
+/**
+ * バトル宣言のカットイン。
+ * 暗転した画面に赤い斜め帯が交差し、「いざ、勝負！」が飛び出す。
+ */
+function BattleCutIn({ subtitle }: { subtitle: string }) {
+  const slashA = useSharedValue(0);
+  const slashB = useSharedValue(0);
+  const pop = useSharedValue(0);
+
+  useEffect(() => {
+    playSe("battle");
+    slashA.value = withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) });
+    slashB.value = withDelay(90, withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }));
+    pop.value = withDelay(180, withSpring(1, { damping: 10, stiffness: 180 }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const slashAStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: "-12deg" },
+      { translateX: (1 - slashA.value) * -500 },
+    ],
+    opacity: slashA.value,
+  }));
+  const slashBStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: "8deg" },
+      { translateX: (1 - slashB.value) * 500 },
+    ],
+    opacity: slashB.value,
+  }));
+  const popStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, pop.value * 2),
+    transform: [
+      { scale: 0.3 + pop.value * 0.7 },
+      { rotate: `${(1 - pop.value) * 14 - 4}deg` },
+    ],
+  }));
+
+  return (
+    <View style={styles.cutinWrap} pointerEvents="none">
+      <Animated.View style={[styles.cutinSlash, styles.cutinSlashA, slashAStyle]} />
+      <Animated.View style={[styles.cutinSlash, styles.cutinSlashB, slashBStyle]} />
+      <Animated.View style={popStyle}>
+        <Text style={styles.cutinTitle} allowFontScaling={false}>
+          いざ、勝負！
+        </Text>
+        <Text style={styles.cutinSub}>{subtitle}</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * 場外へ飛んでいくカード。
+ * 画面中央に現れ、回転しながら場外置き場の方向（自分は左下、CPUは左上）へ
+ * 吸い込まれて消える。
+ */
+function FlyToOut({
+  cardId,
+  mine,
+  index,
+  onDone,
+}: {
+  cardId: string;
+  mine: boolean;
+  index: number;
+  onDone?: () => void;
+}) {
+  const p = useSharedValue(0);
+
+  useEffect(() => {
+    playSe("hit");
+    p.value = withDelay(
+      index * 220,
+      withTiming(1, { duration: 850, easing: Easing.inOut(Easing.cubic) })
+    );
+    const t = setTimeout(onDone ?? (() => {}), index * 220 + 950);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => {
+    // 出だしで少し拡大して見せてから、場外の方向へ飛ばす
+    const appear = Math.min(1, p.value * 4);
+    const fly = Math.max(0, (p.value - 0.3) / 0.7);
+    return {
+      opacity: appear * (1 - Math.max(0, (p.value - 0.85) / 0.15)),
+      transform: [
+        { translateX: fly * -130 },
+        { translateY: fly * (mine ? 210 : -260) },
+        { scale: 0.6 + appear * 0.7 - fly * 0.9 },
+        { rotate: `${fly * (mine ? 300 : -300)}deg` },
+      ],
+    };
+  });
+
+  return (
+    <View style={styles.outFxCenter} pointerEvents="none">
+      <Animated.View style={style}>
+        <CardFace cardId={cardId} size="md" />
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * 勝利のお祝い。デッキのカードが紙吹雪と一緒に画面いっぱいに舞う。
+ */
+function CardRain({ cardIds }: { cardIds: string[] }) {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {cardIds.map((id, i) => (
+        <RainCard key={`${id}-${i}`} cardId={id} index={i} />
+      ))}
+    </View>
+  );
+}
+
+function RainCard({ cardId, index }: { cardId: string; index: number }) {
+  // 見た目を散らすための固定値（乱数だと再レンダーのたびに変わってしまう）
+  const left = `${(index * 47 + 13) % 92}%`;
+  const delay = (index % 11) * 260;
+  const duration = 3000 + (index % 6) * 350;
+  const spin = (index % 2 === 0 ? 1 : -1) * (540 + (index % 4) * 120);
+  const drift = ((index % 5) - 2) * 26;
+
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    progress.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: progress.value < 0.05 ? progress.value * 20 : progress.value > 0.9 ? (1 - progress.value) * 10 : 1,
+    transform: [
+      { translateY: -120 + progress.value * 1100 },
+      { translateX: Math.sin(progress.value * 5) * drift },
+      { rotate: `${progress.value * spin}deg` },
+      { scale: 0.75 },
+    ],
+  }));
+
+  return (
+    <Animated.View style={[styles.rainCard, { left: left as DimensionValue }, style]}>
+      <CardFace cardId={cardId} size="sm" />
+    </Animated.View>
+  );
+}
+
 /** 勝利したときに舞う紙吹雪 */
 const CONFETTI_COLORS = ["#d83030", "#e49c18", "#78b424", "#3d8fd0", "#c9d63a", "#8fd3ee"];
 
@@ -1728,6 +1943,39 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   annLayerDim: { backgroundColor: "#00000066" },
+  annLayerBattle: { backgroundColor: "#000000bb", padding: 0, alignItems: "stretch" },
+  cutinWrap: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+  },
+  cutinSlash: {
+    position: "absolute",
+    left: -100,
+    right: -100,
+    height: 66,
+    backgroundColor: colors.danger,
+    opacity: 0.9,
+  },
+  cutinSlashA: { top: "34%" },
+  cutinSlashB: { top: "52%" },
+  cutinTitle: {
+    color: "#fff",
+    fontSize: 44,
+    fontWeight: "900",
+    letterSpacing: 4,
+    textAlign: "center",
+    textShadowColor: colors.danger,
+    textShadowRadius: 18,
+  },
+  cutinSub: {
+    color: "#ffffffdd",
+    fontSize: 15,
+    fontWeight: "800",
+    textAlign: "center",
+    marginTop: 8,
+  },
   // ターンの帯は画面の端から端まで流すので余白を消す
   annLayerBand: { padding: 0, alignItems: "stretch" },
   flashLayer: { ...StyleSheet.absoluteFill, backgroundColor: "#fff" },
@@ -1760,6 +2008,12 @@ const styles = StyleSheet.create({
   // 引いたカードは手札の右端に加わるので、演出も右端に出す
   drawFx: { position: "absolute", right: 12, bottom: 6, zIndex: 10 },
   confettiPiece: { position: "absolute", top: 0, borderRadius: 1 },
+  outFxCenter: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rainCard: { position: "absolute", top: 0 },
   turnFxBand: {
     paddingVertical: 12,
     alignItems: "center",
