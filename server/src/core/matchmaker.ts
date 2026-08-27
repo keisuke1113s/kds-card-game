@@ -93,4 +93,13 @@ export class Matchmaker {
     this.sweep();
     return this.rooms.size;
   }
+
+  /** ランダムマッチで相手を待っている人数（0か1） */
+  get waitingCount(): number {
+    this.sweep();
+    if (!this.queueRoomCode) return 0;
+    const entry = this.rooms.get(this.queueRoomCode);
+    if (!entry || entry.room.started) return 0;
+    return entry.room.playerCount;
+  }
 }

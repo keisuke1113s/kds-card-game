@@ -70,6 +70,14 @@ interface GameStore {
   }) => void;
   /** オンライン対戦の投了 */
   resignOnline: () => void;
+  /**
+   * ランダムマッチの待機を維持したままかどうか。
+   * true の間はCPU対戦をしていても、相手が見つかったら切り替わる
+   */
+  queueActive: boolean;
+  /** 相手が見つかった瞬間の通知（battle 画面が全画面で知らせて消す） */
+  matchFound: string | null;
+  clearMatchFound: () => void;
 
   startGame: (opts: {
     playerDeck: DeckList;
@@ -273,6 +281,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
     onlineError: null,
     roomCode: null,
     opponentName: null,
+    queueActive: false,
+    matchFound: null,
+    clearMatchFound: () => set({ matchFound: null }),
     eventLog: [],
     lastEvents: [],
     aiThinking: false,
@@ -303,8 +314,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
     }) => {
       gameToken++;
       clearAiTimer();
-      closeSocket();
-      set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
+      // ランダムマッチの待機中は接続を維持したままCPU対戦を回す
+      // （相手が見つかったら matchStart がこの対局を破棄して切り替える）
+      if (get().queueActive) {
+        set({ mode: "local" });
+      } else {
+        closeSocket();
+        set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
+      }
       const realSeed = seed ?? randomSeed();
       ai = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS[difficulty], realSeed ^ 0x55aa);
       // 自動プレイ用。自分側は常に最強設定で打つ
@@ -338,6 +355,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
       onlineSession = null;
       set({
         mode: "online",
+        queueActive: mode === "queue",
+        matchFound: null,
         onlineStatus: "connecting",
         onlineError: null,
         roomCode: null,
@@ -447,9 +466,27 @@ export const useGameStore = create<GameStore>()((set, get) => {
             case "opponentJoined":
               set({ opponentName: msg.name ?? null });
               break;
-            case "matchStart":
-              set({ onlineStatus: "playing", onlineError: null });
+            case "matchStart": {
+              // 待機中にCPU対戦をしていた場合はそれを破棄して切り替える
+              gameToken++;
+              clearAiTimer();
+              pendingUpdates = [];
+              set({
+                mode: "online",
+                onlineStatus: "playing",
+                onlineError: null,
+                queueActive: false,
+                matchFound: get().opponentName ?? "相手",
+                state: null,
+                lastEvents: [],
+                eventLog: [],
+                aiThinking: false,
+                presentationBusy: false,
+                tutorial: false,
+                autoPlay: false,
+              });
               break;
+            }
             case "update": {
               const view = msg.view ?? null;
               const events = msg.events ?? [];
@@ -538,6 +575,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
       closeSocket();
       onlineSession = null;
+      set({ queueActive: false, matchFound: null });
       ai = null;
       set({
         state: null,

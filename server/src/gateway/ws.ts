@@ -28,6 +28,15 @@ export function startServer(port: number): http.Server {
       res.end(JSON.stringify({ ok: true, rooms: matchmaker.roomCount }));
       return;
     }
+    if (req.url === "/lobby") {
+      // ランダムマッチで待っている人がいるか（アプリの表示用）
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      });
+      res.end(JSON.stringify({ waiting: matchmaker.waitingCount }));
+      return;
+    }
     res.writeHead(404);
     res.end();
   });

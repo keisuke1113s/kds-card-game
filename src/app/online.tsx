@@ -6,7 +6,8 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { haptic } from "@/audio/haptics";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useGameStore } from "@/store/gameStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 
@@ -38,6 +39,7 @@ const useOnlinePrefs = create<OnlinePrefs>()(
 export default function OnlineScreen() {
   const router = useRouter();
   const prefs = useOnlinePrefs();
+  const [lobbyWaiting, setLobbyWaiting] = React.useState<number | null>(null);
   const deckState = useDeckStore();
   const connectOnline = useGameStore((s) => s.connectOnline);
   const onlineStatus = useGameStore((s) => s.onlineStatus);
@@ -45,6 +47,8 @@ export default function OnlineScreen() {
   const roomCode = useGameStore((s) => s.roomCode);
   const opponentName = useGameStore((s) => s.opponentName);
   const quitGame = useGameStore((s) => s.quitGame);
+  const queueActive = useGameStore((s) => s.queueActive);
+  const startGame = useGameStore((s) => s.startGame);
   const [joinCode, setJoinCode] = React.useState("");
 
   const deck = resolveActiveDeck(deckState);
@@ -54,6 +58,30 @@ export default function OnlineScreen() {
   useEffect(() => {
     if (onlineStatus === "playing") router.replace("/battle");
   }, [onlineStatus, router]);
+
+  // ランダムマッチで待っている人がいるか、10秒ごとに確認する
+  useEffect(() => {
+    let alive = true;
+    const httpUrl = prefs.serverUrl
+      .trim()
+      .replace(/^wss:/, "https:")
+      .replace(/^ws:/, "http:");
+    const check = async () => {
+      try {
+        const res = await fetch(`${httpUrl}/lobby`);
+        const data = (await res.json()) as { waiting: number };
+        if (alive) setLobbyWaiting(data.waiting);
+      } catch {
+        if (alive) setLobbyWaiting(null);
+      }
+    };
+    void check();
+    const timer = setInterval(check, 10000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+  }, [prefs.serverUrl]);
 
   const start = (mode: "create" | "join" | "queue") => {
     haptic("medium");
@@ -104,6 +132,29 @@ export default function OnlineScreen() {
             {opponentName && (
               <Text style={styles.waitNote}>{opponentName} さんが入室しました</Text>
             )}
+            {queueActive && (
+              <Pressable
+                style={styles.cpuWhileWaitButton}
+                onPress={() => {
+                  haptic("medium");
+                  // 待機を維持したままCPU対戦を開始する。
+                  // 相手が見つかったらCPU対戦は打ち切られ、オンライン対戦に切り替わる
+                  const latest = useDeckStore.getState();
+                  const player = resolveActiveDeck(latest);
+                  const st = useSettingsStore.getState();
+                  startGame({
+                    playerDeck: player.list,
+                    cpuDeck: cpuDeckFor(player, latest.builtinOverrides).list,
+                    difficulty: st.difficulty,
+                    aiSpeedMs: st.aiSpeedMs,
+                  });
+                  router.replace("/battle");
+                }}
+              >
+                <Text style={styles.bigButtonText}>🤖 待っている間にCPU対戦</Text>
+                <Text style={styles.bigButtonSub}>相手が見つかったら自動で切り替わります</Text>
+              </Pressable>
+            )}
             <Pressable
               style={styles.cancelButton}
               onPress={() => {
@@ -141,7 +192,13 @@ export default function OnlineScreen() {
 
             <Pressable style={[styles.bigButton, { backgroundColor: colors.success }]} onPress={() => start("queue")}>
               <Text style={styles.bigButtonText}>🎲 ランダムマッチ</Text>
-              <Text style={styles.bigButtonSub}>待っている誰かとすぐ対戦</Text>
+              <Text style={styles.bigButtonSub}>
+                {lobbyWaiting === null
+                  ? "待っている誰かとすぐ対戦"
+                  : lobbyWaiting > 0
+                    ? "✅ いま待っている人がいます！すぐ対戦できます"
+                    : "いま待っている人はいません（あなたが最初になれます）"}
+              </Text>
             </Pressable>
           </>
         )}
@@ -239,6 +296,14 @@ const styles = StyleSheet.create({
     color: colors.primary,
   },
   waitNote: { fontSize: 13, color: colors.textMuted, textAlign: "center", lineHeight: 19 },
+  cpuWhileWaitButton: {
+    alignSelf: "stretch",
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 14,
+    alignItems: "center",
+    gap: 2,
+  },
   cancelButton: {
     marginTop: spacing.sm,
     backgroundColor: colors.cancel,

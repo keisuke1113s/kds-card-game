@@ -296,6 +296,9 @@ export default function BattleScreen() {
   const setAutoPlay = useGameStore((s) => s.setAutoPlay);
   const matchMode = useGameStore((s) => s.mode);
   const opponentName = useGameStore((s) => s.opponentName);
+  const queueActive = useGameStore((s) => s.queueActive);
+  const matchFound = useGameStore((s) => s.matchFound);
+  const clearMatchFound = useGameStore((s) => s.clearMatchFound);
   const isOnline = matchMode === "online";
   oppLabel = isOnline ? (opponentName ?? "相手") : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
@@ -331,6 +334,20 @@ export default function BattleScreen() {
   const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
 
   // イベント → 実況キュー＋シェイク
+  // 相手が見つかってオンライン対局に切り替わったら、CPU対戦の演出の残りを片づける
+  useEffect(() => {
+    if (!matchFound) return;
+    setAnnQueue([]);
+    dismissAnn();
+    setPendingDraw(null);
+    setDrawFx(null);
+    setPendingOuts([]);
+    setOutFx(null);
+    const t = setTimeout(() => clearMatchFound(), 2600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchFound]);
+
   useEffect(() => {
     // 決着したら、たまっていた実況・演出をすべて捨てて勝敗の演出だけを見せる
     if (lastEvents.some((e) => e.type === "gameEnded")) {
@@ -779,6 +796,12 @@ export default function BattleScreen() {
         >
           <Text style={styles.settingsText}>⚙️ 設定</Text>
         </Pressable>
+        {/* ランダムマッチの相手を探しながらCPU対戦しているときの目印 */}
+        {queueActive && !isOnline && (
+          <View style={styles.queueBadge} pointerEvents="none">
+            <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
+          </View>
+        )}
         {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ。オンラインでは出さない */}
         {!isOnline && (
         <Pressable
@@ -1145,6 +1168,17 @@ export default function BattleScreen() {
             <Text style={styles.hintOkText}>OK</Text>
           </Pressable>
         </Animated.View>
+      )}
+
+      {/* 相手が見つかった通知（CPU対戦からの切り替え） */}
+      {matchFound && (
+        <Pressable style={styles.matchFoundLayer} onPress={clearMatchFound}>
+          <Animated.View entering={ZoomIn.springify().damping(10)} style={styles.matchFoundBox}>
+            <Text style={styles.matchFoundEmoji}>🌐</Text>
+            <Text style={styles.matchFoundTitle}>対戦相手が見つかりました！</Text>
+            <Text style={styles.matchFoundSub}>{matchFound} さんとの対戦を始めます</Text>
+          </Animated.View>
+        </Pressable>
       )}
 
       {/* ===== オーバーレイ ===== */}
@@ -2916,6 +2950,35 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 1,
   },
+  queueBadge: {
+    position: "absolute",
+    top: 4,
+    left: 8,
+    zIndex: 5,
+    backgroundColor: "#4a148c",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  matchFoundLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#0b1024dd",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+  },
+  matchFoundBox: { alignItems: "center", gap: 8, padding: 24 },
+  matchFoundEmoji: { fontSize: 56 },
+  matchFoundTitle: {
+    color: "#fff",
+    fontSize: 26,
+    fontWeight: "900",
+    textAlign: "center",
+    textShadowColor: colors.primary,
+    textShadowRadius: 14,
+  },
+  matchFoundSub: { color: "#ffffffdd", fontSize: 15, fontWeight: "800" },
   autoButton: {
     position: "absolute",
     top: 4,
