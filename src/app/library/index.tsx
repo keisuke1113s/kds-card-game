@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import Svg, { Circle } from "react-native-svg";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { LockedCard } from "@/components/LockedCard";
@@ -15,13 +16,27 @@ const sections: { label: string; type: string }[] = [
   { label: "担当", type: "tantou" },
 ];
 
+/** 図鑑の表示絞り込み */
+type LibraryFilter = "all" | "unlocked" | "locked";
+
+const FILTERS: { key: LibraryFilter; label: string }[] = [
+  { key: "all", label: "すべて" },
+  { key: "unlocked", label: "あつめた" },
+  { key: "locked", label: "未開放" },
+];
+
 export default function LibraryScreen() {
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [lockedTapped, setLockedTapped] = useState(false);
+  const [filter, setFilter] = useState<LibraryFilter>("all");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
   const total = allCards.length;
+  const collected = Math.min(unlocked.size, total);
+
+  const matchesFilter = (id: string) =>
+    filter === "all" ? true : filter === "unlocked" ? unlocked.has(id) : !unlocked.has(id);
 
   return (
     <ScreenEnter style={styles.root}>
@@ -30,9 +45,32 @@ export default function LibraryScreen() {
         keyExtractor={(s) => s.type}
         ListHeaderComponent={
           <View style={styles.headerBox}>
-            <Text style={styles.progress}>
-              あつめたカード {Math.min(unlocked.size, total)} / {total}
-            </Text>
+            {/* コンプ率の見える化: 円リング＋タイプ別バー */}
+            <View style={styles.compRow}>
+              <CompletionRing collected={collected} total={total} />
+              <View style={styles.compBars}>
+                {sections.map((s) => {
+                  const cards = allCards.filter((c) => c.type === s.type);
+                  const got = cards.filter((c) => unlocked.has(c.id)).length;
+                  return (
+                    <View key={s.type} style={styles.compBarRow}>
+                      <Text style={styles.compBarLabel}>{s.label}</Text>
+                      <View style={styles.compBarTrack}>
+                        <View
+                          style={[
+                            styles.compBarFill,
+                            { width: `${(got / Math.max(1, cards.length)) * 100}%` },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.compBarCount}>
+                        {got}/{cards.length}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
             <Pressable style={styles.scanButton} onPress={() => router.push("/scan")}>
               <Text style={styles.scanButtonText}>📷 QRコードでカードを登録</Text>
             </Pressable>
@@ -45,24 +83,44 @@ export default function LibraryScreen() {
                 🎁 KDSに入校すると教習毎にトレーディングカードを1枚もらえるよ！
               </Text>
             </View>
+            {/* 絞り込み */}
+            <View style={styles.filterRow}>
+              {FILTERS.map((f) => (
+                <Pressable
+                  key={f.key}
+                  style={[styles.filterChip, filter === f.key && styles.filterChipActive]}
+                  onPress={() => setFilter(f.key)}
+                >
+                  <Text
+                    style={[styles.filterText, filter === f.key && styles.filterTextActive]}
+                  >
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
           </View>
         }
-        renderItem={({ item: section }) => (
-          <View>
-            <Text style={styles.sectionTitle}>{section.label}</Text>
-            <View style={styles.grid}>
-              {allCards
-                .filter((c) => c.type === section.type)
-                .map((c) =>
+        renderItem={({ item: section }) => {
+          const cards = allCards.filter(
+            (c) => c.type === section.type && matchesFilter(c.id)
+          );
+          if (cards.length === 0) return null;
+          return (
+            <View>
+              <Text style={styles.sectionTitle}>{section.label}</Text>
+              <View style={styles.grid}>
+                {cards.map((c) =>
                   unlocked.has(c.id) ? (
                     <CardFace key={c.id} cardId={c.id} size="md" onPress={() => setSelected(c.id)} />
                   ) : (
                     <LockedCard key={c.id} size="md" onPress={() => setLockedTapped(true)} />
                   )
                 )}
+              </View>
             </View>
-          </View>
-        )}
+          );
+        }}
         contentContainerStyle={styles.list}
       />
       {selected && (
@@ -103,11 +161,93 @@ export default function LibraryScreen() {
   );
 }
 
+/** コンプ率の円リング（svgでぐるっと囲む） */
+function CompletionRing({ collected, total }: { collected: number; total: number }) {
+  const size = 96;
+  const stroke = 9;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  const ratio = total > 0 ? collected / total : 0;
+  return (
+    <View style={{ width: size, height: size, alignItems: "center", justifyContent: "center" }}>
+      <Svg width={size} height={size}>
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={colors.border}
+          strokeWidth={stroke}
+          fill="none"
+        />
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke={ratio >= 1 ? "#c9971b" : colors.primary}
+          strokeWidth={stroke}
+          fill="none"
+          strokeDasharray={`${c * ratio} ${c}`}
+          strokeLinecap="round"
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
+      <View style={StyleSheet.absoluteFill}>
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <Text style={styles.ringCount}>
+            {collected}
+            <Text style={styles.ringTotal}>/{total}</Text>
+          </Text>
+          <Text style={styles.ringLabel}>{ratio >= 1 ? "コンプ！" : `${Math.floor(ratio * 100)}%`}</Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   list: { padding: 16, paddingBottom: 40 },
   headerBox: { gap: 8, alignItems: "center", marginBottom: 4 },
   progress: { fontSize: 14, fontWeight: "900", color: colors.text },
+  compRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    alignSelf: "stretch",
+    backgroundColor: colors.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  compBars: { flex: 1, gap: 8 },
+  compBarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  compBarLabel: { width: 86, fontSize: 11, fontWeight: "800", color: colors.textMuted },
+  compBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+  },
+  compBarFill: { height: "100%", borderRadius: 4, backgroundColor: colors.success },
+  compBarCount: { width: 38, fontSize: 11, fontWeight: "800", color: colors.text, textAlign: "right" },
+  ringCount: { fontSize: 19, fontWeight: "900", color: colors.text },
+  ringTotal: { fontSize: 11, color: colors.textMuted },
+  ringLabel: { fontSize: 10, fontWeight: "800", color: colors.primary },
+  filterRow: { flexDirection: "row", gap: 8, alignSelf: "stretch" },
+  filterChip: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    paddingVertical: 7,
+    alignItems: "center",
+  },
+  filterChipActive: { backgroundColor: colors.primary, borderColor: colors.primary },
+  filterText: { fontSize: 12, fontWeight: "800", color: colors.text },
+  filterTextActive: { color: "#fff" },
   scanButton: {
     backgroundColor: colors.primary,
     borderRadius: 12,
