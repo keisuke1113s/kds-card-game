@@ -693,26 +693,13 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // BGM: ふだんは bgm_main、バトル中は緊張感のある bgm_battle。
-  // 切り替えは「いざ、勝負！」の全画面カットインが表示された瞬間に合わせ、
-  // バトルの流れ（サポート〜解決）が終わるまで続ける
-  const [battleBgmOn, setBattleBgmOn] = useState(false);
-  useEffect(() => {
-    if (currentAnn?.kind === "battle") setBattleBgmOn(true);
-  }, [currentAnn]);
-  useEffect(() => {
-    if (!battleBgmOn) return;
-    const stillBattle =
-      currentAnn?.kind === "battle" ||
-      currentAnn?.kind === "battleResult" ||
-      annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult") ||
-      view?.phase.type === "battleSupport" ||
-      // 解決イベントが演出キューに積まれるまでの橋渡し。
-      // これが無いと、勝敗の全画面表示より先にメイン曲へ戻ってしまう
-      lastEvents.some((e) => e.type === "battleResolved");
-    if (!stillBattle) setBattleBgmOn(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleBgmOn, currentAnn, annQueue, view?.phase.type, lastEvents]);
+  // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート〜勝敗表示）の間は
+  // 緊張感のある bgm_battle。勝敗の全画面表示が消えてからメイン曲に続きから戻る
+  const battleBgmOn =
+    view?.phase.type === "battleSupport" ||
+    currentAnn?.kind === "battle" ||
+    currentAnn?.kind === "battleResult" ||
+    annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult");
   useEffect(() => {
     if (!bgmEnabled) {
       stopBgm();
@@ -720,9 +707,11 @@ export default function BattleScreen() {
     }
     if (battleBgmOn) {
       if (!playBgm("bgm_battle")) playBgm("bgm_main");
-    } else {
-      playBgm("bgm_main");
+      return;
     }
+    // 演出の切り替わりの一瞬の隙間でメイン曲に戻らないよう、少し待ってから戻す
+    const t = setTimeout(() => playBgm("bgm_main"), 350);
+    return () => clearTimeout(t);
   }, [bgmEnabled, battleBgmOn]);
   useEffect(() => () => stopBgm(), []);
 
