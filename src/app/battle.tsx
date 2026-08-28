@@ -499,24 +499,54 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingReach, currentAnn, annQueue]);
 
-  // 進捗バーは、学科技能の全画面演出が終わってから動かす
+  // 進捗バーは、学科技能の全画面演出が「閉じた瞬間」にその値まで進める。
+  // カットインが閉じるのを検知して、そのカットインが示した値を反映する
+  const prevAnnRef = useRef<Announcement | null>(null);
+  useEffect(() => {
+    const prev = prevAnnRef.current;
+    if (prev && prev.kind === "lesson" && prev !== currentAnn) {
+      setShownTracks((cur) => {
+        if (!cur || prev.newValue === undefined) return cur;
+        const next = { ...cur };
+        if (prev.track === "academic") {
+          if (prev.mine) next.ma = prev.newValue;
+          else next.oa = prev.newValue;
+        } else {
+          if (prev.mine) next.ms = prev.newValue;
+          else next.os = prev.newValue;
+        }
+        return next;
+      });
+    }
+    prevAnnRef.current = currentAnn;
+  }, [currentAnn]);
+
+  // 保険の同期: 学科技能の演出が一切控えていないときだけ、表示値を実際の値に合わせる
+  // （初期化・早送り・演出破棄などのケースを拾う）
   useEffect(() => {
     if (!view) {
       setShownTracks(null);
       return;
     }
-    const lessonPending =
-      currentAnn?.kind === "lesson" || annQueue.some((a) => a.kind === "lesson");
-    if (!lessonPending || shownTracks === null) {
-      setShownTracks({
-        ma: view.self.academic,
-        ms: view.self.skill,
-        oa: view.opponent.academic,
-        os: view.opponent.skill,
-      });
-    }
+    const lessonBusy =
+      currentAnn?.kind === "lesson" ||
+      annQueue.some((a) => a.kind === "lesson") ||
+      // 演出キューに積まれる前の同じ描画サイクルもここで塞ぐ
+      lastEvents.some((e) => e.type === "trackAdvanced" && e.amount !== 0);
+    if (shownTracks !== null && lessonBusy) return;
+    const next = {
+      ma: view.self.academic,
+      ms: view.self.skill,
+      oa: view.opponent.academic,
+      os: view.opponent.skill,
+    };
+    setShownTracks((cur) =>
+      cur && cur.ma === next.ma && cur.ms === next.ms && cur.oa === next.oa && cur.os === next.os
+        ? cur
+        : next
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, currentAnn, annQueue]);
+  }, [view, currentAnn, annQueue, lastEvents]);
 
   // リーチ演出は少し見せて自動で閉じる
   useEffect(() => {
@@ -676,10 +706,13 @@ export default function BattleScreen() {
       currentAnn?.kind === "battle" ||
       currentAnn?.kind === "battleResult" ||
       annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult") ||
-      view?.phase.type === "battleSupport";
+      view?.phase.type === "battleSupport" ||
+      // 解決イベントが演出キューに積まれるまでの橋渡し。
+      // これが無いと、勝敗の全画面表示より先にメイン曲へ戻ってしまう
+      lastEvents.some((e) => e.type === "battleResolved");
     if (!stillBattle) setBattleBgmOn(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [battleBgmOn, currentAnn, annQueue, view?.phase.type]);
+  }, [battleBgmOn, currentAnn, annQueue, view?.phase.type, lastEvents]);
   useEffect(() => {
     if (!bgmEnabled) {
       stopBgm();
