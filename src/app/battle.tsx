@@ -32,7 +32,7 @@ import Animated, {
   ZoomOut,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
-import { playBgm, playSe, setBgmTense, stopBgm } from "@/audio/sound";
+import { pauseBgm, playBgm, playSe, setBgmTense, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -693,16 +693,22 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート〜勝敗表示）の間は
-  // 緊張感のある bgm_battle。勝敗の全画面表示が消えてからメイン曲に続きから戻る
+  // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート）の間は緊張感のある
+  // bgm_battle。勝敗のカットイン中はBGMを止めて勝敗の効果音だけを響かせ、
+  // 全画面表示が消えてからメイン曲に続きから戻る
+  const battleResultCutinShowing = currentAnn?.kind === "battleResult";
   const battleBgmOn =
-    view?.phase.type === "battleSupport" ||
-    currentAnn?.kind === "battle" ||
-    currentAnn?.kind === "battleResult" ||
-    annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult");
+    !battleResultCutinShowing &&
+    (view?.phase.type === "battleSupport" ||
+      currentAnn?.kind === "battle" ||
+      annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult"));
   useEffect(() => {
     if (!bgmEnabled) {
       stopBgm();
+      return;
+    }
+    if (battleResultCutinShowing) {
+      pauseBgm();
       return;
     }
     if (battleBgmOn) {
@@ -712,7 +718,7 @@ export default function BattleScreen() {
     // 演出の切り替わりの一瞬の隙間でメイン曲に戻らないよう、少し待ってから戻す
     const t = setTimeout(() => playBgm("bgm_main"), 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, battleBgmOn]);
+  }, [bgmEnabled, battleBgmOn, battleResultCutinShowing]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(

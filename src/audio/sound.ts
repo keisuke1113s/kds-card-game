@@ -196,6 +196,18 @@ export function setBgmTense(tense: boolean): void {
   }
 }
 
+/** BGMを再生位置を保ったまま一時停止する（勝敗カットイン中に効果音だけを響かせる用） */
+export function pauseBgm(): void {
+  pendingBgmKey = null;
+  for (const p of Object.values(bgmPlayers)) {
+    try {
+      p.pause();
+    } catch {
+      // 破棄済みなら無視
+    }
+  }
+}
+
 export function stopBgm(): void {
   pendingBgmKey = null;
   // 全曲を止め、次の対戦では頭から始まるよう先頭に戻しておく
