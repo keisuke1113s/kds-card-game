@@ -31,13 +31,15 @@ self.addEventListener("fetch", (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
-  // ページ本体: ネット優先 → 圏外は保存済みを表示
+  // ページ本体: 常に最新をネットから取得（HTTPキャッシュも無視）→ 圏外は保存済みを表示。
+  // ページ本体をキャッシュから返すと、更新したはずのアプリが古いまま
+  // 表示され続けることがあるため、必ず取りに行く（本体は小さいので負担は無い）
   if (req.mode === "navigate") {
     event.respondWith(
       (async () => {
         const cache = await caches.open(CACHE);
         try {
-          const res = await fetch(req);
+          const res = await fetch(req.url, { cache: "no-store" });
           if (res.ok) cache.put(req, res.clone());
           return res;
         } catch {
