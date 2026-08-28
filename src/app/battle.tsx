@@ -2286,7 +2286,11 @@ function BattleResultCutIn({
     <View style={styles.reachLayer} pointerEvents="none">
       <Image source={bg} style={[StyleSheet.absoluteFill, { opacity: 0.85 }]} contentFit="cover" />
       <Animated.View style={[styles.reachBox, box]}>
-        <Text style={[styles.reachTitle, { color }]} allowFontScaling={false}>
+        <Text
+          style={[styles.reachTitle, { color }, !reveal && styles.reachTitleLong]}
+          allowFontScaling={false}
+          numberOfLines={1}
+        >
           {title}
         </Text>
         <Text style={styles.battleResultScore} allowFontScaling={false}>
@@ -4105,6 +4109,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 12,
     textShadowOffset: { width: 0, height: 2 },
   },
+  // 「🏁 ラストバトル！！」は文字数が多いので、改行されないよう少し小さく
+  reachTitleLong: { fontSize: 31 },
   reachSub: { color: "#fff", fontSize: 15, fontWeight: "800", textAlign: "center" },
   streakBanner: {
     backgroundColor: "#e2604a",
