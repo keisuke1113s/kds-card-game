@@ -318,6 +318,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
   /** このアクションで起きたイベントに対応する効果音（重複除去・最大3つ） */
   function playEventSounds(events: GameEvent[]) {
+    // バトル解決の一括イベント（退場音など）は、勝敗カットインの専用効果音と
+    // 被らないよう鳴らさない（勝敗音はカットイン側が再生する）
+    if (events.some((e) => e.type === "battleResolved")) {
+      for (const e of events) {
+        if (e.type === "gameEnded") playSe(e.winner === HUMAN ? "win" : "lose");
+      }
+      return;
+    }
     const keys = new Set<SeKey>();
     for (const e of events) {
       switch (e.type) {

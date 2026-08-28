@@ -4,6 +4,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { CpuPersona, DIFFICULTY_LABELS, PERSONA_EMOJI, PERSONA_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
+import { stopBgm } from "@/audio/sound";
 import {
   cpuDeckFor,
   randomizeDecksForMatch,
@@ -217,7 +218,10 @@ export default function PrematchScreen() {
             opponentDeck.list.tantou,
           ]}
           onDecided={begin}
-          onCancel={() => setPreparing(false)}
+          onCancel={() => {
+            stopBgm();
+            setPreparing(false);
+          }}
         />
       )}
     </ScreenEnter>

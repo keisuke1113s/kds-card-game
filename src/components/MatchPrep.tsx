@@ -14,7 +14,7 @@ import Animated, {
   ZoomIn,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
-import { playSe } from "@/audio/sound";
+import { playBgm, playSe } from "@/audio/sound";
 import { CardFace } from "@/components/CardFace";
 import { preloadForMatch } from "@/data/preload";
 import { colors, radius, spacing } from "@/theme";
@@ -72,6 +72,9 @@ export function MatchPrep({
   const [draw, setDraw] = useState(false);
 
   useEffect(() => {
+    // シャッフルが始まった瞬間からメインBGMを流す
+    // （対戦画面に移っても同じ曲なので途切れない）
+    playBgm("bgm_main");
     const t = setTimeout(() => setPhase("choose"), SHUFFLE_MS);
     // 準備をしている間に、対戦で使うカードの絵をそろえておく
     void preloadForMatch(cardIds);

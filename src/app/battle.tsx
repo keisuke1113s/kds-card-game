@@ -2017,7 +2017,7 @@ function BattleResultCutIn({
   const scale = useSharedValue(0.4);
   const opacity = useSharedValue(0);
   useEffect(() => {
-    playSe(tie ? "hit" : mine ? "janken_win" : "janken_lose");
+    playSe(tie ? "battle_tie" : mine ? "battle_win" : "battle_lose");
     haptic(tie ? "heavy" : mine ? "success" : "warning");
     scale.value = withSequence(
       withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
