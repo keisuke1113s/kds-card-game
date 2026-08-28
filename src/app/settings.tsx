@@ -114,7 +114,8 @@ export default function SettingsScreen() {
         </Text>
       )}
 
-      {!inBattle && IS_DEV_BUILD && <DevCardReset />}
+      {/* テスト期間中は安定版でも切り替えを出す（本番公開時はフラグを戻すと開発版のみに戻る） */}
+      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
 
       {!inBattle && (
         <Pressable
@@ -217,39 +218,45 @@ function DevCardReset() {
   const unlockState = useUnlockStore();
   const count = unlockedSet(unlockState).size;
   const [done, setDone] = useState(false);
-  if (ALL_CARDS_OPEN_FOR_TESTING) {
-    // 全カード開放フラグが立っている間はリセットしても見た目が変わらないため、
-    // ボタンの代わりに理由を表示する
-    return (
-      <View style={{ gap: 8 }}>
-        <Text style={styles.sectionTitle}>開発版のテスト用</Text>
-        <Text style={styles.note}>
-          いまはテスト期間中のため、全カード（{count}枚）が最初から開放されています。
-          カード配布のリセットは、本番公開時に「ランダム22枚配布」へ戻したあとで使えるようになります。
-        </Text>
-      </View>
-    );
-  }
+  const allOpen = unlockState.allOpenMode;
   return (
     <View style={{ gap: 8 }}>
-      <Text style={styles.sectionTitle}>開発版のテスト用</Text>
+      <Text style={styles.sectionTitle}>カードの登録状態（テスト用）</Text>
       <Text style={styles.note}>
-        いまの開放カードは {count} 枚です。リセットすると、QRで開放した分も消えて、
-        新しいランダム22枚が配り直されます。
+        いまの開放カードは {count} 枚です。QRパック開封や初回配布を確かめるときは
+        「通常配布」に切り替えてください。
       </Text>
-      <Pressable
-        style={[styles.wideButton, { backgroundColor: colors.danger }]}
-        onPress={() => {
-          unlockState.resetAll();
-          ensureInitialSet();
-          setDone(true);
-          setTimeout(() => setDone(false), 3000);
-        }}
-      >
-        <Text style={styles.wideButtonText}>
-          {done ? "✅ 配り直しました！図鑑で確認できます" : "🔄 カード配布をリセット（テスト用）"}
-        </Text>
-      </Pressable>
+      <View style={{ flexDirection: "row", gap: 8 }}>
+        <Choice
+          label="全カード登録"
+          active={allOpen}
+          onPress={() => unlockState.setAllOpenMode(true)}
+        />
+        <Choice
+          label="通常配布（QR検証用）"
+          active={!allOpen}
+          onPress={() => {
+            unlockState.setAllOpenMode(false);
+            // まだ初回配布が済んでいない端末には、ここでランダム22枚を配る
+            ensureInitialSet();
+          }}
+        />
+      </View>
+      {!allOpen && (
+        <Pressable
+          style={[styles.wideButton, { backgroundColor: colors.danger }]}
+          onPress={() => {
+            unlockState.resetAll();
+            ensureInitialSet();
+            setDone(true);
+            setTimeout(() => setDone(false), 3000);
+          }}
+        >
+          <Text style={styles.wideButtonText}>
+            {done ? "✅ 配り直しました！図鑑で確認できます" : "🔄 カード配布をリセット（テスト用）"}
+          </Text>
+        </Pressable>
+      )}
     </View>
   );
 }

@@ -19,8 +19,11 @@ interface UnlockState {
   initialSet: string[] | null;
   scannedIds: string[];
   issued: { id: string; name: string; at: string }[];
+  /** テスト用: true の間は全カードが登録済みになる（設定画面で切り替え） */
+  allOpenMode: boolean;
   unlock: (cardId: string) => void;
   setInitialSet: (ids: string[]) => void;
+  setAllOpenMode: (v: boolean) => void;
   addIssued: (entry: { id: string; name: string; at: string }) => void;
   /** 管理画面用: QRで開放したカードをすべて未開放に戻す（動作確認用） */
   resetScanned: () => void;
@@ -34,11 +37,13 @@ export const useUnlockStore = create<UnlockState>()(
       initialSet: null,
       scannedIds: [],
       issued: [],
+      allOpenMode: ALL_CARDS_OPEN_FOR_TESTING,
       unlock: (cardId) =>
         set((s) =>
           s.scannedIds.includes(cardId) ? s : { scannedIds: [...s.scannedIds, cardId] }
         ),
       setInitialSet: (initialSet) => set({ initialSet }),
+      setAllOpenMode: (allOpenMode) => set({ allOpenMode }),
       addIssued: (entry) =>
         set((s) =>
           s.issued.some((e) => e.id === entry.id) ? s : { issued: [...s.issued, entry] }
@@ -57,6 +62,7 @@ export const useUnlockStore = create<UnlockState>()(
           initialSet: s.initialSet ?? null,
           scannedIds: s.scannedIds ?? [],
           issued: s.issued ?? [],
+          allOpenMode: s.allOpenMode ?? ALL_CARDS_OPEN_FOR_TESTING,
         } as UnlockState;
       },
     }
@@ -64,9 +70,11 @@ export const useUnlockStore = create<UnlockState>()(
 );
 
 /** いま使えるカードIDの集合（初回セットが未生成の間は標準セットで代用） */
-export function unlockedSet(state: Pick<UnlockState, "initialSet" | "scannedIds">): Set<string> {
-  // テスト期間中は全カードを開放する（本番公開前にフラグを戻す）
-  if (ALL_CARDS_OPEN_FOR_TESTING) return new Set(allCards.map((c) => c.id));
+export function unlockedSet(
+  state: Pick<UnlockState, "initialSet" | "scannedIds" | "allOpenMode">
+): Set<string> {
+  // 全カード登録モード（テスト用。設定画面で通常配布と切り替えられる）
+  if (state.allOpenMode) return new Set(allCards.map((c) => c.id));
   return new Set([...(state.initialSet ?? DEFAULT_OPEN_CARDS), ...state.scannedIds]);
 }
 
@@ -77,8 +85,6 @@ export function unlockedSet(state: Pick<UnlockState, "initialSet" | "scannedIds"
  * 中身も同じ22枚にする。2回目以降の起動では何もしない。
  */
 export function ensureInitialSet(): void {
-  // テスト期間中は配布もデッキの差し替えも行わない（全カード開放のため不要）
-  if (ALL_CARDS_OPEN_FOR_TESTING) return;
   // 保存済みデータの読み込みが終わる前に実行すると、毎回新しいセットを
   // 配り直してしまうため、両ストアの読み込み完了を待ってから判定する
   if (!useUnlockStore.persist.hasHydrated()) {
@@ -90,6 +96,8 @@ export function ensureInitialSet(): void {
     return;
   }
   const st = useUnlockStore.getState();
+  // 全カード登録モードの間は配布もデッキの差し替えも行わない
+  if (st.allOpenMode) return;
   if (st.initialSet !== null) return;
   const seed =
     typeof globalThis.crypto?.getRandomValues === "function"
