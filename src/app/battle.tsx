@@ -689,7 +689,7 @@ export default function BattleScreen() {
           : next.kind === "battleResult" && reachOnRef.current
             ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
             : next.kind === "battle" || next.kind === "battleResult"
-            ? 2400
+            ? 3200 // いざ勝負！と勝敗はしっかり見せる
             : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
               ? 2000
               : next.cardId
