@@ -1,8 +1,8 @@
 import { Stack, usePathname, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect } from "react";
-import { Pressable, StyleSheet, Text } from "react-native";
+import React, { useEffect, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { AchievementToast } from "@/components/AchievementToast";
 import { ImageWarmLayer } from "@/components/ImageWarmLayer";
@@ -35,7 +35,47 @@ function HomeButton() {
   );
 }
 
+/**
+ * 新しいバージョンの検知（Webのみ）。
+ * いま動いているJSバンドル名と、サーバー上の最新ページが参照するバンドル名を
+ * 比べて、違っていたら更新バナーを出す。iPhoneのホーム画面アプリ（PWA）は
+ * 開き直しても再読み込みされないことがあり、古い版が出続ける対策
+ */
+function useUpdateAvailable(): boolean {
+  const [available, setAvailable] = useState(false);
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
+    const doc = globalThis.document;
+    if (!doc) return;
+    const script = doc.querySelector('script[src*="entry-"]') as { src?: string } | null;
+    const src = script?.src ?? "";
+    const cur = /entry-([a-f0-9]+)\.js/.exec(src)?.[1];
+    if (!cur) return; // 開発サーバーでは何もしない
+    const root = src.split("_expo")[0];
+    let lastCheck = 0;
+    const check = async () => {
+      if (Date.now() - lastCheck < 3 * 60 * 1000) return; // 3分に1回まで
+      lastCheck = Date.now();
+      try {
+        const html = await fetch(root, { cache: "no-store" }).then((r) => r.text());
+        const latest = /entry-([a-f0-9]+)\.js/.exec(html)?.[1];
+        if (latest && latest !== cur) setAvailable(true);
+      } catch {
+        // 圏外などで確認できないときは何もしない
+      }
+    };
+    void check();
+    const onVisible = () => {
+      if (doc.visibilityState === "visible") void check();
+    };
+    doc.addEventListener("visibilitychange", onVisible);
+    return () => doc.removeEventListener("visibilitychange", onVisible);
+  }, []);
+  return available;
+}
+
 export default function RootLayout() {
+  const updateAvailable = useUpdateAvailable();
   // 管理画面（/admin）は管理者用の別世界なので、実績の判定・お知らせや
   // 利用分析の「起動」カウントを動かさない
   const pathname = usePathname();
@@ -149,11 +189,36 @@ export default function RootLayout() {
       {!isAdmin && <AchievementToast />}
       {/* カード画像を捨てられにくくする常駐ウォームレイヤー（Webのみ） */}
       <ImageWarmLayer />
+      {/* 新しいバージョンのお知らせ（タップで読み込み直す） */}
+      {updateAvailable && (
+        <Pressable
+          style={styles.updateBanner}
+          onPress={() => {
+            const loc = (globalThis as { location?: { reload: () => void } }).location;
+            loc?.reload();
+          }}
+        >
+          <Text style={styles.updateBannerText}>
+            🆕 新しいバージョンがあります — タップで更新
+          </Text>
+        </Pressable>
+      )}
     </>
   );
 }
 
 const styles = StyleSheet.create({
+  updateBanner: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 999,
+    backgroundColor: "#1d7a34",
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  updateBannerText: { color: "#fff", fontWeight: "800", fontSize: 14 },
   // ヘッダーと同じ青に埋もれないよう、白フチのボタンとして見せる
   homeButton: {
     flexDirection: "row",
