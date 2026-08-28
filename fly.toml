@@ -13,6 +13,11 @@ primary_region = "nrt" # 東京
   KDS_ALLOWED_ORIGINS = "https://keisuke1113s.github.io"
   KDS_MODE = "closed"
 
+# 利用状況の集計（stats.json）を再デプロイ後も残すためのデータ置き場
+[mounts]
+  source = "kds_data"
+  destination = "/data"
+
 [http_service]
   internal_port = 8790
   force_https = true

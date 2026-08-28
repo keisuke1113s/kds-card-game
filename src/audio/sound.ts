@@ -97,7 +97,8 @@ function safeSeek(player: AudioPlayer, seconds: number) {
 }
 
 const sePlayers: Record<string, AudioPlayer> = {};
-let bgmPlayer: AudioPlayer | null = null;
+/** BGMは曲ごとにプレイヤーを使い回す（切り替え時も再生位置を保ち、続きから再開できる） */
+const bgmPlayers: Record<string, AudioPlayer> = {};
 let currentBgmKey: string | null = null;
 
 export type SeKey =
@@ -149,14 +150,25 @@ export function playBgm(key: string): boolean {
     pendingBgmKey = key; // 解禁後に再生
     return true;
   }
-  if (currentBgmKey === key && bgmPlayer) return true;
+  if (currentBgmKey === key && bgmPlayers[key]) return true;
   try {
     void ensureAudioMode();
-    stopBgm();
-    bgmPlayer = createAudioPlayer(asset);
-    bgmPlayer.loop = true;
-    bgmPlayer.volume = 0.4;
-    safePlay(bgmPlayer);
+    // いま流れている曲は位置を保ったまま一時停止（次に戻ったら続きから）
+    if (currentBgmKey && bgmPlayers[currentBgmKey]) {
+      try {
+        bgmPlayers[currentBgmKey].pause();
+      } catch {
+        // 一時停止に失敗しても切り替えは続行
+      }
+    }
+    let p = bgmPlayers[key];
+    if (!p) {
+      p = createAudioPlayer(asset);
+      p.loop = true;
+      p.volume = 0.4;
+      bgmPlayers[key] = p;
+    }
+    safePlay(p);
     currentBgmKey = key;
     return true;
   } catch (e) {
@@ -170,9 +182,10 @@ export function playBgm(key: string): boolean {
  * 専用の曲が無くても効果が出るよう、再生速度で表現する
  */
 export function setBgmTense(tense: boolean): void {
-  if (!bgmPlayer) return;
+  const player = currentBgmKey ? bgmPlayers[currentBgmKey] : null;
+  if (!player) return;
   try {
-    const p = bgmPlayer as AudioPlayer & {
+    const p = player as AudioPlayer & {
       playbackRate?: number;
       shouldCorrectPitch?: boolean;
     };
@@ -185,16 +198,16 @@ export function setBgmTense(tense: boolean): void {
 
 export function stopBgm(): void {
   pendingBgmKey = null;
-  if (bgmPlayer) {
+  // 全曲を止め、次の対戦では頭から始まるよう先頭に戻しておく
+  for (const p of Object.values(bgmPlayers)) {
     try {
-      bgmPlayer.pause();
-      bgmPlayer.remove();
+      p.pause();
+      safeSeek(p, 0);
     } catch {
       // 破棄済みなら無視
     }
-    bgmPlayer = null;
-    currentBgmKey = null;
   }
+  currentBgmKey = null;
 }
 
 /** 利用可能なBGMキー（設定画面等の表示用） */

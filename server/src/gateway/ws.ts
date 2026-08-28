@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import http from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import { cardRegistry } from "@/data/cards";
@@ -5,7 +6,17 @@ import { GameContext, PlayerId } from "@/engine/types";
 import { Matchmaker } from "../core/matchmaker";
 import { RoomCore, ServerMessage } from "../core/room";
 import { clientMessageSchema, sanitizeName, sanitizeTitle } from "../protocol/messages";
+import { Telemetry } from "../core/telemetry";
 import { config } from "../config";
+
+/** ディレクトリとして存在し書き込めそうか */
+function fsExistsDir(p: string): boolean {
+  try {
+    return fs.statSync(p).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 /**
  * WebSocket の薄皮。プロトコルの入口検証と接続の管理だけを行い、
@@ -22,6 +33,12 @@ export function startServer(port: number): http.Server {
   const ctx: GameContext = { defs: cardRegistry };
   const matchmaker = new Matchmaker(ctx);
 
+  // 利用状況の匿名集計（データディレクトリに保存。Fly.io では /data ボリューム）
+  const dataDir =
+    process.env.KDS_DATA_DIR ?? (fsExistsDir("/data") ? "/data" : "./data");
+  const telemetry = new Telemetry(dataDir);
+  process.on("beforeExit", () => telemetry.saveNow());
+
   // アプリから届いたエラー報告（直近200件をメモリに保持）
   const errorLog: {
     at: string;
@@ -32,6 +49,42 @@ export function startServer(port: number): http.Server {
   }[] = [];
 
   const server = http.createServer((req, res) => {
+    // 利用状況イベントの受け口（匿名）。ブラウザからのPOSTを受けるためCORSを許可
+    if (req.url === "/track" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (req.url === "/track" && req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 4000) req.destroy();
+      });
+      req.on("end", () => {
+        try {
+          telemetry.track(JSON.parse(body));
+        } catch {
+          // 壊れたイベントは無視
+        }
+        res.writeHead(204, { "access-control-allow-origin": "*" });
+        res.end();
+      });
+      return;
+    }
+    if (req.url?.startsWith("/stats?key=946946") && req.method === "GET") {
+      // 管理画面の「分析」タブが読む集計
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+      });
+      res.end(JSON.stringify(telemetry.stats()));
+      return;
+    }
     // エラー報告の受け口。ブラウザからのPOSTを受けるためCORSを許可する
     if (req.url === "/errlog" && req.method === "OPTIONS") {
       res.writeHead(204, {

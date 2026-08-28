@@ -23,7 +23,7 @@ export default function AdminScreen() {
   const [adminId, setAdminId] = useState("");
   const [password, setPassword] = useState("");
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<"qr" | "issue">("qr");
+  const [tab, setTab] = useState<"qr" | "issue" | "stats">("qr");
 
   // 管理画面はブラウザ専用（アプリにはメニューも無く、この画面自体も開けない）
   if (Platform.OS !== "web") {
@@ -101,8 +101,14 @@ export default function AdminScreen() {
             新規カードのQR発行
           </Text>
         </Pressable>
+        <Pressable
+          style={[styles.tabButton, tab === "stats" && styles.tabButtonActive]}
+          onPress={() => setTab("stats")}
+        >
+          <Text style={[styles.tabText, tab === "stats" && styles.tabTextActive]}>📈 分析</Text>
+        </Pressable>
       </View>
-      {tab === "qr" ? <QrList /> : <IssueNewCard />}
+      {tab === "qr" ? <QrList /> : tab === "issue" ? <IssueNewCard /> : <StatsPanel />}
     </ScreenEnter>
   );
 }
@@ -299,6 +305,167 @@ function QrList() {
   );
 }
 
+/** 利用状況の分析。対戦サーバーの集計とエラー報告を表示する */
+function StatsPanel() {
+  interface Stats {
+    generatedAt: string;
+    devices: { total: number; today: number; last7: number; last30: number };
+    appOpens: { total: number; today: number };
+    matches: {
+      total: number;
+      today: number;
+      cpu: number;
+      online: number;
+      cpuWinRate: number | null;
+      avgTurns: number | null;
+      avgDurationSec: number | null;
+      firstWinRate: number | null;
+      byDifficulty: Record<string, { matches: number; wins: number }>;
+    };
+    scans: { total: number; topCards: { cardId: string; count: number }[] };
+    env: Record<string, { opens: number; matches: number }>;
+    daily: {
+      date: string;
+      opens: number;
+      matches: number;
+      onlineMatches: number;
+      scans: number;
+      devices: number;
+    }[];
+  }
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [errors, setErrors] = useState<{ at: string; msg: string; url?: string }[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const load = React.useCallback(async () => {
+    setLoadError(null);
+    try {
+      const base = "https://kds-taisen.fly.dev";
+      const [s, e] = await Promise.all([
+        fetch(`${base}/stats?key=946946`).then((r) => r.json()),
+        fetch(`${base}/errlog?key=946946`).then((r) => r.json()),
+      ]);
+      setStats(s as Stats);
+      setErrors((e as { at: string; msg: string; url?: string }[]).slice(0, 10));
+    } catch {
+      setLoadError("サーバーから集計を取得できませんでした。通信環境を確認してください。");
+    }
+  }, []);
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  const pct = (v: number | null) => (v === null ? "—" : `${Math.round(v * 100)}%`);
+  const dur = (v: number | null) =>
+    v === null ? "—" : `${Math.floor(v / 60)}分${Math.round(v % 60)}秒`;
+  const maxDaily = Math.max(1, ...(stats?.daily.map((d) => Math.max(d.opens, d.matches)) ?? [1]));
+
+  return (
+    <ScrollView contentContainerStyle={styles.content}>
+      <View style={styles.rowButtons}>
+        <Pressable style={styles.smallButton} onPress={() => void load()}>
+          <Text style={styles.smallButtonText}>🔄 最新に更新</Text>
+        </Pressable>
+        {stats && (
+          <Text style={styles.note}>集計時刻: {stats.generatedAt.slice(0, 16).replace("T", " ")}</Text>
+        )}
+      </View>
+      {loadError && <Text style={styles.issueError}>{loadError}</Text>}
+      {!stats && !loadError && <Text style={styles.note}>読み込み中…</Text>}
+      {stats && (
+        <>
+          <Text style={styles.sectionTitle}>利用ユーザー（匿名の端末数）</Text>
+          <View style={styles.statGrid}>
+            <StatCard label="累計" value={`${stats.devices.total}`} />
+            <StatCard label="今日" value={`${stats.devices.today}`} />
+            <StatCard label="直近7日" value={`${stats.devices.last7}`} />
+            <StatCard label="直近30日" value={`${stats.devices.last30}`} />
+          </View>
+
+          <Text style={styles.sectionTitle}>起動と対戦</Text>
+          <View style={styles.statGrid}>
+            <StatCard label="起動回数（累計）" value={`${stats.appOpens.total}`} />
+            <StatCard label="起動（今日）" value={`${stats.appOpens.today}`} />
+            <StatCard label="対戦数（累計）" value={`${stats.matches.total}`} />
+            <StatCard label="対戦（今日）" value={`${stats.matches.today}`} />
+            <StatCard label="CPU対戦" value={`${stats.matches.cpu}`} />
+            <StatCard label="オンライン対戦" value={`${stats.matches.online}`} />
+            <StatCard label="CPU戦の勝率" value={pct(stats.matches.cpuWinRate)} />
+            <StatCard label="先攻の勝率" value={pct(stats.matches.firstWinRate)} />
+            <StatCard label="平均ターン数" value={stats.matches.avgTurns === null ? "—" : stats.matches.avgTurns.toFixed(1)} />
+            <StatCard label="平均対戦時間" value={dur(stats.matches.avgDurationSec)} />
+            <StatCard label="QR登録数" value={`${stats.scans.total}`} />
+          </View>
+
+          <Text style={styles.sectionTitle}>日別の推移（直近14日）</Text>
+          <View style={styles.dailyChart}>
+            {stats.daily.map((d) => (
+              <View key={d.date} style={styles.dailyCol}>
+                <View style={styles.dailyBars}>
+                  <View
+                    style={[
+                      styles.dailyBar,
+                      { height: (d.opens / maxDaily) * 70, backgroundColor: colors.primary },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.dailyBar,
+                      { height: (d.matches / maxDaily) * 70, backgroundColor: colors.success },
+                    ]}
+                  />
+                </View>
+                <Text style={styles.dailyLabel}>{d.date.slice(5).replace("-", "/")}</Text>
+              </View>
+            ))}
+          </View>
+          <Text style={styles.note}>青=起動回数 ／ 緑=対戦数</Text>
+
+          <Text style={styles.sectionTitle}>CPUの強さ別（対戦数と勝率）</Text>
+          {Object.entries(stats.matches.byDifficulty).map(([k, v]) => (
+            <Text key={k} style={styles.statLine}>
+              ・{k === "easy" ? "よわい" : k === "hard" ? "つよい" : "ふつう"}: {v.matches}戦（勝率{" "}
+              {v.matches > 0 ? Math.round((v.wins / v.matches) * 100) : 0}%）
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>QR登録の多いカード（トップ10）</Text>
+          {stats.scans.topCards.length === 0 && <Text style={styles.note}>まだ登録がありません</Text>}
+          {stats.scans.topCards.map((c, i) => (
+            <Text key={c.cardId} style={styles.statLine}>
+              {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}（{c.count}回）
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>環境別</Text>
+          {Object.entries(stats.env).map(([k, v]) => (
+            <Text key={k} style={styles.statLine}>
+              ・{k === "prod" ? "本番" : k === "dev" ? "開発版" : k}: 起動{v.opens}回／対戦{v.matches}回
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>最近のエラー報告（最新10件）</Text>
+          {errors.length === 0 && <Text style={styles.note}>報告はありません 🎉</Text>}
+          {errors.map((e, i) => (
+            <Text key={i} style={styles.errLine} numberOfLines={2}>
+              {e.at.slice(5, 16).replace("T", " ")}｜{e.msg}
+            </Text>
+          ))}
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statCardValue}>{value}</Text>
+      <Text style={styles.statCardLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 },
@@ -367,6 +534,37 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   exportText: { fontSize: 11, color: colors.text, fontFamily: "monospace" as never },
+  statGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  statCard: {
+    flexGrow: 1,
+    flexBasis: "30%",
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 12,
+    alignItems: "center",
+    gap: 2,
+  },
+  statCardValue: { fontSize: 20, fontWeight: "900", color: colors.text },
+  statCardLabel: { fontSize: 11, fontWeight: "800", color: colors.textMuted },
+  statLine: { fontSize: 13, color: colors.text, fontWeight: "700", lineHeight: 20 },
+  errLine: { fontSize: 11, color: colors.danger, lineHeight: 16 },
+  dailyChart: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 3,
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    minHeight: 110,
+  },
+  dailyCol: { flex: 1, alignItems: "center", gap: 3 },
+  dailyBars: { flexDirection: "row", alignItems: "flex-end", gap: 1, height: 72 },
+  dailyBar: { width: 5, borderRadius: 2, minHeight: 1 },
+  dailyLabel: { fontSize: 8, color: colors.textMuted, fontWeight: "700" },
   warnBox: {
     backgroundColor: "#fdecec",
     borderRadius: radius.md,

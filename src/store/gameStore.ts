@@ -12,6 +12,7 @@ import { redactEventsFor, viewFor } from "@/engine/view";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { evaluateAchievements, useAchievementStore } from "@/store/achievementStore";
 import { ReplayData, useRecordStore } from "@/store/recordStore";
+import { trackEvent } from "@/data/telemetry";
 import { useSettingsStore } from "@/store/settingsStore";
 import {
   GameAction,
@@ -234,6 +235,15 @@ function trackMatchEvents(
       });
       // 新しく達成した実績があればお知らせを出す
       evaluateAchievements();
+      // 利用状況の匿名集計（名前は送らない）
+      trackEvent("match", {
+        mode: meta.mode,
+        result: e.winner === myId ? "win" : "lose",
+        difficulty: meta.difficulty,
+        turns: meta.turns,
+        durationSec: Math.max(0, Math.round((Date.now() - meta.startedAt) / 1000)),
+        first: meta.firstIsMe ?? undefined,
+      });
       return;
     }
   }

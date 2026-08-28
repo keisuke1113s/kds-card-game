@@ -15,6 +15,7 @@ import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { getCard } from "@/data/cards";
 import { checkQrPayload } from "@/data/unlock";
+import { trackEvent } from "@/data/telemetry";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
@@ -67,6 +68,7 @@ export default function ScanScreen() {
     setOutcome({ kind: "unlocked", cardId });
     // コレクション系の実績を判定する
     evaluateAchievements();
+    trackEvent("scan", { cardId });
   };
 
   return (
