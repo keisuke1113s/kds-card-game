@@ -249,9 +249,6 @@ function IssueNewCard() {
           <Text style={styles.qrId}>
             {issuedNow.id}（{typeLabelOf(issuedNow.id)}）
           </Text>
-          <Text style={styles.qrId} selectable>
-            {qrPayloadFor(issuedNow.id)}
-          </Text>
           <QrDownloadButton cardId={issuedNow.id} name={issuedNow.name} />
         </View>
       )}
@@ -300,11 +297,32 @@ async function downloadQrPng(cardId: string, name: string): Promise<void> {
   a.click();
 }
 
-/** QR1つぶんの操作ボタン（画像の保存・単独表示） */
+/** QR1つぶんの操作ボタン（画像の保存・単独表示・コードのコピー） */
 function QrDownloadButton({ cardId, name }: { cardId: string; name: string }) {
   const [solo, setSolo] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const payload = qrPayloadFor(cardId);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(payload);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // コピーできない環境でも、下のコード表示を選択して手でコピーできる
+    }
+  };
   return (
     <>
+      {/* スキャン画面の「コードを直接入力」に使う文字列 */}
+      <Text style={styles.qrCode} selectable>
+        {payload}
+      </Text>
+      <Pressable
+        style={[styles.qrDownloadButton, { backgroundColor: "#2f855a" }]}
+        onPress={() => void copy()}
+      >
+        <Text style={styles.qrDownloadText}>{copied ? "✅ コピーしました" : "📋 コードをコピー"}</Text>
+      </Pressable>
       <Pressable
         style={styles.qrDownloadButton}
         onPress={() => void downloadQrPng(cardId, name)}
@@ -713,6 +731,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#2b6cb0",
   },
   qrDownloadText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  qrCode: { fontSize: 10, color: "#444", fontFamily: Platform.OS === "web" ? "monospace" : undefined },
   soloBackdrop: {
     flex: 1,
     backgroundColor: "#000000cc",
