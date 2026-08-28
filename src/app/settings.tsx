@@ -151,6 +151,8 @@ export default function SettingsScreen() {
 
       {!inBattle && <BugReport />}
 
+      {!inBattle && Platform.OS === "web" && <VersionInfo />}
+
       {!inBattle && (
         <Pressable
           style={[styles.wideButton, { backgroundColor: colors.primary }]}
@@ -252,6 +254,35 @@ function BugReport() {
                 ? "送信できませんでした。通信環境をご確認ください"
                 : "📮 報告を送る"}
         </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+/**
+ * いま動いているアプリのバージョン表示と、手動の最新化ボタン。
+ * 「直したはずが反映されない」ときに、どの版が動いているかを確かめられる。
+ * 最新化はアドレスに毎回違う目印を付けて開き直すので、
+ * 配信網や端末のキャッシュに関係なく必ず最新版を取りに行く
+ */
+function VersionInfo() {
+  const doc = (globalThis as { document?: Document }).document;
+  const src =
+    (doc?.querySelector('script[src*="entry-"]') as { src?: string } | null)?.src ?? "";
+  const buildId = /entry-([a-f0-9]{8})/.exec(src)?.[1] ?? "開発中";
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>アプリの更新</Text>
+      <Text style={styles.note}>いま動いているバージョン: {buildId}</Text>
+      <Pressable
+        style={[styles.wideButton, { backgroundColor: colors.success }]}
+        onPress={() => {
+          const loc = (globalThis as { location?: { pathname: string; href: string } }).location;
+          if (!loc) return;
+          loc.href = `${loc.pathname}?u=${Date.now()}`;
+        }}
+      >
+        <Text style={styles.wideButtonText}>🔄 アプリを最新版にする</Text>
       </Pressable>
     </View>
   );
