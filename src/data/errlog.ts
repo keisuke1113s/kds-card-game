@@ -55,6 +55,30 @@ function report(msg: string, stack?: string): void {
   }
 }
 
+/**
+ * ユーザーが設定画面から手で送る不具合報告。
+ * 自動報告と同じ /errlog に「[ユーザー報告]」の印を付けて送る。
+ * 端末情報（機種・画面URL）は自動で添える。成功したら true
+ */
+export async function reportByUser(text: string): Promise<boolean> {
+  const msg = `[ユーザー報告] ${text.trim().slice(0, 400)}`;
+  try {
+    await fetch(ENDPOINT, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        msg,
+        url: (globalThis as { location?: { href: string } }).location?.href,
+        ua: (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent,
+      }),
+      keepalive: true,
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** アプリ起動時に一度だけ呼ぶ */
 export function setupErrorReporting(): void {
   if (Platform.OS !== "web") return;

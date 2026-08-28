@@ -293,6 +293,26 @@ function HandSide({
   const swing = useSharedValue(0);
   const pop = useSharedValue(1);
 
+  // スロットのように手が高速で入れ替わり、決まると少し回ってから止まる
+  const [slot, setSlot] = useState(0);
+  const [settled, setSettled] = useState(hand !== null);
+  useEffect(() => {
+    if (hand === null) {
+      setSettled(false);
+      const spin = setInterval(() => setSlot((s) => s + 1), 110);
+      return () => clearInterval(spin);
+    }
+    const spin = setInterval(() => setSlot((s) => s + 1), 85);
+    const stop = setTimeout(() => {
+      clearInterval(spin);
+      setSettled(true);
+    }, 460);
+    return () => {
+      clearInterval(spin);
+      clearTimeout(stop);
+    };
+  }, [hand]);
+
   useEffect(() => {
     if (waiting) {
       swing.value = withRepeat(
@@ -324,7 +344,7 @@ function HandSide({
   return (
     <View style={styles.handSide}>
       <Animated.Text style={[styles.handEmoji, style]} allowFontScaling={false}>
-        {hand ? HAND_LABEL[hand].emoji : "✊"}
+        {settled && hand ? HAND_LABEL[hand].emoji : HAND_LABEL[HANDS[slot % HANDS.length]].emoji}
       </Animated.Text>
       <Text style={[styles.handLabel, winner && styles.handLabelWin]}>
         {label}

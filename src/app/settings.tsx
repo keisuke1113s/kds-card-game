@@ -1,7 +1,8 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { HAPTICS_AVAILABLE } from "@/audio/haptics";
+import { reportByUser } from "@/data/errlog";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -117,6 +118,8 @@ export default function SettingsScreen() {
       {/* テスト期間中は安定版でも切り替えを出す（本番公開時はフラグを戻すと開発版のみに戻る） */}
       {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
 
+      {!inBattle && <BugReport />}
+
       {!inBattle && (
         <Pressable
           style={[styles.wideButton, { backgroundColor: colors.primary }]}
@@ -173,6 +176,53 @@ export default function SettingsScreen() {
       )}
       </ScrollView>
     </ScreenEnter>
+  );
+}
+
+/**
+ * 不具合の報告。入力した内容＋端末情報（機種・URL）を管理者へ送る。
+ * 名前などの個人情報は送らない
+ */
+function BugReport() {
+  const [text, setText] = useState("");
+  const [status, setStatus] = useState<"idle" | "sending" | "done" | "failed">("idle");
+  const send = async () => {
+    if (!text.trim() || status === "sending") return;
+    setStatus("sending");
+    const ok = await reportByUser(text);
+    setStatus(ok ? "done" : "failed");
+    if (ok) setText("");
+    setTimeout(() => setStatus("idle"), 4000);
+  };
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>不具合を報告</Text>
+      <Text style={styles.note}>
+        おかしな動きを見つけたら、状況を書いて送ってください（機種の情報は自動で添えられます。
+        名前などの個人情報は送られません）。
+      </Text>
+      <TextInput
+        style={styles.reportInput}
+        value={text}
+        onChangeText={setText}
+        placeholder="例: バトルの後に画面が固まった"
+        multiline
+      />
+      <Pressable
+        style={[styles.wideButton, { backgroundColor: colors.primary }, !text.trim() && { opacity: 0.4 }]}
+        onPress={() => void send()}
+      >
+        <Text style={styles.wideButtonText}>
+          {status === "sending"
+            ? "送信中..."
+            : status === "done"
+              ? "✅ 送信しました。ありがとうございます！"
+              : status === "failed"
+                ? "送信できませんでした。通信環境をご確認ください"
+                : "📮 報告を送る"}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -296,6 +346,17 @@ const styles = StyleSheet.create({
   },
   choiceText: { fontWeight: "700", color: colors.text },
   note: { color: colors.textMuted, marginTop: 16, fontSize: 12 },
+  reportInput: {
+    minHeight: 70,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 15,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    textAlignVertical: "top",
+  },
   wideButton: {
     borderRadius: 12,
     paddingVertical: 14,

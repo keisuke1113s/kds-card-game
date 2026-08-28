@@ -22,6 +22,8 @@ export interface TrackEvent {
   durationSec?: number;
   first?: boolean;
   cardId?: string;
+  /** メタ分析用: この対戦で使ったデッキのカードID一覧 */
+  cards?: string[];
 }
 
 interface DailyStat {
@@ -51,6 +53,8 @@ interface Aggregates {
   durCount: number;
   daily: Record<string, DailyStat>;
   scanByCard: Record<string, number>;
+  /** カード別のメタ分析（そのカード入りデッキの対戦数と勝利数） */
+  cardUsage: Record<string, { matches: number; wins: number }>;
   envTotals: Record<string, { opens: number; matches: number }>;
 }
 
@@ -78,6 +82,7 @@ function emptyAggregates(): Aggregates {
     durCount: 0,
     daily: {},
     scanByCard: {},
+    cardUsage: {},
     envTotals: {},
   };
 }
@@ -179,6 +184,22 @@ export class Telemetry {
         this.agg.firstPlayer.firstMatches++;
         if (e.first && e.result === "win") this.agg.firstPlayer.firstWins++;
       }
+      // カード別のメタ分析（重複IDは1回として数える）
+      if (Array.isArray(e.cards) && e.cards.length <= 40) {
+        for (const raw2 of new Set(e.cards)) {
+          const cid = String(raw2).slice(0, 64);
+          if (!cid) continue;
+          if (
+            !this.agg.cardUsage[cid] &&
+            Object.keys(this.agg.cardUsage).length >= 500
+          ) {
+            continue; // でたらめなIDの送りつけで肥大しないよう上限を設ける
+          }
+          const u = (this.agg.cardUsage[cid] ??= { matches: 0, wins: 0 });
+          u.matches++;
+          if (e.result === "win") u.wins++;
+        }
+      }
     } else if (e.type === "scan") {
       this.agg.totals.scans++;
       day.scans++;
@@ -269,6 +290,11 @@ export class Telemetry {
         total: a.totals.scans,
         topCards: top,
       },
+      // カード別の使用数・勝率（管理画面のメタ分析用。使用数の多い順）
+      cardUsage: Object.entries(a.cardUsage)
+        .sort((x, y) => y[1].matches - x[1].matches)
+        .slice(0, 100)
+        .map(([cardId, u]) => ({ cardId, matches: u.matches, wins: u.wins })),
       env: a.envTotals,
       daily: lastNDates(14).map((date) => ({
         date,

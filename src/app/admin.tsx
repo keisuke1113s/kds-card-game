@@ -409,6 +409,7 @@ function StatsPanel() {
       byDifficulty: Record<string, { matches: number; wins: number }>;
     };
     scans: { total: number; topCards: { cardId: string; count: number }[] };
+    cardUsage?: { cardId: string; matches: number; wins: number }[];
     env: Record<string, { opens: number; matches: number }>;
     daily: {
       date: string;
@@ -527,6 +528,21 @@ function StatsPanel() {
           {stats.scans.topCards.map((c, i) => (
             <Text key={c.cardId} style={styles.statLine}>
               {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}（{c.count}回）
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>カード別のメタ分析（使用数と勝率）</Text>
+          <Text style={styles.note}>
+            そのカードが入ったデッキの対戦数と勝率です。勝率が極端に高い/低いカードは
+            実カードの調整（第2弾）の参考になります。5戦以上のカードのみ勝率を表示します。
+          </Text>
+          {(stats.cardUsage ?? []).length === 0 && (
+            <Text style={styles.note}>まだデータがありません（対戦が集まると表示されます）</Text>
+          )}
+          {(stats.cardUsage ?? []).slice(0, 20).map((c, i) => (
+            <Text key={c.cardId} style={styles.statLine}>
+              {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}: {c.matches}戦
+              {c.matches >= 5 ? `（勝率 ${Math.round((c.wins / c.matches) * 100)}%）` : ""}
             </Text>
           ))}
 

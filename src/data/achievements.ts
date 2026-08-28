@@ -60,6 +60,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "scan1", emoji: "📷", name: "はじめてのQR登録", desc: "QRコードでカードを1枚登録する", check: (s) => s.scannedCount >= 1 },
   { id: "scan10", emoji: "🗂️", name: "コレクター", desc: "QRコードでカードを10枚登録する", title: "コレクター", check: (s) => s.scannedCount >= 10 },
   { id: "scan30", emoji: "💼", name: "大コレクター", desc: "QRコードでカードを30枚登録する", check: (s) => s.scannedCount >= 30 },
+  { id: "collect22", emoji: "📗", name: "コレクション22", desc: "カードを22枚そろえる", title: "かけだしコレクター", check: (s) => s.unlockedCount >= 22 },
+  { id: "collect44", emoji: "📘", name: "コレクション44", desc: "カードを44枚そろえる", title: "熟練コレクター", check: (s) => s.unlockedCount >= 44 },
   { id: "complete", emoji: "🌈", name: "カードマスター", desc: "全カードをそろえる", title: "カードマスター", check: (s) => s.unlockedCount >= s.totalCards },
   // ---- 対戦数・その他 ----
   { id: "play10", emoji: "🎮", name: "対戦10回", desc: "10回対戦する", check: (s) => s.history.length >= 10 },

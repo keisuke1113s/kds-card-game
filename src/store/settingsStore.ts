@@ -16,6 +16,8 @@ interface SettingsState {
   randomizeStandard: boolean;
   /** 対戦するごとにチャレンジャーデッキをランダムに入れ替える */
   randomizeChallenger: boolean;
+  /** 初対戦のガイド（吹き出しナビ）を最後まで見たか */
+  guideDone: boolean;
   setDifficulty: (d: Difficulty) => void;
   setCpuPersona: (p: CpuPersona) => void;
   setAiSpeedMs: (ms: number) => void;
@@ -24,6 +26,7 @@ interface SettingsState {
   setHapticsEnabled: (v: boolean) => void;
   setRandomizeStandard: (v: boolean) => void;
   setRandomizeChallenger: (v: boolean) => void;
+  setGuideDone: (v: boolean) => void;
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -37,6 +40,7 @@ export const useSettingsStore = create<SettingsState>()(
       hapticsEnabled: true,
       randomizeStandard: false,
       randomizeChallenger: false,
+      guideDone: false,
       setDifficulty: (difficulty) => set({ difficulty }),
       setCpuPersona: (cpuPersona) => set({ cpuPersona }),
       setAiSpeedMs: (aiSpeedMs) => set({ aiSpeedMs }),
@@ -45,6 +49,7 @@ export const useSettingsStore = create<SettingsState>()(
       setHapticsEnabled: (hapticsEnabled) => set({ hapticsEnabled }),
       setRandomizeStandard: (randomizeStandard) => set({ randomizeStandard }),
       setRandomizeChallenger: (randomizeChallenger) => set({ randomizeChallenger }),
+      setGuideDone: (guideDone) => set({ guideDone }),
     }),
     {
       name: "kds-settings",

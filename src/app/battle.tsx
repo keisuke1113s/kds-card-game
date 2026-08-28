@@ -32,6 +32,7 @@ import Animated, {
   ZoomOut,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { pauseBgm, playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
@@ -387,6 +388,61 @@ export default function BattleScreen() {
   // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
   const [reachFx, setReachFx] = useState<{ mine: boolean } | null>(null);
   const [reachOn, setReachOn] = useState(false);
+  // 実況の表示時間の計算から参照する（effectの再実行を増やさないためref越し）
+  const reachOnRef = useRef(false);
+  reachOnRef.current = reachOn;
+
+  // CPUの口上セリフ（CPU対戦のみ。リプレイ観戦では出さない）
+  const [cpuSpeech, setCpuSpeech] = useState<string | null>(null);
+  const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const say = (lines: readonly string[]) => {
+    if (isOnline || replayActive) return;
+    setCpuSpeech(pickLine(lines));
+    if (speechTimer.current) clearTimeout(speechTimer.current);
+    speechTimer.current = setTimeout(() => setCpuSpeech(null), 3400);
+  };
+  useEffect(
+    () => () => {
+      if (speechTimer.current) clearTimeout(speechTimer.current);
+    },
+    []
+  );
+  useEffect(() => {
+    // 対戦開始のあいさつ
+    if (isOnline || replayActive) return;
+    const t = setTimeout(() => say(CPU_LINES.start), 1600);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 初対戦のガイド（吹き出しナビ）。最初のCPU対戦を終えると出なくなる
+  const guideDone = useSettingsStore((s) => s.guideDone);
+  const setGuideDone = useSettingsStore((s) => s.setGuideDone);
+  const guideActive = !guideDone && !isOnline && !replayActive;
+  const guideSeenSteps = useRef(new Set<string>());
+  const [guideText, setGuideText] = useState<string | null>(null);
+  useEffect(() => {
+    if (!guideActive || !view) return;
+    const show = (k: string, text: string) => {
+      if (guideSeenSteps.current.has(k)) return;
+      guideSeenSteps.current.add(k);
+      setGuideText(text);
+    };
+    if (view.phase.type === "mulligan") {
+      show("mulligan", "最初の手札です。気に入らなければ1回だけ引き直せます。");
+    } else if (view.phase.type === "main" && view.self.field.length === 0) {
+      show("play", "手札のインストラクターをタップして、場に出してみましょう。");
+    } else if (view.phase.type === "main" && view.self.field.length > 0) {
+      show("action", "場に出したカードをタップすると、学科・技能を進めたりバトルをしたりできます。");
+    } else if (view.phase.type === "battleSupport") {
+      show("support", "バトル中はサポートカードで戦闘力を足せます。無ければ「パス」で大丈夫です。");
+    }
+    if (view.phase.type === "finished") {
+      setGuideDone(true);
+      setGuideText(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [guideActive, view?.phase.type, view?.self.field.length]);
   // 実況が流れている間は待ち、捌けてから表示する（演出の重なり防止）
   const [pendingReach, setPendingReach] = useState<{ mine: boolean } | null>(null);
   const reachShown = useRef({ me: false, opp: false });
@@ -398,6 +454,28 @@ export default function BattleScreen() {
     oa: number;
     os: number;
   } | null>(null);
+
+  // 進捗バーの折返し（学科5・技能10）のお祝い
+  const [milestone, setMilestone] = useState<{ key: number; label: string } | null>(null);
+  const milestonePrev = useRef({ ma: 0, ms: 0 });
+  useEffect(() => {
+    const ma = shownTracks?.ma ?? view?.self.academic ?? 0;
+    const ms = shownTracks?.ms ?? view?.self.skill ?? 0;
+    const prev = milestonePrev.current;
+    milestonePrev.current = { ma, ms };
+    const label =
+      prev.ma < 5 && ma >= 5 && ma < ACADEMIC_GOAL
+        ? "✨ 学科 折返し！"
+        : prev.ms < 10 && ms >= 10 && ms < SKILL_GOAL
+          ? "✨ 技能 折返し！"
+          : null;
+    if (!label) return;
+    haptic("success");
+    setMilestone({ key: Date.now(), label });
+    const t = setTimeout(() => setMilestone(null), 1400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shownTracks?.ma, shownTracks?.ms, view?.self.academic, view?.self.skill]);
 
   // オンライン対戦: 相手の考え中の経過秒数
   const [oppThinkSec, setOppThinkSec] = useState(0);
@@ -482,9 +560,11 @@ export default function BattleScreen() {
     if (meReach && !reachShown.current.me) {
       reachShown.current.me = true;
       setPendingReach({ mine: true });
+      say(CPU_LINES.playerReach);
     } else if (oppReach && !reachShown.current.opp) {
       reachShown.current.opp = true;
       setPendingReach({ mine: false });
+      say(CPU_LINES.cpuReach);
     }
     if (!meReach) reachShown.current.me = false;
     if (!oppReach) reachShown.current.opp = false;
@@ -606,7 +686,9 @@ export default function BattleScreen() {
         },
         next.kind === "turn"
           ? 900
-          : next.kind === "battle" || next.kind === "battleResult"
+          : next.kind === "battleResult" && reachOnRef.current
+            ? 3700 // ラストバトルはカウントアップの分だけ長く見せる
+            : next.kind === "battle" || next.kind === "battleResult"
             ? 2400
             : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
               ? 2000
@@ -752,6 +834,13 @@ export default function BattleScreen() {
     return () => clearTimeout(t);
   }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
+
+  // 決着時のCPUのひとこと（勝てば称賛、負ければ励まし）
+  useEffect(() => {
+    if (!finishedOutcome) return;
+    say(finishedOutcome === "win" ? CPU_LINES.cpuLose : CPU_LINES.cpuWin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedOutcome]);
 
   const legal = useMemo(
     () => (view ? getLegalActionsFromView(ctx, view) : []),
@@ -1000,6 +1089,14 @@ export default function BattleScreen() {
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
+        {/* CPUの口上セリフ（吹き出し） */}
+        {cpuSpeech && !isOnline && (
+          <View style={styles.cpuSpeechBubble} pointerEvents="none">
+            <Text style={styles.cpuSpeechText} allowFontScaling={false}>
+              💬 {cpuSpeech}
+            </Text>
+          </View>
+        )}
         <TrackBar label="学科" kind="academic" value={shownTracks?.oa ?? cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" kind="skill" value={shownTracks?.os ?? cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
@@ -1378,6 +1475,7 @@ export default function BattleScreen() {
               tie={currentAnn.resTie ?? false}
               atk={currentAnn.resAtk ?? 0}
               def={currentAnn.resDef ?? 0}
+              deciding={reachOn}
             />
           ) : currentAnn.kind === "recycle" ? (
             <RecycleCutIn
@@ -1487,6 +1585,17 @@ export default function BattleScreen() {
 
       {/* リーチ演出（残り2時限以下になった瞬間の全画面カットイン） */}
       {reachFx && <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />}
+      {/* リーチ中は画面のフチが赤く脈動する */}
+      {reachOn && view.phase.type !== "finished" && <ReachVignette />}
+      {/* 進捗の折返し到達のお祝い */}
+      {milestone && <MilestonePop key={milestone.key} label={milestone.label} />}
+      {/* 初対戦のガイド（吹き出しナビ。タップで閉じる） */}
+      {guideText && (
+        <Pressable style={styles.guideBubble} onPress={() => setGuideText(null)}>
+          <Text style={styles.guideBubbleText}>🔰 {guideText}</Text>
+          <Text style={styles.guideBubbleClose}>タップで閉じる</Text>
+        </Pressable>
+      )}
 
       {/* 相手が見つかったときの、先攻を決めるじゃんけん（待機中CPU対戦の上にかぶせる） */}
       <OnlineJanken />
@@ -2053,7 +2162,10 @@ function FieldRow({
               {/* 選べる対象には跳ねる矢印を出して迷わせない */}
               {highlightUids.has(inst.uid) && <TargetArrow color={highlightColor} />}
               <RestRotator rested={inst.rested}>
-                <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+                {/* 元気なカードはゆっくり呼吸するように揺れる */}
+                <Breathe active={!inst.rested}>
+                  <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+                </Breathe>
               </RestRotator>
               <Text style={styles.fieldCaption}>
                 {inst.rested ? "休憩 " : ""}
@@ -2083,35 +2195,81 @@ function BattleResultCutIn({
   tie,
   atk,
   def,
+  deciding,
 }: {
   mine?: boolean;
   tie: boolean;
   atk: number;
   def: number;
+  /** どちらかがリーチ中の「決着がかかったバトル」。カウントアップの特別演出にする */
+  deciding?: boolean;
 }) {
   const scale = useSharedValue(0.4);
   const opacity = useSharedValue(0);
+  const [reveal, setReveal] = useState(!deciding);
+  const [shown, setShown] = useState<{ atk: number; def: number }>(
+    deciding ? { atk: 0, def: 0 } : { atk, def }
+  );
   useEffect(() => {
-    playSe(tie ? "battle_tie" : mine ? "battle_win" : "battle_lose");
-    haptic(tie ? "heavy" : mine ? "success" : "warning");
-    scale.value = withSequence(
-      withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
-      withTiming(1, { duration: 150 })
-    );
     opacity.value = withTiming(1, { duration: 140 });
+    const revealFx = () => {
+      playSe(tie ? "battle_tie" : mine ? "battle_win" : "battle_lose");
+      haptic(tie ? "heavy" : mine ? "success" : "warning");
+      scale.value = withSequence(
+        withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
+        withTiming(1, { duration: 150 })
+      );
+    };
+    if (!deciding) {
+      revealFx();
+      return;
+    }
+    // ラストバトル: ドラムロールとともに両者の戦闘力がカウントアップし、出そろってから決着
+    playSe("battle");
+    haptic("heavy");
+    scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+    const steps = 9;
+    let i = 0;
+    const tick = setInterval(() => {
+      i++;
+      setShown({
+        atk: Math.min(atk, Math.round((atk * i) / steps)),
+        def: Math.min(def, Math.round((def * i) / steps)),
+      });
+      playSe("tap");
+      haptic("light");
+    }, 110);
+    const done = setTimeout(() => {
+      clearInterval(tick);
+      setShown({ atk, def });
+      setReveal(true);
+      revealFx();
+    }, 110 * steps + 260);
+    return () => {
+      clearInterval(tick);
+      clearTimeout(done);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const box = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }));
-  const bg = tie
+  const bg = !reveal
     ? require("../../assets/images/fx/fx_battle.webp")
-    : mine
-      ? require("../../assets/images/fx/fx_victory.webp")
-      : require("../../assets/images/fx/fx_down.webp");
-  const title = tie ? "⚡ 相打ち！" : mine ? "🔥 バトル勝利！" : "💥 バトル敗北…";
-  const color = tie ? "#8fd3ee" : mine ? "#ffd54d" : "#90a4c8";
+    : tie
+      ? require("../../assets/images/fx/fx_battle.webp")
+      : mine
+        ? require("../../assets/images/fx/fx_victory.webp")
+        : require("../../assets/images/fx/fx_down.webp");
+  const title = !reveal
+    ? "🏁 ラストバトル！！"
+    : tie
+      ? "⚡ 相打ち！"
+      : mine
+        ? "🔥 バトル勝利！"
+        : "💥 バトル敗北…";
+  const color = !reveal ? "#ffd54d" : tie ? "#8fd3ee" : mine ? "#ffd54d" : "#90a4c8";
   return (
     <View style={styles.reachLayer} pointerEvents="none">
       <Image source={bg} style={[StyleSheet.absoluteFill, { opacity: 0.85 }]} contentFit="cover" />
@@ -2120,14 +2278,16 @@ function BattleResultCutIn({
           {title}
         </Text>
         <Text style={styles.battleResultScore} allowFontScaling={false}>
-          {atk} <Text style={styles.battleResultVs}>vs</Text> {def}
+          {shown.atk} <Text style={styles.battleResultVs}>vs</Text> {shown.def}
         </Text>
         <Text style={styles.reachSub}>
-          {tie
-            ? "両者のインストラクターが場外へ！"
-            : mine
-              ? "相手のインストラクターを場外に追いやった！"
-              : "インストラクターが場外へ送られた…"}
+          {!reveal
+            ? "勝敗の行方は…！？"
+            : tie
+              ? "両者のインストラクターが場外へ！"
+              : mine
+                ? "相手のインストラクターを場外に追いやった！"
+                : "インストラクターが場外へ送られた…"}
         </Text>
       </Animated.View>
     </View>
@@ -3163,6 +3323,126 @@ function RestRotator({ rested, children }: { rested: boolean; children: React.Re
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
+/** CPUの口上セリフ（教習所らしい一言。CPU対戦のみ） */
+const CPU_LINES = {
+  start: [
+    "今日も安全運転でいきましょう！",
+    "準備はいいですか？出発進行！",
+    "焦らず確実に。それが上達のコツです",
+    "ミラーよし、シートベルトよし。始めましょう！",
+  ],
+  playerReach: [
+    "おっと、卒業が見えてきましたね…！",
+    "ここからが本当の試験ですよ",
+    "まだ終わっていませんよ！",
+  ],
+  cpuReach: [
+    "私の教習はもう仕上げ段階です",
+    "お先に卒業させてもらいますよ",
+    "見えました、卒業検定！",
+  ],
+  cpuWin: [
+    "また一緒に教習しましょう！",
+    "今日の反省を次に活かしましょう",
+    "運転は焦らないことが一番です",
+  ],
+  cpuLose: [
+    "お見事！卒業おめでとうございます！",
+    "完敗です。良いドライバーになれますよ",
+    "私も負けていられませんね…！",
+  ],
+} as const;
+
+function pickLine(lines: readonly string[]): string {
+  return lines[Math.floor(Math.random() * lines.length)];
+}
+
+/** リーチ中、画面のフチが赤く脈動して緊迫感を出すビネット */
+function ReachVignette() {
+  const pulse = useSharedValue(0.2);
+  useEffect(() => {
+    pulse.value = withRepeat(
+      withSequence(
+        withTiming(0.55, { duration: 620, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0.2, { duration: 620, easing: Easing.inOut(Easing.quad) })
+      ),
+      -1
+    );
+  }, [pulse]);
+  const st = useAnimatedStyle(() => ({ opacity: pulse.value }));
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, st, { zIndex: 25 }]} pointerEvents="none">
+      <LinearGradient
+        colors={["#d83030aa", "transparent"]}
+        style={styles.vignetteTop}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+      <LinearGradient
+        colors={["transparent", "#d83030aa"]}
+        style={styles.vignetteBottom}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      />
+      <LinearGradient
+        colors={["#d8303077", "transparent"]}
+        style={styles.vignetteLeft}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+      />
+      <LinearGradient
+        colors={["transparent", "#d8303077"]}
+        style={styles.vignetteRight}
+        start={{ x: 0, y: 0.5 }}
+        end={{ x: 1, y: 0.5 }}
+      />
+    </Animated.View>
+  );
+}
+
+/** 進捗の折返し到達のお祝いチップ（ポンと出て消える） */
+function MilestonePop({ label }: { label: string }) {
+  const s = useSharedValue(0);
+  useEffect(() => {
+    s.value = withSequence(
+      withTiming(1.15, { duration: 220, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 140 }),
+      withDelay(750, withTiming(0, { duration: 240 }))
+    );
+  }, [s]);
+  const st = useAnimatedStyle(() => ({
+    transform: [{ scale: Math.max(0.01, s.value) }],
+    opacity: Math.min(1, s.value * 1.5),
+  }));
+  return (
+    <Animated.View style={[styles.milestonePop, st]} pointerEvents="none">
+      <Text style={styles.milestonePopText} allowFontScaling={false}>
+        {label}
+      </Text>
+    </Animated.View>
+  );
+}
+
+/** 場のカードがゆっくり呼吸するように揺れる（休憩中は止まる） */
+function Breathe({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const s = useSharedValue(1);
+  useEffect(() => {
+    if (active) {
+      s.value = withRepeat(
+        withSequence(
+          withTiming(1.022, { duration: 1250, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 1250, easing: Easing.inOut(Easing.quad) })
+        ),
+        -1
+      );
+    } else {
+      s.value = withTiming(1, { duration: 200 });
+    }
+  }, [active, s]);
+  const st = useAnimatedStyle(() => ({ transform: [{ scale: s.value }] }));
+  return <Animated.View style={st}>{children}</Animated.View>;
+}
+
 /** 拡大表示の上部に出す「あなた」「CPU」バッジ */
 function OwnerBadge({ owner }: { owner: Owner }) {
   const isSelf = owner === "self";
@@ -3559,6 +3839,54 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff30",
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
+  cpuSpeechBubble: {
+    position: "absolute",
+    top: 34,
+    left: 8,
+    zIndex: 30,
+    maxWidth: 280,
+    backgroundColor: "#ffffffee",
+    borderWidth: 1.5,
+    borderColor: colors.danger,
+    borderRadius: 12,
+    borderTopLeftRadius: 2,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  cpuSpeechText: { fontSize: 13, fontWeight: "700", color: "#333" },
+  vignetteTop: { position: "absolute", top: 0, left: 0, right: 0, height: 90 },
+  vignetteBottom: { position: "absolute", bottom: 0, left: 0, right: 0, height: 90 },
+  vignetteLeft: { position: "absolute", left: 0, top: 0, bottom: 0, width: 46 },
+  vignetteRight: { position: "absolute", right: 0, top: 0, bottom: 0, width: 46 },
+  milestonePop: {
+    position: "absolute",
+    bottom: "40%",
+    alignSelf: "center",
+    zIndex: 40,
+    backgroundColor: "#fff7e0f2",
+    borderWidth: 2,
+    borderColor: "#e4a018",
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 20,
+  },
+  milestonePopText: { fontSize: 17, fontWeight: "900", color: "#8a5a00" },
+  guideBubble: {
+    position: "absolute",
+    top: 46,
+    alignSelf: "center",
+    zIndex: 60,
+    maxWidth: 340,
+    backgroundColor: "#ffffff",
+    borderWidth: 2,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  guideBubbleText: { fontSize: 14, fontWeight: "700", color: colors.text, lineHeight: 20 },
+  guideBubbleClose: { fontSize: 11, color: colors.textMuted, textAlign: "right" },
   fieldCaption: { fontSize: 9, color: colors.textMuted, marginTop: 2, minHeight: 11 },
   captionUp: { color: colors.success, fontWeight: "800" },
   captionDown: { color: colors.danger, fontWeight: "800" },

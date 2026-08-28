@@ -7,6 +7,7 @@ import Animated, {
   FadeInDown,
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
   withRepeat,
   withSequence,
   withTiming,
@@ -23,6 +24,8 @@ import { useRecordStore } from "@/store/recordStore";
 import { colors, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
+import { allCards } from "@/data/cards";
+import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 
 /** 開発版デモ（GitHub Pages の /dev/ 配下）で開いているか */
 const IS_DEV_DEMO =
@@ -41,6 +44,68 @@ const brand = {
   skyblue: "#8fd3ee", // 2つ目の O
   amber: "#eeb121", // 最後の「!」
 } as const;
+
+/** 季節の環境演出。月で自動的に切り替わる（対象外の月は何も出さない） */
+function seasonEmoji(): string | null {
+  const m = new Date().getMonth() + 1;
+  if (m === 3 || m === 4) return "🌸"; // 春: 桜
+  if (m === 12 || m === 1 || m === 2) return "❄️"; // 冬: 雪
+  if (m === 10 || m === 11) return "🍂"; // 秋: 紅葉
+  if (m === 7 || m === 8) return "✨"; // 夏: きらめき
+  return null;
+}
+
+/** 画面の上からゆっくり舞い落ちる粒（1つぶん） */
+function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
+  const fall = useSharedValue(0);
+  const sway = useSharedValue(0);
+  const screenH = 900;
+  useEffect(() => {
+    const duration = 7000 + ((index * 977) % 5000);
+    fall.value = withDelay(
+      (index * 823) % 6000,
+      withRepeat(withTiming(1, { duration }), -1)
+    );
+    sway.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1600 + (index % 4) * 300 }),
+        withTiming(-1, { duration: 1600 + (index % 4) * 300 })
+      ),
+      -1
+    );
+  }, [fall, sway, index]);
+  const st = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -40 + fall.value * (screenH + 80) },
+      { translateX: sway.value * 14 },
+      { rotate: `${sway.value * 20}deg` },
+    ],
+    opacity: fall.value < 0.05 ? fall.value * 14 : fall.value > 0.9 ? (1 - fall.value) * 7 : 0.7,
+  }));
+  return (
+    <Animated.Text
+      style={[
+        { position: "absolute", left: `${(index * 83) % 100}%`, top: 0, fontSize: 14 + (index % 3) * 5 },
+        st,
+      ]}
+      allowFontScaling={false}
+    >
+      {emoji}
+    </Animated.Text>
+  );
+}
+
+function SeasonalParticles() {
+  const emoji = seasonEmoji();
+  if (!emoji) return null;
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      {Array.from({ length: 12 }, (_, i) => (
+        <FallingPiece key={i} emoji={emoji} index={i} />
+      ))}
+    </View>
+  );
+}
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -66,6 +131,18 @@ export default function HomeScreen() {
   const activeDeck = resolveActiveDeck(deckState);
   const record = useRecordStore();
   const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
+
+  // コレクション達成ランク（22/44/64枚の節目で記章がグレードアップ）
+  const unlockState = useUnlockStore();
+  const unlockedCount = unlockedSet(unlockState).size;
+  const collectionRank =
+    unlockedCount >= allCards.length
+      ? { label: "🌈 コレクションコンプリート！", bg: "#fff7e0", border: "#e4a018", fg: "#8a5a00" }
+      : unlockedCount >= 44
+        ? { label: "🥈 熟練コレクター", bg: "#f2f5f8", border: "#8fa4b8", fg: "#44586c" }
+        : unlockedCount >= 22
+          ? { label: "🥉 かけだしコレクター", bg: "#f8f0ea", border: "#b88a62", fg: "#6c4a2e" }
+          : null;
 
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
@@ -189,6 +266,17 @@ export default function HomeScreen() {
               {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
             </Text>
           )}
+          {/* コレクション達成の記章（22/44/64枚の節目でランクアップ） */}
+          {collectionRank && (
+            <Pressable
+              style={[styles.collectionRibbon, { backgroundColor: collectionRank.bg, borderColor: collectionRank.border }]}
+              onPress={() => router.push("/library")}
+            >
+              <Text style={[styles.collectionRibbonText, { color: collectionRank.fg }]}>
+                {collectionRank.label}（{unlockedCount}/{allCards.length}枚）
+              </Text>
+            </Pressable>
+          )}
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
@@ -258,6 +346,8 @@ export default function HomeScreen() {
         {queueCancelledNotice && (
           <QueueCancelledOverlay onClose={clearQueueCancelledNotice} />
         )}
+        {/* 季節の環境演出（桜・雪・紅葉・きらめき） */}
+        <SeasonalParticles />
       </SafeAreaView>
     </LinearGradient>
   );
@@ -438,6 +528,14 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginTop: 2,
   },
+  collectionRibbon: {
+    alignSelf: "center",
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+    borderRadius: radius.pill,
+    borderWidth: 1.5,
+  },
+  collectionRibbonText: { fontSize: 13, fontWeight: "800" },
   recordLine: {
     textAlign: "center",
     fontSize: 13,

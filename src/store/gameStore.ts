@@ -170,6 +170,8 @@ let matchMeta: {
   tutorial: boolean;
   turns: number;
   firstIsMe: boolean | null;
+  /** メタ分析用: 自分のデッキのカードID一覧（匿名集計に送る） */
+  myCards: string[];
   /** リプレイ用（CPU対戦のみ）: 種・デッキ・全アクション */
   replaySeed: number | null;
   replayDecks: [DeckList, DeckList] | null;
@@ -243,6 +245,8 @@ function trackMatchEvents(
         turns: meta.turns,
         durationSec: Math.max(0, Math.round((Date.now() - meta.startedAt) / 1000)),
         first: meta.firstIsMe ?? undefined,
+        // メタ分析用（カード別の使用率・勝率）。カードIDのみで個人情報は含まない
+        cards: meta.myCards,
       });
       return;
     }
@@ -604,6 +608,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         tutorial,
         turns: 0,
         firstIsMe: null,
+        myCards: [...playerDeck.main, playerDeck.tantou],
         replaySeed: realSeed,
         replayDecks: [playerDeck, cpuDeck],
         replayFirst: firstPlayer ?? null,
@@ -796,6 +801,10 @@ export const useGameStore = create<GameStore>()((set, get) => {
                 tutorial: false,
                 turns: 0,
                 firstIsMe: null,
+                myCards: (() => {
+                  const d = resolveActiveDeck(useDeckStore.getState()).list;
+                  return [...d.main, d.tantou];
+                })(),
                 replaySeed: null,
                 replayDecks: null,
                 replayFirst: null,

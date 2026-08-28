@@ -180,6 +180,7 @@ export function PackOpeningFX({
   onContinue?: () => void;
   onClose: () => void;
 }) {
+  const isTantou = cardId.startsWith("t_");
   const bg = useSharedValue(0); // fx_pack 背景の入り
   const bgScale = useSharedValue(1.25);
   const intro = useSharedValue(0); // 裏面カードの登場（下からふわっと）
@@ -299,10 +300,19 @@ export function PackOpeningFX({
       {Array.from({ length: 14 }, (_, i) => (
         <ConvergeSpark key={`s${i}`} index={i} />
       ))}
-      {/* 紙吹雪が弾ける（後半） */}
-      {Array.from({ length: 30 }, (_, i) => (
-        <ConfettiPiece key={`c${i}`} index={i} count={30} delayMs={2300} dist={200} />
+      {/* 紙吹雪が弾ける（後半）。担当カードは特別に多めに */}
+      {Array.from({ length: isTantou ? 48 : 30 }, (_, i) => (
+        <ConfettiPiece
+          key={`c${i}`}
+          index={i}
+          count={isTantou ? 48 : 30}
+          delayMs={2300}
+          dist={isTantou ? 240 : 200}
+        />
       ))}
+
+      {/* 担当カードは虹色の光の輪がカードの周りを回る */}
+      {isTantou && <RainbowHalo />}
 
       {/* カード本体 */}
       <View style={styles.fxCardWrap} pointerEvents="none">
@@ -322,6 +332,7 @@ export function PackOpeningFX({
 
       {/* NEW! カード名 */}
       <Animated.View style={[styles.fxNameWrap, nameStyle]} pointerEvents="none">
+        {isTantou && <Text style={styles.fxTantouBadge}>🌈 担当カード！！ 🌈</Text>}
         <Text style={styles.fxNewBadge}>✨ NEW! ✨</Text>
         <Text style={styles.fxName} allowFontScaling={false}>
           「{getCard(cardId).name}」をゲット！
@@ -353,6 +364,47 @@ export function PackOpeningFX({
 const CONFETTI_COLORS = ["#e2604a", "#e49c18", "#78b424", "#3d8fd0", "#c9d63a", "#8fd3ee"];
 
 /** 中央へ吸い込まれていく光の粒（開封前のため込め） */
+/** 担当カード専用: 12色の光の粒がカードの周りをゆっくり回る虹の輪 */
+const RAINBOW_COLORS = [
+  "#ff5252", "#ff9800", "#ffd600", "#8bc34a", "#00e5a0", "#00bcd4",
+  "#40c4ff", "#3f51b5", "#9c27b0", "#e91e63", "#ffab40", "#b388ff",
+];
+function RainbowHalo() {
+  const rot = useSharedValue(0);
+  const on = useSharedValue(0);
+  useEffect(() => {
+    // カードがめくれる（2.3秒）のと同時に現れて回り続ける
+    on.value = withDelay(2300, withTiming(1, { duration: 420 }));
+    rot.value = withRepeat(withTiming(360, { duration: 5200, easing: Easing.linear }), -1);
+  }, [on, rot]);
+  const st = useAnimatedStyle(() => ({
+    opacity: on.value,
+    transform: [{ rotate: `${rot.value}deg` }],
+  }));
+  return (
+    <Animated.View style={[styles.rainbowHalo, st]} pointerEvents="none">
+      {RAINBOW_COLORS.map((c, i) => {
+        const a = (i / RAINBOW_COLORS.length) * Math.PI * 2;
+        return (
+          <View
+            key={c}
+            style={[
+              styles.rainbowDot,
+              {
+                backgroundColor: c,
+                transform: [
+                  { translateX: Math.cos(a) * 135 },
+                  { translateY: Math.sin(a) * 135 },
+                ],
+              },
+            ]}
+          />
+        );
+      })}
+    </Animated.View>
+  );
+}
+
 function ConvergeSpark({ index }: { index: number }) {
   const p = useSharedValue(0);
   useEffect(() => {
@@ -619,6 +671,23 @@ const styles = StyleSheet.create({
     bottom: 150,
     alignItems: "center",
     gap: 4,
+  },
+  rainbowHalo: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rainbowDot: {
+    position: "absolute",
+    width: 15,
+    height: 15,
+    borderRadius: 8,
+  },
+  fxTantouBadge: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#ffd54d",
+    textAlign: "center",
   },
   fxNewBadge: {
     color: "#ffd54d",
