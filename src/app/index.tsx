@@ -45,6 +45,39 @@ const brand = {
   amber: "#eeb121", // 最後の「!」
 } as const;
 
+/**
+ * 文字の輪郭に沿って白い縁取りを付ける（Web）。
+ * 同じ文字を2枚重ね、下の層にだけ太い白ストロークを付けて
+ * 上の層の塗りで内側を覆う（縁取りが文字を侵食しない定番の手法）
+ */
+function OutlinedText({
+  style,
+  stroke = 4,
+  children,
+}: {
+  style?: object | object[];
+  stroke?: number;
+  children: React.ReactNode;
+}) {
+  if (Platform.OS !== "web") {
+    return <Text style={style}>{children}</Text>;
+  }
+  return (
+    <View>
+      <Text
+        style={[
+          style,
+          { position: "absolute", top: 0, left: 0, WebkitTextStroke: `${stroke}px #ffffff` } as never,
+        ]}
+        aria-hidden
+      >
+        {children}
+      </Text>
+      <Text style={style}>{children}</Text>
+    </View>
+  );
+}
+
 /** 季節の環境演出。月で自動的に切り替わる（対象外の月は何も出さない） */
 function seasonEmoji(): string | null {
   const m = new Date().getMonth() + 1;
@@ -194,27 +227,27 @@ export default function HomeScreen() {
           <View style={styles.titleBlock}>
             {/* カード実物のロゴと同じ配色にする */}
             <View style={styles.logoRow}>
-              <Text style={[styles.logo, { color: brand.red }]}>K</Text>
-              <Text style={[styles.logo, { color: brand.yellow }]}>D</Text>
-              <Text style={[styles.logo, { color: brand.green }]}>S</Text>
+              <OutlinedText stroke={5} style={[styles.logo, { color: brand.red }]}>K</OutlinedText>
+              <OutlinedText stroke={5} style={[styles.logo, { color: brand.yellow }]}>D</OutlinedText>
+              <OutlinedText stroke={5} style={[styles.logo, { color: brand.green }]}>S</OutlinedText>
               <View style={styles.goRow}>
-                <Text style={[styles.go, { color: brand.coral }]}>a</Text>
-                <Text style={[styles.go, { color: brand.yellow }]}> G</Text>
-                <Text style={[styles.go, { color: brand.blue }]}>O</Text>
-                <Text style={[styles.go, { color: brand.red }]}>!</Text>
-                <Text style={[styles.go, { color: brand.lime }]}> G</Text>
-                <Text style={[styles.go, { color: brand.skyblue }]}>O</Text>
-                <Text style={[styles.go, { color: brand.amber }]}>!</Text>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.coral }]}>a</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.yellow }]}> G</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.blue }]}>O</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.red }]}>!</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.lime }]}> G</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.skyblue }]}>O</OutlinedText>
+                <OutlinedText stroke={3} style={[styles.go, { color: brand.amber }]}>!</OutlinedText>
               </View>
             </View>
             {/* 「運転」「楽しく」だけ赤、つなぎの言葉は黒 */}
-            <Text style={styles.catch}>
+            <OutlinedText stroke={3} style={styles.catch}>
               <Text style={styles.catchRed}>運転</Text>
               <Text style={styles.catchDark}>が</Text>
               <Text style={styles.catchRed}>楽しく</Text>
               <Text style={styles.catchDark}>なる!!</Text>
-            </Text>
-            <Text style={styles.title}>トレーディングカードゲーム</Text>
+            </OutlinedText>
+            <OutlinedText stroke={4} style={styles.title}>トレーディングカードゲーム</OutlinedText>
             {/* 実カード配布の案内 */}
             <View style={styles.realCardNote}>
               <Text style={styles.realCardNoteText}>
@@ -488,15 +521,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     ...shadow.card,
   },
-  titleBlock: {
-    alignItems: "center",
-    marginTop: spacing.sm,
-    // 背景イラストの上でも読めるよう、白い半透明パネルを敷く
-    backgroundColor: "#ffffffcc",
-    borderRadius: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-  },
+  titleBlock: { alignItems: "center", marginTop: spacing.sm },
   logoRow: { flexDirection: "row", alignItems: "flex-end", gap: 2 },
   logo: {
     fontSize: 46,
