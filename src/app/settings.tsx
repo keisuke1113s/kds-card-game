@@ -37,7 +37,13 @@ export default function SettingsScreen() {
   const router = useRouter();
   const quitGame = useGameStore((s) => s.quitGame);
   const queueActive = useGameStore((s) => s.queueActive);
-  const inBattle = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
+  // CPU対戦は state、オンライン対戦は view（サーバー権威で state を持たない）を見る。
+  // これを見落とすとオンライン対戦中に「ホームに戻る」が出て、確認なしで対戦を離脱してしまう
+  const inBattle = useGameStore(
+    (s) =>
+      (s.state !== null && s.state.phase.type !== "finished") ||
+      (s.mode === "online" && s.view !== null && s.view.phase.type !== "finished")
+  );
   const [confirmQuit, setConfirmQuit] = useState(false);
   const {
     aiSpeedMs,
