@@ -1557,11 +1557,20 @@ export default function BattleScreen() {
         >
           <View style={styles.menuCardRow}>
             <CardFace cardId={cardIdOf(view, selectedUid)} size="md" />
-            {!!effectTextOf(view, selectedUid) && (
-              <Text style={[styles.menuEffectText, styles.menuEffectFlex]}>
-                {effectTextOf(view, selectedUid)}
-              </Text>
-            )}
+            <View style={styles.menuEffectFlex}>
+              {/* 現在の値（サポートなどの補正込み）を見せる */}
+              <View style={styles.menuStatsRow}>
+                <Text style={[styles.menuStatBadge, { backgroundColor: colors.danger }]}>
+                  戦闘力 {combatOf(view, selectedUid)}
+                </Text>
+                <Text style={[styles.menuStatBadge, { backgroundColor: colors.primary }]}>
+                  教習力 {lessonOf(view, selectedUid)}
+                </Text>
+              </View>
+              {!!effectTextOf(view, selectedUid) && (
+                <Text style={styles.menuEffectText}>{effectTextOf(view, selectedUid)}</Text>
+              )}
+            </View>
           </View>
           <View style={styles.overlayButtons}>
             {instActions(selectedUid).some(
@@ -1948,6 +1957,12 @@ function lessonOf(view: PlayerView, uid: string): number {
   const inst = view.self.field.find((f) => f.uid === uid);
   if (!inst) return 0;
   return effectiveLessonFromView(ctx, view, view.playerId, inst);
+}
+
+function combatOf(view: PlayerView, uid: string): number {
+  const inst = view.self.field.find((f) => f.uid === uid);
+  if (!inst) return 0;
+  return effectiveCombatFromView(ctx, view, view.playerId, inst);
 }
 
 function abilityLabelOf(view: PlayerView, uid: string): string {
@@ -3840,7 +3855,17 @@ const styles = StyleSheet.create({
     padding: 10,
     alignSelf: "stretch",
   },
-  menuEffectFlex: { flex: 1 },
+  menuEffectFlex: { flex: 1, gap: 8 },
+  menuStatsRow: { flexDirection: "row", gap: 6 },
+  menuStatBadge: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    overflow: "hidden",
+  },
   overlayCards: {
     flexDirection: "row",
     flexWrap: "wrap",
