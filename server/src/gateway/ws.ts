@@ -124,7 +124,10 @@ export function startServer(port: number): http.Server {
     }
     if (req.url?.startsWith("/errlog?key=946946") && req.method === "GET") {
       // 管理者がブラウザで確認する用（新しい順）
-      res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+      });
       res.end(JSON.stringify([...errorLog].reverse(), null, 2));
       return;
     }

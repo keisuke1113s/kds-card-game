@@ -341,12 +341,19 @@ function StatsPanel() {
     setLoadError(null);
     try {
       const base = "https://kds-taisen.fly.dev";
-      const [s, e] = await Promise.all([
-        fetch(`${base}/stats?key=946946`).then((r) => r.json()),
-        fetch(`${base}/errlog?key=946946`).then((r) => r.json()),
-      ]);
-      setStats(s as Stats);
-      setErrors((e as { at: string; msg: string; url?: string }[]).slice(0, 10));
+      const s = (await fetch(`${base}/stats?key=946946`).then((r) => r.json())) as Stats;
+      setStats(s);
+      // エラーログは取れなくても集計表示は続ける
+      try {
+        const e = (await fetch(`${base}/errlog?key=946946`).then((r) => r.json())) as {
+          at: string;
+          msg: string;
+          url?: string;
+        }[];
+        setErrors(e.slice(0, 10));
+      } catch {
+        setErrors([]);
+      }
     } catch {
       setLoadError("サーバーから集計を取得できませんでした。通信環境を確認してください。");
     }
