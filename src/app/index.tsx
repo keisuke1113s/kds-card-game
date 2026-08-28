@@ -304,13 +304,13 @@ export default function HomeScreen() {
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
               tone="ghost"
-              style={styles.flex}
+              style={styles.halfTall}
               onPress={() => router.push("/kyokan")}
             />
             <AppButton
               label="📝 学科クイズ"
               tone="ghost"
-              style={styles.flex}
+              style={styles.halfTall}
               onPress={() => router.push("/quiz")}
             />
           </View>
@@ -608,6 +608,8 @@ const styles = StyleSheet.create({
     height: 280,
     opacity: 0.38,
   },
+  // 2つ並べたボタンの高さを揃える（長いラベルの折り返しで差が出ないように）
+  halfTall: { flex: 1, minHeight: 62, justifyContent: "center" },
   tipCard: {
     backgroundColor: "#fffbe8",
     borderWidth: 1.5,
@@ -617,7 +619,8 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   tipTitle: { fontSize: 13, fontWeight: "900", color: "#8a6d00" },
-  tipText: { fontSize: 13, lineHeight: 20, color: colors.text },
+  // カードの背景がライト固定色なので、文字色もダークモードに影響されない固定色にする
+  tipText: { fontSize: 13, lineHeight: 20, color: "#4a3d10" },
   collectionRibbon: {
     alignSelf: "center",
     paddingVertical: 6,

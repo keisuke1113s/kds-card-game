@@ -73,7 +73,7 @@ export default function KyokanScreen() {
               <CardFace cardId={k.cardId} size="md" />
               <View style={styles.kyokanInfo}>
                 <Text style={styles.kyokanName}>
-                  {k.name} {won ? "✅ 撃破済み" : ""}
+                  {k.name}インストラクター {won ? "✅ 撃破済み" : ""}
                 </Text>
                 <Text style={styles.kyokanDesc}>{k.desc}</Text>
                 <Text style={styles.kyokanChallenge}>タップして挑戦 ▸</Text>

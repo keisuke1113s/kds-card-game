@@ -12,21 +12,35 @@ import { DARK_MODE, setDarkModePreference } from "@/theme";
 
 /**
  * ダークモードを切り替えて反映する（色は起動時に固定のため読み込み直す）。
- * 新しいモードはURLの ?dark= で読み込み後の画面へ確実に引き継ぐ
- * （保存だけに頼ると、iPhoneでは再読み込みに書き込みが間に合わないことがある）
+ * - 新しいモードはURLの ?dark= とCookieの両方で読み込み後の画面へ引き継ぐ
+ * - タップ処理の中から直接移動すると環境によって無視されることがあるため、
+ *   ひと呼吸おいてから確実に画面を読み込み直す
  */
 function switchDarkMode(dark: boolean): void {
   if (dark === DARK_MODE) return;
   setDarkModePreference(dark);
-  const loc = (globalThis as { location?: { href: string; replace: (u: string) => void } }).location;
+  try {
+    document.cookie = `kdsDark=${dark ? "1" : "0"};path=/;max-age=31536000`;
+  } catch {
+    // Cookieが使えない環境でもURLと保存で引き継げる
+  }
+  const loc = (globalThis as { location?: { href: string; reload?: () => void } }).location;
   if (!loc) return;
+  let target = loc.href;
   try {
     const url = new URL(loc.href);
     url.searchParams.set("dark", dark ? "1" : "0");
-    loc.replace(url.toString());
+    target = url.toString();
   } catch {
-    (loc as unknown as { reload: () => void }).reload();
+    // URLを組めなければそのまま再読み込み
   }
+  setTimeout(() => {
+    try {
+      loc.href = target;
+    } catch {
+      loc.reload?.();
+    }
+  }, 120);
 }
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";

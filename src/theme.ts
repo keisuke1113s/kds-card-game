@@ -91,7 +91,20 @@ function isDarkPreferred(): boolean {
       location?: { search?: string };
       history?: { replaceState: (a: unknown, b: string, c: string) => void };
     };
-    const m = /[?&]dark=([01])/.exec(g.location?.search ?? "");
+    let m = /[?&]dark=([01])/.exec(g.location?.search ?? "");
+    if (!m) {
+      // URLに無ければCookieを見る（保存が間に合わなかったときの保険）
+      try {
+        const c = /(?:^|; )kdsDark=([01])/.exec(
+          (globalThis as { document?: { cookie?: string } }).document?.cookie ?? ""
+        );
+        if (c && g.localStorage?.getItem("kds-dark-mode") !== (c[1] === "1" ? "1" : null)) {
+          m = c;
+        }
+      } catch {
+        // Cookieが読めなければ通常の判定へ
+      }
+    }
     if (m) {
       const dark = m[1] === "1";
       try {
