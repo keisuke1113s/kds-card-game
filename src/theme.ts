@@ -83,8 +83,30 @@ const darkColors: typeof lightColors = {
  */
 function isDarkPreferred(): boolean {
   try {
-    const ls = (globalThis as { localStorage?: Storage }).localStorage;
-    return ls?.getItem("kds-dark-mode") === "1";
+    // 切り替え直後の再読み込みでは、URLの ?dark=0/1 を最優先で使う。
+    // （iPhoneでは保存直後の再読み込みで localStorage の書き込みが
+    //   間に合わないことがあり、URLで運ぶのが確実）
+    const g = globalThis as {
+      localStorage?: Storage;
+      location?: { search?: string };
+      history?: { replaceState: (a: unknown, b: string, c: string) => void };
+    };
+    const m = /[?&]dark=([01])/.exec(g.location?.search ?? "");
+    if (m) {
+      const dark = m[1] === "1";
+      try {
+        if (dark) g.localStorage?.setItem("kds-dark-mode", "1");
+        else g.localStorage?.removeItem("kds-dark-mode");
+        // 使い終わった ?dark= はURLから消しておく
+        const url = new URL((globalThis as { location: { href: string } }).location.href);
+        url.searchParams.delete("dark");
+        g.history?.replaceState(null, "", url.toString());
+      } catch {
+        // 片づけに失敗しても表示は正しくできる
+      }
+      return dark;
+    }
+    return g.localStorage?.getItem("kds-dark-mode") === "1";
   } catch {
     return false;
   }

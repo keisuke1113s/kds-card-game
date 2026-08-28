@@ -10,12 +10,23 @@ import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
 
-/** ダークモードを切り替えて反映する（色は起動時に固定のため読み込み直す） */
+/**
+ * ダークモードを切り替えて反映する（色は起動時に固定のため読み込み直す）。
+ * 新しいモードはURLの ?dark= で読み込み後の画面へ確実に引き継ぐ
+ * （保存だけに頼ると、iPhoneでは再読み込みに書き込みが間に合わないことがある）
+ */
 function switchDarkMode(dark: boolean): void {
   if (dark === DARK_MODE) return;
   setDarkModePreference(dark);
-  const loc = (globalThis as { location?: { reload: () => void } }).location;
-  loc?.reload();
+  const loc = (globalThis as { location?: { href: string; replace: (u: string) => void } }).location;
+  if (!loc) return;
+  try {
+    const url = new URL(loc.href);
+    url.searchParams.set("dark", dark ? "1" : "0");
+    loc.replace(url.toString());
+  } catch {
+    (loc as unknown as { reload: () => void }).reload();
+  }
 }
 import { colors } from "@/theme";
 import { ScreenEnter } from "@/components/ScreenEnter";
