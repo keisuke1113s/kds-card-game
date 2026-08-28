@@ -687,7 +687,7 @@ export default function BattleScreen() {
         next.kind === "turn"
           ? 900
           : next.kind === "battleResult" && reachOnRef.current
-            ? 3700 // ラストバトルはカウントアップの分だけ長く見せる
+            ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
             : next.kind === "battle" || next.kind === "battleResult"
             ? 2400
             : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
@@ -2224,11 +2224,13 @@ function BattleResultCutIn({
       revealFx();
       return;
     }
-    // ラストバトル: ドラムロールとともに両者の戦闘力がカウントアップし、出そろってから決着
+    // ラストバトル: ドラムロールとともに両者の戦闘力がゆっくりカウントアップし、
+    // 出そろってから一呼吸ためて決着を見せる
     playSe("battle");
     haptic("heavy");
     scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
-    const steps = 9;
+    const steps = 14;
+    const interval = 150;
     let i = 0;
     const tick = setInterval(() => {
       i++;
@@ -2238,15 +2240,25 @@ function BattleResultCutIn({
       });
       playSe("tap");
       haptic("light");
-    }, 110);
-    const done = setTimeout(() => {
+    }, interval);
+    // カウントが出そろったら、ためている間だけ鼓動のように脈打たせる
+    const counted = setTimeout(() => {
       clearInterval(tick);
       setShown({ atk, def });
+      haptic("heavy");
+      scale.value = withRepeat(
+        withSequence(withTiming(1.05, { duration: 190 }), withTiming(1, { duration: 190 })),
+        2
+      );
+    }, interval * steps + 80);
+    // 一拍（約1秒）ためてから決着
+    const done = setTimeout(() => {
       setReveal(true);
       revealFx();
-    }, 110 * steps + 260);
+    }, interval * steps + 1080);
     return () => {
       clearInterval(tick);
+      clearTimeout(counted);
       clearTimeout(done);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

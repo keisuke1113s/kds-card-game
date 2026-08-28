@@ -55,6 +55,14 @@ function seasonEmoji(): string | null {
   return null;
 }
 
+/** 季節の粒子の画像（fal.ai生成。クロマキーで切り抜いた透過PNG） */
+const PARTICLE_IMG: Record<string, number> = {
+  "🌸": require("../../assets/images/particles/particle_sakura.png"),
+  "❄️": require("../../assets/images/particles/particle_snow.png"),
+  "🍂": require("../../assets/images/particles/particle_leaf.png"),
+  "✨": require("../../assets/images/particles/particle_sparkle.png"),
+};
+
 /** 画面の上からゆっくり舞い落ちる粒（1つぶん） */
 function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
   const fall = useSharedValue(0);
@@ -82,16 +90,18 @@ function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
     ],
     opacity: fall.value < 0.05 ? fall.value * 14 : fall.value > 0.9 ? (1 - fall.value) * 7 : 0.7,
   }));
+  const size = 15 + (index % 3) * 6;
   return (
-    <Animated.Text
-      style={[
-        { position: "absolute", left: `${(index * 83) % 100}%`, top: 0, fontSize: 14 + (index % 3) * 5 },
-        st,
-      ]}
-      allowFontScaling={false}
+    <Animated.View
+      style={[{ position: "absolute", left: `${(index * 83) % 100}%`, top: 0 }, st]}
+      pointerEvents="none"
     >
-      {emoji}
-    </Animated.Text>
+      <Image
+        source={PARTICLE_IMG[emoji]}
+        style={{ width: size, height: size }}
+        contentFit="contain"
+      />
+    </Animated.View>
   );
 }
 
@@ -146,6 +156,13 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
+      {/* fal.ai生成の教習所イラストをうっすら敷く（文字の読みやすさ優先で薄め） */}
+      <Image
+        source={require("../../assets/images/fx/bg_home.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
+        contentFit="cover"
+        pointerEvents="none"
+      />
       <SafeAreaView style={styles.safe}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
