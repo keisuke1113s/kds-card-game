@@ -1,4 +1,4 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
@@ -36,6 +36,11 @@ function HomeButton() {
 }
 
 export default function RootLayout() {
+  // 管理画面（/admin）は管理者用の別世界なので、実績の判定・お知らせや
+  // 利用分析の「起動」カウントを動かさない
+  const pathname = usePathname();
+  const isAdmin = pathname.startsWith("/admin");
+
   // カードの絵を先に読み込み、そろってから起動画面を消す。
   // 絵が後から出てくる（一瞬文字だけになる）のを防ぐため。
   // 一覧用（150px）と拡大用（300px）の全カードぶんをここで読み込む。
@@ -43,10 +48,12 @@ export default function RootLayout() {
   useEffect(() => {
     ensureInitialSet();
     setupErrorReporting();
+    if (isAdmin) return;
     trackEvent("appOpen");
     // 取りこぼした実績があれば起動時に拾う（お知らせは次の達成時のみ）
     const t = setTimeout(evaluateAchievements, 1500);
     return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // アプリに戻ってきたとき、カードの絵を温め直す。
@@ -127,7 +134,8 @@ export default function RootLayout() {
         <Stack.Screen name="scan" options={{ title: "カードのQR登録" }} />
         <Stack.Screen name="records" options={{ title: "対戦記録" }} />
         <Stack.Screen name="achievements" options={{ title: "実績と称号" }} />
-        <Stack.Screen name="admin" options={{ title: "カード管理" }} />
+        {/* 管理画面はゲームと切り離す（ヘッダーのホームボタンも出さない） */}
+        <Stack.Screen name="admin" options={{ title: "管理画面", headerLeft: () => null }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
@@ -135,8 +143,8 @@ export default function RootLayout() {
           options={{ title: "設定", headerLeft: () => null, animation: "slide_from_bottom" }}
         />
       </Stack>
-      {/* 実績達成の全画面お知らせ（アプリ全体で1つ） */}
-      <AchievementToast />
+      {/* 実績達成の全画面お知らせ（アプリ全体で1つ。管理画面では出さない） */}
+      {!isAdmin && <AchievementToast />}
       {/* カード画像を捨てられにくくする常駐ウォームレイヤー（Webのみ） */}
       <ImageWarmLayer />
     </>

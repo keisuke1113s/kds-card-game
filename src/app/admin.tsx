@@ -23,14 +23,15 @@ export default function AdminScreen() {
   const [adminId, setAdminId] = useState("");
   const [password, setPassword] = useState("");
   const [failed, setFailed] = useState(false);
-  const [tab, setTab] = useState<"qr" | "issue" | "stats">("qr");
+  // null はメニュー（入り口）。各機能はメニューのボタンから移動する
+  const [tab, setTab] = useState<"qr" | "issue" | "stats" | null>(null);
 
   // 管理画面はブラウザ専用（アプリにはメニューも無く、この画面自体も開けない）
   if (Platform.OS !== "web") {
     return (
       <ScreenEnter style={styles.root}>
         <View style={styles.gateBox}>
-          <Text style={styles.gateTitle}>カード管理</Text>
+          <Text style={styles.gateTitle}>管理画面</Text>
           <Text style={styles.gateSub}>この画面は管理者がブラウザから利用します</Text>
         </View>
       </ScreenEnter>
@@ -51,7 +52,7 @@ export default function AdminScreen() {
     return (
       <ScreenEnter style={styles.root}>
         <View style={styles.gateBox}>
-          <Text style={styles.gateTitle}>カード管理</Text>
+          <Text style={styles.gateTitle}>管理画面</Text>
           <Text style={styles.gateSub}>管理者IDとパスワードを入力してください</Text>
           <TextInput
             style={[styles.gateInput, { letterSpacing: 0, fontSize: 15 }]}
@@ -84,29 +85,39 @@ export default function AdminScreen() {
     );
   }
 
+  // メニュー（入り口）: 各機能へのボタンを並べる
+  if (tab === null) {
+    return (
+      <ScreenEnter style={styles.root}>
+        <View style={styles.menuBox}>
+          <Text style={styles.menuTitle}>管理画面</Text>
+          <Text style={styles.gateSub}>利用する機能を選んでください</Text>
+          <Pressable style={styles.menuButton} onPress={() => setTab("qr")}>
+            <Text style={styles.menuButtonText}>🗂 QRコード一覧</Text>
+            <Text style={styles.menuButtonSub}>全カードのQRの表示・画像保存</Text>
+          </Pressable>
+          <Pressable style={styles.menuButton} onPress={() => setTab("issue")}>
+            <Text style={styles.menuButtonText}>🆕 新規カードのQR発行</Text>
+            <Text style={styles.menuButtonSub}>カード実装前にQRを先行発行</Text>
+          </Pressable>
+          <Pressable style={styles.menuButton} onPress={() => setTab("stats")}>
+            <Text style={styles.menuButtonText}>📈 分析</Text>
+            <Text style={styles.menuButtonSub}>利用者数・対戦数・QR登録などの集計</Text>
+          </Pressable>
+        </View>
+      </ScreenEnter>
+    );
+  }
+
+  const tabTitle =
+    tab === "qr" ? "QRコード一覧" : tab === "issue" ? "新規カードのQR発行" : "📈 分析";
   return (
     <ScreenEnter style={styles.root}>
       <View style={styles.tabRow}>
-        <Pressable
-          style={[styles.tabButton, tab === "qr" && styles.tabButtonActive]}
-          onPress={() => setTab("qr")}
-        >
-          <Text style={[styles.tabText, tab === "qr" && styles.tabTextActive]}>QRコード一覧</Text>
+        <Pressable style={styles.tabButton} onPress={() => setTab(null)}>
+          <Text style={styles.tabText}>← 管理画面トップへ</Text>
         </Pressable>
-        <Pressable
-          style={[styles.tabButton, tab === "issue" && styles.tabButtonActive]}
-          onPress={() => setTab("issue")}
-        >
-          <Text style={[styles.tabText, tab === "issue" && styles.tabTextActive]}>
-            新規カードのQR発行
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.tabButton, tab === "stats" && styles.tabButtonActive]}
-          onPress={() => setTab("stats")}
-        >
-          <Text style={[styles.tabText, tab === "stats" && styles.tabTextActive]}>📈 分析</Text>
-        </Pressable>
+        <Text style={styles.tabTitle}>{tabTitle}</Text>
       </View>
       {tab === "qr" ? <QrList /> : tab === "issue" ? <IssueNewCard /> : <StatsPanel />}
     </ScreenEnter>
@@ -673,6 +684,27 @@ const styles = StyleSheet.create({
   },
   qrName: { fontSize: 13, fontWeight: "800", color: "#111" },
   qrId: { fontSize: 10, color: "#666" },
+  menuBox: {
+    margin: spacing.lg,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+    gap: 12,
+    maxWidth: 480,
+    width: "100%",
+    alignSelf: "center",
+  },
+  menuTitle: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
+  menuButton: {
+    paddingVertical: 16,
+    paddingHorizontal: 18,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
+    gap: 2,
+  },
+  menuButtonText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  menuButtonSub: { color: "#ffffffcc", fontSize: 12 },
+  tabTitle: { fontSize: 16, fontWeight: "900", color: colors.text, alignSelf: "center" },
   qrDownloadButton: {
     marginTop: 4,
     paddingVertical: 4,
