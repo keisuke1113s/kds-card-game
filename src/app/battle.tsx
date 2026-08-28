@@ -1,6 +1,7 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Platform,
   DimensionValue,
   Dimensions,
   Pressable,
@@ -33,6 +34,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
+import { KYOKAN_LIST, KyokanDef } from "@/data/kyokan";
+import { shareResultImage } from "@/data/shareImage";
+import { useAchievementStore } from "@/store/achievementStore";
 import { pauseBgm, playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
@@ -381,10 +385,12 @@ export default function BattleScreen() {
   const sendStamp = useGameStore((s) => s.sendStamp);
   const replayActive = useGameStore((s) => s.replayActive);
   const jankenActive = useGameStore((s) => s.jankenActive);
+  const kyokanId = useGameStore((s) => s.kyokanId);
+  const kyokanDef = kyokanId ? KYOKAN_LIST.find((k) => k.cardId === kyokanId) : undefined;
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
   const isOnline = matchMode === "online";
-  oppLabel = isOnline ? (opponentName ?? "相手") : "CPU";
+  oppLabel = isOnline ? (opponentName ?? "相手") : kyokanDef ? `${kyokanDef.name}教官` : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -425,9 +431,10 @@ export default function BattleScreen() {
   // CPUの口上セリフ（CPU対戦のみ。リプレイ観戦では出さない）
   const [cpuSpeech, setCpuSpeech] = useState<string | null>(null);
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const say = (lines: readonly string[]) => {
+  const say = (lines: readonly string[], kind?: keyof KyokanDef["lines"]) => {
     if (isOnline || replayActive) return;
-    setCpuSpeech(pickLine(lines));
+    const src = kind && kyokanDef ? kyokanDef.lines[kind] : lines;
+    setCpuSpeech(pickLine(src));
     if (speechTimer.current) clearTimeout(speechTimer.current);
     speechTimer.current = setTimeout(() => setCpuSpeech(null), 3400);
   };
@@ -440,7 +447,7 @@ export default function BattleScreen() {
   useEffect(() => {
     // 対戦開始のあいさつ
     if (isOnline || replayActive) return;
-    const t = setTimeout(() => say(CPU_LINES.start), 1600);
+    const t = setTimeout(() => say(CPU_LINES.start, "start"), 1600);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -590,11 +597,11 @@ export default function BattleScreen() {
     if (meReach && !reachShown.current.me) {
       reachShown.current.me = true;
       setPendingReach({ mine: true });
-      say(CPU_LINES.playerReach);
+      say(CPU_LINES.playerReach, "playerReach");
     } else if (oppReach && !reachShown.current.opp) {
       reachShown.current.opp = true;
       setPendingReach({ mine: false });
-      say(CPU_LINES.cpuReach);
+      say(CPU_LINES.cpuReach, "cpuReach");
     }
     if (!meReach) reachShown.current.me = false;
     if (!oppReach) reachShown.current.opp = false;
@@ -870,7 +877,10 @@ export default function BattleScreen() {
   // 決着時のCPUのひとこと（勝てば称賛、負ければ励まし）
   useEffect(() => {
     if (!finishedOutcome) return;
-    say(finishedOutcome === "win" ? CPU_LINES.cpuLose : CPU_LINES.cpuWin);
+    say(
+      finishedOutcome === "win" ? CPU_LINES.cpuLose : CPU_LINES.cpuWin,
+      finishedOutcome === "win" ? "cpuLose" : "cpuWin"
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finishedOutcome]);
 
@@ -1101,7 +1111,7 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>
-            {isOnline ? (opponentName ?? "相手") : `CPU ${aiThinking ? "🤔" : ""}`}
+            {isOnline ? (opponentName ?? "相手") : `${kyokanDef ? `${kyokanDef.name}教官` : "CPU"} ${aiThinking ? "🤔" : ""}`}
           </Text>
           {/* 相手の称号（実績で獲得したもの） */}
           {isOnline && opponentTitle && (
@@ -2078,6 +2088,26 @@ export default function BattleScreen() {
             )}
             {!isOnline && !replayActive && (
               <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
+            )}
+            {Platform.OS === "web" && !replayActive && (
+              <ActionButton
+                label="📸 結果を画像で保存・共有"
+                color={colors.support}
+                onPress={() => {
+                  haptic("light");
+                  void shareResultImage({
+                    won: view.phase.type === "finished" && view.phase.winner === ME,
+                    myAcademic: me.academic,
+                    mySkill: me.skill,
+                    oppAcademic: cpu.academic,
+                    oppSkill: cpu.skill,
+                    deckName: resolveActiveDeck(useDeckStore.getState()).name,
+                    oppLabel,
+                    streak: record.streak,
+                    title: useAchievementStore.getState().selectedTitle,
+                  });
+                }}
+              />
             )}
             <ActionButton
               label="ホームへ"

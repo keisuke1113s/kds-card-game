@@ -16,6 +16,9 @@ export interface AchievementInput {
   /** 開放済みカードの合計 / 全カード数 */
   unlockedCount: number;
   totalCards: number;
+  /** 学科クイズの成績 */
+  quizPlays: number;
+  quizPerfects: number;
 }
 
 export interface AchievementDef {
@@ -63,6 +66,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "collect22", emoji: "📗", name: "コレクション22", desc: "カードを22枚そろえる", title: "かけだしコレクター", check: (s) => s.unlockedCount >= 22 },
   { id: "collect44", emoji: "📘", name: "コレクション44", desc: "カードを44枚そろえる", title: "熟練コレクター", check: (s) => s.unlockedCount >= 44 },
   { id: "complete", emoji: "🌈", name: "カードマスター", desc: "全カードをそろえる", title: "カードマスター", check: (s) => s.unlockedCount >= s.totalCards },
+  // ---- 学科クイズ ----
+  { id: "quiz1", emoji: "📝", name: "学科クイズに挑戦", desc: "学科クイズを1回プレイする", check: (s) => s.quizPlays >= 1 },
+  { id: "quizPerfect", emoji: "💯", name: "学科マスター", desc: "学科クイズで全問正解する", title: "学科マスター", check: (s) => s.quizPerfects >= 1 },
+  { id: "quiz10", emoji: "📚", name: "勉強熱心", desc: "学科クイズを10回プレイする", title: "勉強熱心", check: (s) => s.quizPlays >= 10 },
+  // ---- 教官に挑戦 ----
+  { id: "kyokanOkumura", emoji: "🥋", name: "奥村教官を倒す", desc: "「教官に挑戦」で奥村教官に勝つ", title: "鉄壁くずし", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_okumura") },
+  { id: "kyokanShigaya", emoji: "🛡️", name: "志萱教官を倒す", desc: "「教官に挑戦」で志萱教官に勝つ", title: "サポート知らず", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_shigaya") },
+  { id: "kyokanIida", emoji: "⚔️", name: "飯田教官を倒す", desc: "「教官に挑戦」で飯田教官に勝つ", title: "猛攻くぐり", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_iida") },
   // ---- 対戦数・その他 ----
   { id: "play10", emoji: "🎮", name: "対戦10回", desc: "10回対戦する", check: (s) => s.history.length >= 10 },
   { id: "play50", emoji: "🕹️", name: "対戦50回", desc: "50回対戦する", check: (s) => s.history.length >= 50 },

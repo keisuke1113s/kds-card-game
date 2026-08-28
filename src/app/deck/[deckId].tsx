@@ -38,6 +38,8 @@ export default function DeckEditScreen() {
   const [mainFilter, setMainFilter] = useState<"all" | "instructor" | "support" | "inDeck">(
     "all"
   );
+  const [sortKey, setSortKey] = useState<"default" | "name" | "combat" | "lesson">("default");
+  const [query, setQuery] = useState("");
 
   const errors = useMemo(
     () => validateDeck(cardRegistry, { main, tantou }),
@@ -181,6 +183,33 @@ export default function DeckEditScreen() {
             </Pressable>
           ))}
         </View>
+        <View style={styles.filterRow}>
+          {(
+            [
+              { key: "default", label: "標準" },
+              { key: "name", label: "名前順" },
+              { key: "combat", label: "戦闘力順" },
+              { key: "lesson", label: "教習力順" },
+            ] as const
+          ).map((f) => (
+            <Pressable
+              key={f.key}
+              style={[styles.filterChip, sortKey === f.key && styles.filterChipActive]}
+              onPress={() => setSortKey(f.key)}
+            >
+              <Text style={[styles.filterText, sortKey === f.key && styles.filterTextActive]}>
+                {f.label}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <TextInput
+          style={styles.searchInput}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="🔍 名前で検索"
+          autoCorrect={false}
+        />
         <View style={styles.grid}>
           {mainCards
             .filter((c) =>
@@ -190,6 +219,15 @@ export default function DeckEditScreen() {
                   ? main.includes(c.id)
                   : c.type === mainFilter
             )
+            .filter((c) => (query.trim() ? c.name.includes(query.trim()) : true))
+            .sort((a, b) => {
+              if (sortKey === "name") return a.name.localeCompare(b.name, "ja");
+              if (sortKey === "combat")
+                return (b.type === "instructor" ? (b.combat ?? -1) : -1) - (a.type === "instructor" ? (a.combat ?? -1) : -1);
+              if (sortKey === "lesson")
+                return (b.type === "instructor" ? (b.lesson ?? -1) : -1) - (a.type === "instructor" ? (a.lesson ?? -1) : -1);
+              return 0;
+            })
             .map((c) => {
               const inDeck = main.includes(c.id);
               return (
@@ -293,6 +331,17 @@ const styles = StyleSheet.create({
   },
   breakdownSeg: { height: "100%" },
   filterRow: { flexDirection: "row", gap: 6, marginTop: 6, flexWrap: "wrap" },
+  searchInput: {
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    marginTop: 6,
+  },
   filterChip: {
     borderRadius: 999,
     borderWidth: 1,

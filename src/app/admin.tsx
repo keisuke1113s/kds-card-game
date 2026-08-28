@@ -410,6 +410,7 @@ function StatsPanel() {
     };
     scans: { total: number; topCards: { cardId: string; count: number }[] };
     cardUsage?: { cardId: string; matches: number; wins: number }[];
+    bestPairs?: { pair: string[]; matches: number; wins: number }[];
     env: Record<string, { opens: number; matches: number }>;
     daily: {
       date: string;
@@ -543,6 +544,17 @@ function StatsPanel() {
             <Text key={c.cardId} style={styles.statLine}>
               {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}: {c.matches}戦
               {c.matches >= 5 ? `（勝率 ${Math.round((c.wins / c.matches) * 100)}%）` : ""}
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>相性の良い組み合わせ（5戦以上・勝率順）</Text>
+          {(stats.bestPairs ?? []).length === 0 && (
+            <Text style={styles.note}>まだデータがありません（対戦が集まると表示されます）</Text>
+          )}
+          {(stats.bestPairs ?? []).map((p, i) => (
+            <Text key={p.pair.join("|")} style={styles.statLine}>
+              {i + 1}. {p.pair.map((id) => allCards.find((x) => x.id === id)?.name ?? id).join(" ＋ ")}:{" "}
+              {p.matches}戦（勝率 {Math.round((p.wins / p.matches) * 100)}%）
             </Text>
           ))}
 

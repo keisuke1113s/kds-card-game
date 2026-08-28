@@ -5,6 +5,7 @@ import { ACHIEVEMENTS, AchievementDef } from "@/data/achievements";
 import { allCards } from "@/data/cards";
 import { useRecordStore } from "@/store/recordStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
+import { useQuizStore } from "@/store/quizStore";
 
 /**
  * 実績の達成状況と称号。
@@ -65,6 +66,8 @@ export function evaluateAchievements(): void {
     scannedCount: unlock.scannedIds.length,
     unlockedCount: Math.min(unlockedSet(unlock).size, allCards.length),
     totalCards: allCards.length,
+    quizPlays: useQuizStore.getState().plays,
+    quizPerfects: useQuizStore.getState().perfects,
   };
   const got: string[] = [];
   for (const a of ACHIEVEMENTS) {

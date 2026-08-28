@@ -55,6 +55,8 @@ interface Aggregates {
   scanByCard: Record<string, number>;
   /** カード別のメタ分析（そのカード入りデッキの対戦数と勝利数） */
   cardUsage: Record<string, { matches: number; wins: number }>;
+  /** カード2枚の組み合わせ別のメタ分析（キーは "小さいID|大きいID"） */
+  pairUsage: Record<string, { matches: number; wins: number }>;
   envTotals: Record<string, { opens: number; matches: number }>;
 }
 
@@ -83,6 +85,7 @@ function emptyAggregates(): Aggregates {
     daily: {},
     scanByCard: {},
     cardUsage: {},
+    pairUsage: {},
     envTotals: {},
   };
 }
@@ -186,9 +189,8 @@ export class Telemetry {
       }
       // カード別のメタ分析（重複IDは1回として数える）
       if (Array.isArray(e.cards) && e.cards.length <= 40) {
-        for (const raw2 of new Set(e.cards)) {
-          const cid = String(raw2).slice(0, 64);
-          if (!cid) continue;
+        const ids = [...new Set(e.cards.map((c) => String(c).slice(0, 64)).filter(Boolean))].sort();
+        for (const cid of ids) {
           if (
             !this.agg.cardUsage[cid] &&
             Object.keys(this.agg.cardUsage).length >= 500
@@ -198,6 +200,21 @@ export class Telemetry {
           const u = (this.agg.cardUsage[cid] ??= { matches: 0, wins: 0 });
           u.matches++;
           if (e.result === "win") u.wins++;
+        }
+        // カード2枚の組み合わせ（相性）の集計
+        for (let i = 0; i < ids.length; i++) {
+          for (let j = i + 1; j < ids.length; j++) {
+            const key = `${ids[i]}|${ids[j]}`;
+            if (
+              !this.agg.pairUsage[key] &&
+              Object.keys(this.agg.pairUsage).length >= 5000
+            ) {
+              continue;
+            }
+            const p = (this.agg.pairUsage[key] ??= { matches: 0, wins: 0 });
+            p.matches++;
+            if (e.result === "win") p.wins++;
+          }
         }
       }
     } else if (e.type === "scan") {
@@ -295,6 +312,12 @@ export class Telemetry {
         .sort((x, y) => y[1].matches - x[1].matches)
         .slice(0, 100)
         .map(([cardId, u]) => ({ cardId, matches: u.matches, wins: u.wins })),
+      // 相性の良い組み合わせ（5戦以上のペアを勝率順に）
+      bestPairs: Object.entries(a.pairUsage)
+        .filter(([, p]) => p.matches >= 5)
+        .sort((x, y) => y[1].wins / y[1].matches - x[1].wins / x[1].matches)
+        .slice(0, 12)
+        .map(([key, p]) => ({ pair: key.split("|"), matches: p.matches, wins: p.wins })),
       env: a.envTotals,
       daily: lastNDates(14).map((date) => ({
         date,

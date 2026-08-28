@@ -25,6 +25,7 @@ import { colors, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
+import { tipOfToday } from "@/data/tips";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 
 /** 開発版デモ（GitHub Pages の /dev/ 配下）で開いているか */
@@ -299,6 +300,20 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/online")}
           />
+          <View style={styles.row}>
+            <AppButton
+              label="👨‍🏫 教官に挑戦"
+              tone="ghost"
+              style={styles.flex}
+              onPress={() => router.push("/kyokan")}
+            />
+            <AppButton
+              label="📝 学科クイズ"
+              tone="ghost"
+              style={styles.flex}
+              onPress={() => router.push("/quiz")}
+            />
+          </View>
           <View style={styles.matchupCard}>
             <Text style={styles.matchupSide} numberOfLines={1}>
               {activeDeck.name}
@@ -327,6 +342,11 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
+          {/* 今日の安全運転豆知識（日替わり） */}
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
+            <Text style={styles.tipText}>{tipOfToday()}</Text>
+          </View>
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
@@ -588,6 +608,16 @@ const styles = StyleSheet.create({
     height: 280,
     opacity: 0.38,
   },
+  tipCard: {
+    backgroundColor: "#fffbe8",
+    borderWidth: 1.5,
+    borderColor: "#e4c96a",
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 4,
+  },
+  tipTitle: { fontSize: 13, fontWeight: "900", color: "#8a6d00" },
+  tipText: { fontSize: 13, lineHeight: 20, color: colors.text },
   collectionRibbon: {
     alignSelf: "center",
     paddingVertical: 6,

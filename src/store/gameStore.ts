@@ -110,7 +110,11 @@ interface GameStore {
     tutorial?: boolean;
     /** じゃんけんで決まった先攻。省略すると乱数で決まる */
     firstPlayer?: PlayerId;
+    /** 「教官に挑戦」の相手教官のカードID */
+    kyokan?: string;
   }) => void;
+  /** 「教官に挑戦」中の相手教官のカードID（通常対戦は null） */
+  kyokanId: string | null;
   /** 人間のアクションを適用する。不正な手は無視（UIは合法手のみ出す前提の保険） */
   dispatch: (action: GameAction) => void;
   legalActions: () => GameAction[];
@@ -172,6 +176,8 @@ let matchMeta: {
   firstIsMe: boolean | null;
   /** メタ分析用: 自分のデッキのカードID一覧（匿名集計に送る） */
   myCards: string[];
+  /** 「教官に挑戦」の相手教官のカードID */
+  kyokan: string | null;
   /** リプレイ用（CPU対戦のみ）: 種・デッキ・全アクション */
   replaySeed: number | null;
   replayDecks: [DeckList, DeckList] | null;
@@ -216,6 +222,7 @@ function trackMatchEvents(
         result: e.winner === myId ? "win" : "lose",
         reason: e.reason === "deckOut" ? "deckOut" : "complete",
         myDeckName: meta.deckName,
+        kyokan: meta.kyokan ?? undefined,
         first: meta.firstIsMe ?? true,
         turns: meta.turns,
         durationSec: Math.max(0, Math.round((Date.now() - meta.startedAt) / 1000)),
@@ -548,6 +555,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
     },
 
+    kyokanId: null,
     startGame: ({
       playerDeck,
       cpuDeck,
@@ -556,6 +564,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       seed,
       tutorial = false,
       firstPlayer,
+      kyokan,
     }) => {
       gameToken++;
       clearAiTimer();
@@ -567,6 +576,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         closeSocket();
         set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
       }
+      set({ kyokanId: kyokan ?? null });
       const realSeed = seed ?? randomSeed();
       // 設定されたCPUの個性（こうげき型／まもり型）を反映する。練習対戦は素のまま
       const persona = tutorial ? "balanced" : useSettingsStore.getState().cpuPersona;
@@ -605,6 +615,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         turns: 0,
         firstIsMe: null,
         myCards: [...playerDeck.main, playerDeck.tantou],
+        kyokan: kyokan ?? null,
         replaySeed: realSeed,
         replayDecks: [playerDeck, cpuDeck],
         replayFirst: firstPlayer ?? null,
@@ -804,6 +815,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
                   const d = resolveActiveDeck(useDeckStore.getState()).list;
                   return [...d.main, d.tantou];
                 })(),
+                kyokan: null,
                 replaySeed: null,
                 replayDecks: null,
                 replayFirst: null,

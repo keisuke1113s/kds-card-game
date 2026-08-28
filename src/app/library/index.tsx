@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
 import { Platform } from "react-native";
 import Svg, { Circle } from "react-native-svg";
 import { PackOpeningFX } from "@/app/scan";
@@ -42,6 +42,8 @@ export default function LibraryScreen() {
   // 開発版のテスト開放でパック開封演出を見せる
   const [devRevealed, setDevRevealed] = useState<string | null>(null);
   const [filter, setFilter] = useState<LibraryFilter>("all");
+  const [sortKey, setSortKey] = useState<"default" | "name" | "combat" | "lesson">("default");
+  const [query, setQuery] = useState("");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
   const total = allCards.length;
@@ -111,12 +113,48 @@ export default function LibraryScreen() {
                 </Pressable>
               ))}
             </View>
+            {/* 並び替えと名前検索 */}
+            <View style={styles.filterRow}>
+              {(
+                [
+                  { key: "default", label: "標準" },
+                  { key: "name", label: "名前順" },
+                  { key: "combat", label: "戦闘力順" },
+                  { key: "lesson", label: "教習力順" },
+                ] as const
+              ).map((f) => (
+                <Pressable
+                  key={f.key}
+                  style={[styles.filterChip, sortKey === f.key && styles.filterChipActive]}
+                  onPress={() => setSortKey(f.key)}
+                >
+                  <Text style={[styles.filterText, sortKey === f.key && styles.filterTextActive]}>
+                    {f.label}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <TextInput
+              style={styles.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="🔍 名前で検索"
+              autoCorrect={false}
+            />
           </View>
         }
         renderItem={({ item: section }) => {
-          const cards = allCards.filter(
-            (c) => c.type === section.type && matchesFilter(c.id)
-          );
+          const cards = allCards
+            .filter((c) => c.type === section.type && matchesFilter(c.id))
+            .filter((c) => (query.trim() ? c.name.includes(query.trim()) : true))
+            .sort((a, b) => {
+              if (sortKey === "name") return a.name.localeCompare(b.name, "ja");
+              if (sortKey === "combat")
+                return (b.type === "instructor" ? (b.combat ?? -1) : -1) - (a.type === "instructor" ? (a.combat ?? -1) : -1);
+              if (sortKey === "lesson")
+                return (b.type === "instructor" ? (b.lesson ?? -1) : -1) - (a.type === "instructor" ? (a.lesson ?? -1) : -1);
+              return 0;
+            });
           if (cards.length === 0) return null;
           return (
             <View>
@@ -264,6 +302,17 @@ const styles = StyleSheet.create({
   ringCount: { fontSize: 19, fontWeight: "900", color: colors.text },
   ringTotal: { fontSize: 11, color: colors.textMuted },
   ringLabel: { fontSize: 10, fontWeight: "800", color: colors.primary },
+  searchInput: {
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    color: colors.text,
+    backgroundColor: colors.surface,
+    marginTop: 6,
+  },
   filterRow: { flexDirection: "row", gap: 8, alignSelf: "stretch" },
   filterChip: {
     flex: 1,
