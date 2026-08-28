@@ -7,6 +7,7 @@ import { haptic } from "@/audio/haptics";
 import { playBgm } from "@/audio/sound";
 import { useSettingsStore } from "@/store/settingsStore";
 import { AchievementToast } from "@/components/AchievementToast";
+import { ImageWarmLayer } from "@/components/ImageWarmLayer";
 import { setupErrorReporting } from "@/data/errlog";
 import { trackEvent } from "@/data/telemetry";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
@@ -168,6 +169,8 @@ export default function RootLayout() {
       </Stack>
       {/* 実績達成の全画面お知らせ（アプリ全体で1つ） */}
       <AchievementToast />
+      {/* カード画像を捨てられにくくする常駐ウォームレイヤー（Webのみ） */}
+      <ImageWarmLayer />
     </>
   );
 }
