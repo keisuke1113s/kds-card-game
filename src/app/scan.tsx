@@ -194,6 +194,8 @@ export function PackOpeningFX({
 
   useEffect(() => {
     playSe("draw");
+    // 開封の高揚感ジングル（きらめき→ファンファーレ）を演出全体に重ねる
+    playSe("pack_open");
     // 0.0s: 暗転して宝箱の光がゆっくり寄ってくる
     bg.value = withTiming(1, { duration: 400 });
     bgScale.value = withTiming(1, { duration: 1600, easing: Easing.out(Easing.cubic) });

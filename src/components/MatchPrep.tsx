@@ -82,6 +82,12 @@ export function MatchPrep({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    // シャッフルが終わったら、じゃんけんの間はドラムロール曲で緊張感を出す。
+    // 決着後は対戦画面がメイン曲を続きから再開する
+    if (phase !== "shuffle") playBgm("bgm_janken");
+  }, [phase]);
+
   const choose = (hand: Hand) => {
     haptic("medium");
     playSe("janken");

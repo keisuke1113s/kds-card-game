@@ -32,7 +32,7 @@ import Animated, {
   ZoomOut,
 } from "react-native-reanimated";
 import { Image } from "expo-image";
-import { pauseBgm, playBgm, playSe, setBgmTense, stopBgm } from "@/audio/sound";
+import { pauseBgm, playBgm, playSe, stopBgm } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -385,6 +385,7 @@ export default function BattleScreen() {
 
   // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
   const [reachFx, setReachFx] = useState<{ mine: boolean } | null>(null);
+  const [reachOn, setReachOn] = useState(false);
   // 実況が流れている間は待ち、捌けてから表示する（演出の重なり防止）
   const [pendingReach, setPendingReach] = useState<{ mine: boolean } | null>(null);
   const reachShown = useRef({ me: false, opp: false });
@@ -470,7 +471,7 @@ export default function BattleScreen() {
   // どちらかがリーチの間はBGMを少し速くして緊迫感を出す
   useEffect(() => {
     if (!view || view.phase.type === "finished") {
-      setBgmTense(false);
+      setReachOn(false);
       return;
     }
     const remain = (p: { academic: number; skill: number }) =>
@@ -486,7 +487,7 @@ export default function BattleScreen() {
     }
     if (!meReach) reachShown.current.me = false;
     if (!oppReach) reachShown.current.opp = false;
-    setBgmTense(meReach || oppReach);
+    setReachOn(meReach || oppReach);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
 
@@ -694,15 +695,22 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート）の間は緊張感のある
-  // bgm_battle。勝敗のカットイン中はBGMを止めて勝敗の効果音だけを響かせ、
-  // 全画面表示が消えてからメイン曲に続きから戻る
+  // BGM: ふだんは bgm_main（リプレイ観戦中は bgm_replay）、バトルの流れ（いざ勝負！〜
+  // サポート）の間は bgm_battle、リーチ中は bgm_reach、対戦が終わったら勝敗に応じた
+  // リザルト曲。勝敗のカットイン中はBGMを止めて勝敗の効果音だけを響かせる
   const battleResultCutinShowing = currentAnn?.kind === "battleResult";
   const battleBgmOn =
     !battleResultCutinShowing &&
     (view?.phase.type === "battleSupport" ||
       currentAnn?.kind === "battle" ||
       annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult"));
+  const finishedOutcome =
+    view?.phase.type === "finished" && !replayActive
+      ? view.phase.winner === ME
+        ? "win"
+        : "lose"
+      : null;
+  const baseBgm = replayActive ? "bgm_replay" : "bgm_main";
   useEffect(() => {
     if (!bgmEnabled && !seEnabled) {
       stopBgm();
@@ -712,18 +720,30 @@ export default function BattleScreen() {
       pauseBgm();
       return;
     }
+    if (finishedOutcome) {
+      // 勝敗の効果音ジングルが鳴り終わるのを待ってからリザルト曲を流す
+      const t = setTimeout(() => {
+        if (!playBgm(finishedOutcome === "win" ? "bgm_result_win" : "bgm_result_lose")) pauseBgm();
+      }, 1200);
+      return () => clearTimeout(t);
+    }
     if (battleBgmOn) {
-      // バトルBGMは効果音設定に連動。オフ（や曲なし）の間はメイン曲を流し続ける
-      if (!playBgm("bgm_battle") && !playBgm("bgm_main")) pauseBgm();
+      // バトルBGMは効果音設定に連動。オフ（や曲なし）の間はふだんの曲を流し続ける
+      if (!playBgm("bgm_battle") && !playBgm(baseBgm)) pauseBgm();
+      return;
+    }
+    if (reachOn) {
+      // リーチBGMも効果音設定に連動
+      if (!playBgm("bgm_reach") && !playBgm(baseBgm)) pauseBgm();
       return;
     }
     // 演出の切り替わりの一瞬の隙間でメイン曲に戻らないよう、少し待ってから戻す
     const t = setTimeout(() => {
-      // BGM設定がオフならメイン曲は流さず、鳴りっぱなしのバトルBGMだけ止める
-      if (!playBgm("bgm_main")) pauseBgm();
+      // BGM設定がオフならメイン曲は流さず、鳴りっぱなしの戦闘系BGMだけ止める
+      if (!playBgm(baseBgm)) pauseBgm();
     }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, baseBgm]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(

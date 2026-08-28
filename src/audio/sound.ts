@@ -116,6 +116,7 @@ export type SeKey =
   | "janken_lose"
   | "win"
   | "lose"
+  | "pack_open"
   | "tap";
 
 export function playSe(key: SeKey): void {
@@ -142,10 +143,16 @@ export function playSe(key: SeKey): void {
  * 同じ曲が再生中なら何もしない。アセットが無ければ静かに何もしない。
  * Web で音声がまだ解禁されていない場合は、最初のタップ後に自動で開始する。
  */
-export function playBgm(key: string): boolean {
-  // 設定の「BGM」はメイン曲のオンオフ。バトルBGMは「効果音」の設定に連動する
+/** 「効果音」設定に連動する戦闘系BGM。それ以外の曲は「BGM」設定に連動する */
+const SE_LINKED_BGM = new Set(["bgm_battle", "bgm_reach"]);
+
+function bgmAllowed(key: string): boolean {
   const settings = useSettingsStore.getState();
-  if (!(key === "bgm_battle" ? settings.seEnabled : settings.bgmEnabled)) return false;
+  return SE_LINKED_BGM.has(key) ? settings.seEnabled : settings.bgmEnabled;
+}
+
+export function playBgm(key: string): boolean {
+  if (!bgmAllowed(key)) return false;
   const asset = bgmAssets[key];
   if (asset === undefined) return false;
   if (!unlocked) {
@@ -199,10 +206,8 @@ export function setBgmTense(tense: boolean): void {
 }
 
 // 設定の切り替えを今流れている曲へ即時反映する（オフにした側の曲だけ止める）
-useSettingsStore.subscribe((s) => {
-  if (!currentBgmKey) return;
-  const enabled = currentBgmKey === "bgm_battle" ? s.seEnabled : s.bgmEnabled;
-  if (!enabled) pauseBgm();
+useSettingsStore.subscribe(() => {
+  if (currentBgmKey && !bgmAllowed(currentBgmKey)) pauseBgm();
 });
 
 /** BGMを再生位置を保ったまま一時停止する（勝敗カットイン中に効果音だけを響かせる用） */

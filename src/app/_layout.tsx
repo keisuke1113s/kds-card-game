@@ -1,9 +1,11 @@
-import { Stack, useRouter } from "expo-router";
+import { Stack, usePathname, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect } from "react";
 import { Pressable, StyleSheet, Text } from "react-native";
 import { haptic } from "@/audio/haptics";
+import { playBgm } from "@/audio/sound";
+import { useSettingsStore } from "@/store/settingsStore";
 import { AchievementToast } from "@/components/AchievementToast";
 import { setupErrorReporting } from "@/data/errlog";
 import { trackEvent } from "@/data/telemetry";
@@ -34,7 +36,37 @@ function HomeButton() {
   );
 }
 
+/**
+ * 画面ごとの環境BGM。null の画面（対戦・準備・QR登録など）は
+ * その画面自身がBGMを管理するので、ここでは触らない
+ */
+function ambientBgmFor(path: string): string | null {
+  if (path.startsWith("/tutorial")) return "bgm_tutorial";
+  if (path.startsWith("/library")) return "bgm_library";
+  if (path.startsWith("/online")) return "bgm_lobby";
+  if (
+    path.startsWith("/battle") ||
+    path.startsWith("/prematch") ||
+    path.startsWith("/scan") ||
+    path.startsWith("/admin")
+  ) {
+    return null;
+  }
+  // ホーム・記録・実績・デッキ・ルール・設定はホームのテーマ曲を流し続ける
+  return "bgm_home";
+}
+
 export default function RootLayout() {
+  // 画面に応じた環境BGM。対戦画面の後片付け（stopBgm）が終わってから流し始める
+  const pathname = usePathname();
+  const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
+  useEffect(() => {
+    const key = ambientBgmFor(pathname);
+    if (!key || !bgmEnabled) return;
+    const t = setTimeout(() => playBgm(key), 600);
+    return () => clearTimeout(t);
+  }, [pathname, bgmEnabled]);
+
   // カードの絵を先に読み込み、そろってから起動画面を消す。
   // 絵が後から出てくる（一瞬文字だけになる）のを防ぐため。
   // 一覧用（150px）と拡大用（300px）の全カードぶんをここで読み込む。
