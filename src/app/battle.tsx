@@ -663,25 +663,34 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // BGM: ふだんは bgm_main、バトルの流れ（対象選択〜サポート〜解決）の間は
-  // 緊張感のある bgm_battle に切り替える
-  const inBattleSeq =
-    targetingUid !== null ||
-    view?.phase.type === "battleSupport" ||
-    currentAnn?.kind === "battle" ||
-    currentAnn?.kind === "battleResult" ||
-    annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult");
+  // BGM: ふだんは bgm_main、バトル中は緊張感のある bgm_battle。
+  // 切り替えは「いざ、勝負！」の全画面カットインが表示された瞬間に合わせ、
+  // バトルの流れ（サポート〜解決）が終わるまで続ける
+  const [battleBgmOn, setBattleBgmOn] = useState(false);
+  useEffect(() => {
+    if (currentAnn?.kind === "battle") setBattleBgmOn(true);
+  }, [currentAnn]);
+  useEffect(() => {
+    if (!battleBgmOn) return;
+    const stillBattle =
+      currentAnn?.kind === "battle" ||
+      currentAnn?.kind === "battleResult" ||
+      annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult") ||
+      view?.phase.type === "battleSupport";
+    if (!stillBattle) setBattleBgmOn(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [battleBgmOn, currentAnn, annQueue, view?.phase.type]);
   useEffect(() => {
     if (!bgmEnabled) {
       stopBgm();
       return;
     }
-    if (inBattleSeq) {
+    if (battleBgmOn) {
       if (!playBgm("bgm_battle")) playBgm("bgm_main");
     } else {
       playBgm("bgm_main");
     }
-  }, [bgmEnabled, inBattleSeq]);
+  }, [bgmEnabled, battleBgmOn]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(
