@@ -2,7 +2,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { cardRegistry } from "@/data/cards";
-import { DEFAULT_OPEN_CARDS } from "@/data/unlock";
+import { ALL_CARDS_OPEN_FOR_TESTING, DEFAULT_OPEN_CARDS } from "@/data/unlock";
+import { allCards } from "@/data/cards";
 import { randomDeckList } from "@/engine/deckRules";
 import { builtinDefaults, useDeckStore } from "@/store/deckStore";
 
@@ -64,6 +65,8 @@ export const useUnlockStore = create<UnlockState>()(
 
 /** いま使えるカードIDの集合（初回セットが未生成の間は標準セットで代用） */
 export function unlockedSet(state: Pick<UnlockState, "initialSet" | "scannedIds">): Set<string> {
+  // テスト期間中は全カードを開放する（本番公開前にフラグを戻す）
+  if (ALL_CARDS_OPEN_FOR_TESTING) return new Set(allCards.map((c) => c.id));
   return new Set([...(state.initialSet ?? DEFAULT_OPEN_CARDS), ...state.scannedIds]);
 }
 
@@ -74,6 +77,8 @@ export function unlockedSet(state: Pick<UnlockState, "initialSet" | "scannedIds"
  * 中身も同じ22枚にする。2回目以降の起動では何もしない。
  */
 export function ensureInitialSet(): void {
+  // テスト期間中は配布もデッキの差し替えも行わない（全カード開放のため不要）
+  if (ALL_CARDS_OPEN_FOR_TESTING) return;
   // 保存済みデータの読み込みが終わる前に実行すると、毎回新しいセットを
   // 配り直してしまうため、両ストアの読み込み完了を待ってから判定する
   if (!useUnlockStore.persist.hasHydrated()) {

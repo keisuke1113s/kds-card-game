@@ -10,6 +10,14 @@ import { allCards, cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
  *   （実物のQRを撮影・共有されれば開放できてしまう簡易方式。オフラインで動く）
  */
 
+/**
+ * ★★★ テスト期間用のスイッチ ★★★
+ * true の間は全カードが最初から登録済みになる（複数人での動作確認用）。
+ * 本番アプリの公開前に必ず false に戻すこと。
+ * false に戻すと「初回起動でランダム22枚配布＋QRで開放」の正式仕様になる。
+ */
+export const ALL_CARDS_OPEN_FOR_TESTING = true;
+
 /** 署名の種。印刷後に変えると既存のQRがすべて無効になるので変更しないこと */
 const QR_SECRET = "kds-agogo-2026-himitsu-no-tane";
 
