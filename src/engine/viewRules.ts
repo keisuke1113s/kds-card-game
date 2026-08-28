@@ -1,4 +1,5 @@
 import {
+  ACADEMIC_GOAL,
   AbilityDef,
   CardDef,
   GameAction,
@@ -6,6 +7,7 @@ import {
   InstructorOnField,
   PlayerId,
   PlayerView,
+  SKILL_GOAL,
 } from "./types";
 
 /**
@@ -162,11 +164,16 @@ export function getLegalActionsFromView(ctx: GameContext, view: PlayerView): Gam
         });
       }
 
-      // 場のインストラクターの行動
+      // 場のインストラクターの行動。
+      // 達成済みのトラックを進める行動は無意味（休憩するだけ）なので選べないようにする
       for (const inst of view.self.field) {
         if (inst.actedThisTurn || inst.rested) continue;
-        actions.push({ type: "instructorAction", player, uid: inst.uid, action: "skill" });
-        actions.push({ type: "instructorAction", player, uid: inst.uid, action: "academic" });
+        if (view.self.skill < SKILL_GOAL) {
+          actions.push({ type: "instructorAction", player, uid: inst.uid, action: "skill" });
+        }
+        if (view.self.academic < ACADEMIC_GOAL) {
+          actions.push({ type: "instructorAction", player, uid: inst.uid, action: "academic" });
+        }
         actions.push({ type: "instructorAction", player, uid: inst.uid, action: "doNothing" });
         const def = ctx.defs[inst.cardId];
         const cantAttack = def.keywords?.includes("cantAttackOnEntry") && inst.enteredThisTurn;

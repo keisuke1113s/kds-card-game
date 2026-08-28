@@ -87,4 +87,13 @@ describe("視点ベースのルール判定", () => {
     // 元の state の並びは変わらない
     expect(state.players[0].deck).toEqual(["s_ueno", "i_hamada", "i_konno"]);
   });
+
+  it("達成済みのトラックを進める行動は選べない（無意味な休憩を防ぐ）", () => {
+    // 技能は達成済み・学科はあと1つの状況
+    const state = makeState({ skill: 19, academic: 9, field: [fieldInst("i_konno")] });
+    const actions = getLegalActionsFromView(ctx, viewFor(state, 0));
+    expect(actions.some((a) => a.type === "instructorAction" && a.action === "skill")).toBe(false);
+    expect(actions.some((a) => a.type === "instructorAction" && a.action === "academic")).toBe(true);
+    expect(actions.some((a) => a.type === "instructorAction" && a.action === "doNothing")).toBe(true);
+  });
 });
