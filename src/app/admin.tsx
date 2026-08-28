@@ -734,7 +734,9 @@ const styles = StyleSheet.create({
   qrCode: { fontSize: 10, color: "#444", fontFamily: Platform.OS === "web" ? "monospace" : undefined },
   soloBackdrop: {
     flex: 1,
-    backgroundColor: "#000000cc",
+    // 完全な不透明にする。透かしで背景のQRが見えると、カメラが
+    // そちらを読み取ってしまうことがあるため
+    backgroundColor: "#000000",
     alignItems: "center",
     justifyContent: "center",
   },
