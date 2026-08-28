@@ -560,7 +560,8 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 0 },
   },
   catchRed: { color: brand.red },
-  catchDark: { color: colors.text },
+  // 白い縁取り付きの文字なので、ダークモードでも濃い色のまま固定する
+  catchDark: { color: "#16283c" },
   catch: {
     fontSize: 14,
     fontWeight: "900",
