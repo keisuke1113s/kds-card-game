@@ -143,7 +143,9 @@ export function playSe(key: SeKey): void {
  * Web で音声がまだ解禁されていない場合は、最初のタップ後に自動で開始する。
  */
 export function playBgm(key: string): boolean {
-  if (!useSettingsStore.getState().bgmEnabled) return false;
+  // 設定の「BGM」はメイン曲のオンオフ。バトルBGMは「効果音」の設定に連動する
+  const settings = useSettingsStore.getState();
+  if (!(key === "bgm_battle" ? settings.seEnabled : settings.bgmEnabled)) return false;
   const asset = bgmAssets[key];
   if (asset === undefined) return false;
   if (!unlocked) {
@@ -195,6 +197,13 @@ export function setBgmTense(tense: boolean): void {
     // 速度変更に未対応の環境では通常速度のまま
   }
 }
+
+// 設定の切り替えを今流れている曲へ即時反映する（オフにした側の曲だけ止める）
+useSettingsStore.subscribe((s) => {
+  if (!currentBgmKey) return;
+  const enabled = currentBgmKey === "bgm_battle" ? s.seEnabled : s.bgmEnabled;
+  if (!enabled) pauseBgm();
+});
 
 /** BGMを再生位置を保ったまま一時停止する（勝敗カットイン中に効果音だけを響かせる用） */
 export function pauseBgm(): void {

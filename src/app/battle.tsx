@@ -374,6 +374,7 @@ export default function BattleScreen() {
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
+  const seEnabled = useSettingsStore((s) => s.seEnabled);
 
   // 画面シェイク（退場・バトル解決時）＋ヒットストップの押し込み
   const shakeX = useSharedValue(0);
@@ -703,7 +704,7 @@ export default function BattleScreen() {
       currentAnn?.kind === "battle" ||
       annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult"));
   useEffect(() => {
-    if (!bgmEnabled) {
+    if (!bgmEnabled && !seEnabled) {
       stopBgm();
       return;
     }
@@ -712,13 +713,17 @@ export default function BattleScreen() {
       return;
     }
     if (battleBgmOn) {
-      if (!playBgm("bgm_battle")) playBgm("bgm_main");
+      // バトルBGMは効果音設定に連動。オフ（や曲なし）の間はメイン曲を流し続ける
+      if (!playBgm("bgm_battle") && !playBgm("bgm_main")) pauseBgm();
       return;
     }
     // 演出の切り替わりの一瞬の隙間でメイン曲に戻らないよう、少し待ってから戻す
-    const t = setTimeout(() => playBgm("bgm_main"), 350);
+    const t = setTimeout(() => {
+      // BGM設定がオフならメイン曲は流さず、鳴りっぱなしのバトルBGMだけ止める
+      if (!playBgm("bgm_main")) pauseBgm();
+    }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, battleBgmOn, battleResultCutinShowing]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(
