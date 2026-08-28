@@ -241,6 +241,7 @@ function IssueNewCard() {
           <Text style={styles.qrId} selectable>
             {qrPayloadFor(issuedNow.id)}
           </Text>
+          <QrDownloadButton cardId={issuedNow.id} name={issuedNow.name} />
         </View>
       )}
 
@@ -258,12 +259,45 @@ function IssueNewCard() {
                 <Text style={styles.qrId}>
                   {e.id}（{typeLabelOf(e.id)}・{e.at}）
                 </Text>
+                <QrDownloadButton cardId={e.id} name={e.name} />
               </View>
             ))}
           </View>
         </>
       )}
     </ScrollView>
+  );
+}
+
+/**
+ * QRコードをPNG画像としてダウンロードする（管理画面はブラウザ専用）。
+ * 512pxで書き出すので、縮小して印刷しても輪郭がにじまない
+ */
+async function downloadQrPng(cardId: string, name: string): Promise<void> {
+  // 型定義のないライブラリ（react-native-qrcode-svg が同梱している qrcode）を使う
+  const QRCodeLib = (await import("qrcode" as string)).default as {
+    toDataURL: (text: string, opts?: object) => Promise<string>;
+  };
+  const url = await QRCodeLib.toDataURL(qrPayloadFor(cardId), {
+    errorCorrectionLevel: "L",
+    margin: 4,
+    width: 512,
+  });
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `qr_${cardId}_${name}.png`;
+  a.click();
+}
+
+/** QR1つぶんの保存ボタン */
+function QrDownloadButton({ cardId, name }: { cardId: string; name: string }) {
+  return (
+    <Pressable
+      style={styles.qrDownloadButton}
+      onPress={() => void downloadQrPng(cardId, name)}
+    >
+      <Text style={styles.qrDownloadText}>⬇ 画像を保存</Text>
+    </Pressable>
   );
 }
 
@@ -284,6 +318,7 @@ function QrList() {
             <QRCode value={qrPayloadFor(c.id)} size={120} ecl="L" quietZone={6} />
             <Text style={styles.qrName}>{c.name}</Text>
             <Text style={styles.qrId}>{c.id}</Text>
+            <QrDownloadButton cardId={c.id} name={c.name} />
           </View>
         ))}
       </View>
@@ -616,4 +651,12 @@ const styles = StyleSheet.create({
   },
   qrName: { fontSize: 13, fontWeight: "800", color: "#111" },
   qrId: { fontSize: 10, color: "#666" },
+  qrDownloadButton: {
+    marginTop: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+    backgroundColor: "#2b6cb0",
+  },
+  qrDownloadText: { color: "#fff", fontSize: 11, fontWeight: "700" },
 });

@@ -452,10 +452,16 @@ function WebCamera({ onPayload }: { onPayload: (raw: string) => void }) {
         const tick = () => {
           if (stopped || !video || !ctx2d) return;
           if (video.readyState >= 2 && video.videoWidth > 0) {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            ctx2d.drawImage(video, 0, 0);
-            const img = ctx2d.getImageData(0, 0, canvas.width, canvas.height);
+            // 画面中央の枠のあたりだけを読み取る。
+            // 映像全体を読むと、QRが並んだ印刷物などで狙った隣のコードを
+            // 拾ってしまうため（名前と違うカードが登録される誤読の原因）
+            const side = Math.floor(Math.min(video.videoWidth, video.videoHeight) * 0.6);
+            const sx = Math.floor((video.videoWidth - side) / 2);
+            const sy = Math.floor((video.videoHeight - side) / 2);
+            canvas.width = side;
+            canvas.height = side;
+            ctx2d.drawImage(video, sx, sy, side, side, 0, 0, side, side);
+            const img = ctx2d.getImageData(0, 0, side, side);
             const found = jsQR(img.data, img.width, img.height);
             if (found?.data) onPayload(found.data);
           }
