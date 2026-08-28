@@ -159,7 +159,12 @@ export function playBgm(key: string): boolean {
     pendingBgmKey = key; // 解禁後に再生
     return true;
   }
-  if (currentBgmKey === key && bgmPlayers[key]) return true;
+  if (currentBgmKey === key && bgmPlayers[key]) {
+    // 同じ曲でも pauseBgm で止まっていることがあるので、再生を指示し直す
+    // （再生中に play を呼んでも害はない）
+    safePlay(bgmPlayers[key]);
+    return true;
+  }
   try {
     void ensureAudioMode();
     // いま流れている曲は位置を保ったまま一時停止（次に戻ったら続きから）

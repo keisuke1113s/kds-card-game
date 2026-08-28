@@ -20,11 +20,6 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 # 名前: (プロンプト, 秒数, 出力形式)
 # ループ曲はmp3、効果音扱い（パック開封）はwav
 TRACKS = {
-    "bgm_home": (
-        "cheerful upbeat video game main menu theme, bright marimba and plucky synth melody, "
-        "bouncy rhythm, happy driving school adventure mood, seamless loop, instrumental",
-        47, "mp3",
-    ),
     "bgm_result_win": (
         "triumphant victory fanfare intro then relaxed happy celebration loop, brass hits, "
         "cheerful video game result screen music, warm and rewarding, instrumental",
@@ -40,30 +35,10 @@ TRACKS = {
         "final lap sirens feel, dramatic synth arpeggios, seamless loop, instrumental",
         40, "mp3",
     ),
-    "bgm_lobby": (
-        "chill lo-fi hip hop waiting room music, relaxed jazzy chords, soft beat, "
-        "cozy lounge atmosphere, seamless loop, instrumental",
-        47, "mp3",
-    ),
     "bgm_janken": (
         "suspenseful drumroll build-up loop, taiko drums and snare roll, game show decision moment, "
         "playful tension, short seamless loop, instrumental",
         20, "mp3",
-    ),
-    "bgm_tutorial": (
-        "gentle warm acoustic guitar and glockenspiel, friendly tutorial music, calm and welcoming, "
-        "soft tempo, children TV show mood, seamless loop, instrumental",
-        47, "mp3",
-    ),
-    "bgm_library": (
-        "calm music box and soft pads, nostalgic collection gallery theme, dreamy and quiet, "
-        "gentle sparkling melody, seamless loop, instrumental",
-        47, "mp3",
-    ),
-    "bgm_replay": (
-        "funky sports broadcast highlight theme, upbeat brass and electric bass groove, "
-        "TV replay show energy, seamless loop, instrumental",
-        40, "mp3",
     ),
     "pack_open": (
         "short magical celebratory jingle, rising sparkle glissando into bright fanfare hit, "

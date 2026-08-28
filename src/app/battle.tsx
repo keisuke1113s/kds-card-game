@@ -695,9 +695,9 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // BGM: ふだんは bgm_main（リプレイ観戦中は bgm_replay）、バトルの流れ（いざ勝負！〜
-  // サポート）の間は bgm_battle、リーチ中は bgm_reach、対戦が終わったら勝敗に応じた
-  // リザルト曲。勝敗のカットイン中はBGMを止めて勝敗の効果音だけを響かせる
+  // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート）の間は bgm_battle、
+  // リーチ中は bgm_reach、対戦が終わったら勝敗に応じたリザルト曲。
+  // 勝敗のカットイン中はBGMを止めて勝敗の効果音だけを響かせる
   const battleResultCutinShowing = currentAnn?.kind === "battleResult";
   const battleBgmOn =
     !battleResultCutinShowing &&
@@ -710,7 +710,6 @@ export default function BattleScreen() {
         ? "win"
         : "lose"
       : null;
-  const baseBgm = replayActive ? "bgm_replay" : "bgm_main";
   useEffect(() => {
     if (!bgmEnabled && !seEnabled) {
       stopBgm();
@@ -721,7 +720,9 @@ export default function BattleScreen() {
       return;
     }
     if (finishedOutcome) {
-      // 勝敗の効果音ジングルが鳴り終わるのを待ってからリザルト曲を流す
+      // 対戦が終わった瞬間にリーチ曲などを止めて勝敗の効果音を響かせ、
+      // 鳴り終わるのを待ってからリザルト曲を流す
+      pauseBgm();
       const t = setTimeout(() => {
         if (!playBgm(finishedOutcome === "win" ? "bgm_result_win" : "bgm_result_lose")) pauseBgm();
       }, 1200);
@@ -729,21 +730,21 @@ export default function BattleScreen() {
     }
     if (battleBgmOn) {
       // バトルBGMは効果音設定に連動。オフ（や曲なし）の間はふだんの曲を流し続ける
-      if (!playBgm("bgm_battle") && !playBgm(baseBgm)) pauseBgm();
+      if (!playBgm("bgm_battle") && !playBgm("bgm_main")) pauseBgm();
       return;
     }
     if (reachOn) {
       // リーチBGMも効果音設定に連動
-      if (!playBgm("bgm_reach") && !playBgm(baseBgm)) pauseBgm();
+      if (!playBgm("bgm_reach") && !playBgm("bgm_main")) pauseBgm();
       return;
     }
     // 演出の切り替わりの一瞬の隙間でメイン曲に戻らないよう、少し待ってから戻す
     const t = setTimeout(() => {
       // BGM設定がオフならメイン曲は流さず、鳴りっぱなしの戦闘系BGMだけ止める
-      if (!playBgm(baseBgm)) pauseBgm();
+      if (!playBgm("bgm_main")) pauseBgm();
     }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, baseBgm]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(

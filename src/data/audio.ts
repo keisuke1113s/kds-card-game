@@ -22,14 +22,9 @@ export const seAssets: Record<string, number> = {
 
 export const bgmAssets: Record<string, number> = {
   "bgm_battle": require("@/assets/audio/bgm_battle.mp3"),
-  "bgm_home": require("@/assets/audio/bgm_home.mp3"),
   "bgm_janken": require("@/assets/audio/bgm_janken.mp3"),
-  "bgm_library": require("@/assets/audio/bgm_library.mp3"),
-  "bgm_lobby": require("@/assets/audio/bgm_lobby.mp3"),
   "bgm_main": require("@/assets/audio/bgm_main.mp3"),
   "bgm_reach": require("@/assets/audio/bgm_reach.mp3"),
-  "bgm_replay": require("@/assets/audio/bgm_replay.mp3"),
   "bgm_result_lose": require("@/assets/audio/bgm_result_lose.mp3"),
   "bgm_result_win": require("@/assets/audio/bgm_result_win.mp3"),
-  "bgm_tutorial": require("@/assets/audio/bgm_tutorial.mp3"),
 };

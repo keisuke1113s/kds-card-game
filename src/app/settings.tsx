@@ -5,6 +5,7 @@ import { HAPTICS_AVAILABLE } from "@/audio/haptics";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
 
@@ -216,6 +217,19 @@ function DevCardReset() {
   const unlockState = useUnlockStore();
   const count = unlockedSet(unlockState).size;
   const [done, setDone] = useState(false);
+  if (ALL_CARDS_OPEN_FOR_TESTING) {
+    // 全カード開放フラグが立っている間はリセットしても見た目が変わらないため、
+    // ボタンの代わりに理由を表示する
+    return (
+      <View style={{ gap: 8 }}>
+        <Text style={styles.sectionTitle}>開発版のテスト用</Text>
+        <Text style={styles.note}>
+          いまはテスト期間中のため、全カード（{count}枚）が最初から開放されています。
+          カード配布のリセットは、本番公開時に「ランダム22枚配布」へ戻したあとで使えるようになります。
+        </Text>
+      </View>
+    );
+  }
   return (
     <View style={{ gap: 8 }}>
       <Text style={styles.sectionTitle}>開発版のテスト用</Text>
