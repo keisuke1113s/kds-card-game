@@ -300,7 +300,14 @@ export type GameEvent =
   /** バトル中のサポート等による、この一戦だけの戦闘力の上乗せ */
   | { type: "battleBuffApplied"; player: PlayerId; amount: number }
   | { type: "lessonModApplied"; player: PlayerId; uid: string | null; amount: number }
-  | { type: "jankenPlayed"; owner: PlayerId; won: boolean }
+  | {
+      type: "jankenPlayed";
+      owner: PlayerId;
+      won: boolean;
+      /** 0=グー 1=チョキ 2=パー */
+      ownerHand: number;
+      otherHand: number;
+    }
   | { type: "handRevealed"; player: PlayerId; cardIds: string[] } // player = 手札を見られた側
   | { type: "supportsRecycled"; player: PlayerId; count: number }
   | { type: "choiceRequired"; player: PlayerId }

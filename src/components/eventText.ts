@@ -56,8 +56,10 @@ export function eventText(e: GameEvent, human: PlayerId, opp = "CPU"): string | 
       return e.amount > 0 ? `戦闘力が＋${e.amount}された` : `戦闘力が${e.amount}された`;
     case "lessonModApplied":
       return `${who(e.player)}の教習力が＋${e.amount}された`;
-    case "jankenPlayed":
-      return `じゃんけん！ ${who(e.owner)}の${e.won ? "勝ち" : "負け"}`;
+    case "jankenPlayed": {
+      const HANDS = ["✊", "✌️", "✋"];
+      return `じゃんけん（${who(e.owner)}${HANDS[e.ownerHand] ?? ""} vs ${HANDS[e.otherHand] ?? ""}）！ ${who(e.owner)}の${e.won ? "勝ち" : "負け"}`;
+    }
     case "handRevealed":
       return `${who(e.player)}の手札が公開された`;
     case "supportsRecycled":

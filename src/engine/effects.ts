@@ -962,7 +962,8 @@ export function applyChoice(
         return;
       }
       const ownerWon = (a === 0 && b === 1) || (a === 1 && b === 2) || (a === 2 && b === 0);
-      events.push({ type: "jankenPlayed", owner, won: ownerWon });
+      // 出した手も一緒に伝える（実況で「✊ vs ✋」のように見せるため）
+      events.push({ type: "jankenPlayed", owner, won: ownerWon, ownerHand: a, otherHand: b });
       state.phase = resume;
       const ops = ownerWon ? r.win : r.lose;
       queue.unshift(...ops.map((op) => ({ op, ctx: pending.sourceCtx })));

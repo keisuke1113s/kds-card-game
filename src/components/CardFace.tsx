@@ -1,6 +1,7 @@
+import { Asset } from "expo-asset";
 import { Image } from "expo-image";
 import React, { useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { getCard } from "@/data/cards";
 import { cardImages, cardSmalls, cardThumbs } from "@/data/images";
 import { cardSize, CardSizeKey, colors } from "@/theme";
@@ -15,6 +16,41 @@ function imageFor(key: string, size: CardSizeKey): number | undefined {
   if (size === "xl") return cardImages[key] ?? cardThumbs[key] ?? cardSmalls[key];
   if (size === "lg") return cardThumbs[key] ?? cardSmalls[key] ?? cardImages[key];
   return cardSmalls[key] ?? cardThumbs[key] ?? cardImages[key];
+}
+
+function uriOf(source: number): string | undefined {
+  try {
+    return Asset.fromModule(source).uri ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Web専用: 同期デコード指定の素の <img>。
+ * expo-image は読み込み完了イベントを待ってから描くため、キャッシュ済みでも
+ * 1〜2フレーム白く見えることがある。素の <img> ＋ decoding="sync" なら
+ * 描画の瞬間に展開まで済ませるので、キャッシュ済みのカードは待ちゼロで出る
+ */
+function SyncImg({ source, onError }: { source: number; onError?: () => void }) {
+  const uri = uriOf(source);
+  if (!uri) return null;
+  return React.createElement("img", {
+    src: uri,
+    decoding: "sync",
+    loading: "eager",
+    draggable: false,
+    onError,
+    style: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      pointerEvents: "none",
+    },
+  });
 }
 
 const typeColor: Record<string, string> = {
@@ -70,9 +106,12 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
         <View style={[styles.textFace, styles.faceDownFallback]}>
           <Text style={styles.faceDownText}>KDS</Text>
         </View>
-        {back && (
-          <Image source={back} style={StyleSheet.absoluteFill} contentFit="cover" />
-        )}
+        {back &&
+          (Platform.OS === "web" ? (
+            <SyncImg source={back} />
+          ) : (
+            <Image source={back} style={StyleSheet.absoluteFill} contentFit="cover" />
+          ))}
       </View>
     );
   } else {
@@ -84,19 +123,26 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
     body = (
       <View style={[styles.slot, dims, dimmed && styles.dimmed]}>
         <TextFace cardId={cardId} size={size} />
-        {img && (
-          <Image
-            source={img}
-            placeholder={placeholder}
-            placeholderContentFit="cover"
-            style={StyleSheet.absoluteFill}
-            contentFit="cover"
-            transition={0}
-            cachePolicy="memory-disk"
-            priority="high"
-            onError={() => setImageFailed(true)}
-          />
-        )}
+        {img &&
+          (Platform.OS === "web" ? (
+            <>
+              {/* 大きい絵の展開中は小さい絵を下に敷く（どちらも同期デコード） */}
+              {placeholder !== undefined && <SyncImg source={placeholder} />}
+              <SyncImg source={img} onError={() => setImageFailed(true)} />
+            </>
+          ) : (
+            <Image
+              source={img}
+              placeholder={placeholder}
+              placeholderContentFit="cover"
+              style={StyleSheet.absoluteFill}
+              contentFit="cover"
+              transition={0}
+              cachePolicy="memory-disk"
+              priority="high"
+              onError={() => setImageFailed(true)}
+            />
+          ))}
       </View>
     );
   }

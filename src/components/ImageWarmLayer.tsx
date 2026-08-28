@@ -41,17 +41,18 @@ export function ImageWarmLayer() {
     <div
       aria-hidden
       style={{
-        // 画面右下の1点に全カードを2×3pxで重ねて置く。
+        // 画面右下の1点に全カードを重ねて置く。
         // 見た目にはほぼ気づかないが「描画されている」状態を保つのがミソ
-        // （display:none や画面外だと描画対象から外れ、展開データを捨てられてしまう）
+        // （display:none や画面外だと描画対象から外れ、展開データを捨てられてしまう）。
+        // 極小(2px)だと縮小版しか保持されないことがあるため、実用に近い40px前後で描く
         position: "fixed",
         right: 0,
         bottom: 0,
-        width: 2,
-        height: 3,
+        width: 38,
+        height: 53,
         zIndex: -1,
         pointerEvents: "none",
-        opacity: 0.05,
+        opacity: 0.02,
       }}
     >
       {uris.map((uri) => (
@@ -60,7 +61,7 @@ export function ImageWarmLayer() {
           src={uri}
           alt=""
           decoding="async"
-          style={{ position: "absolute", inset: 0, width: 2, height: 3 }}
+          style={{ position: "absolute", inset: 0, width: 38, height: 53 }}
         />
       ))}
     </div>

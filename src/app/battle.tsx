@@ -268,7 +268,15 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         break;
       case "jankenPlayed": {
         const humanWon = (e.owner === ME) === e.won;
-        add(humanWon ? "じゃんけんに勝った！" : "じゃんけんに負けた…", undefined, true);
+        // 双方の出した手も見せる（0=グー 1=チョキ 2=パー）
+        const HANDS = ["✊", "✌️", "✋"];
+        const myHand = HANDS[e.owner === ME ? e.ownerHand : e.otherHand] ?? "";
+        const oppHand = HANDS[e.owner === ME ? e.otherHand : e.ownerHand] ?? "";
+        add(
+          `あなた ${myHand} vs ${oppHand} 相手\nじゃんけんに${humanWon ? "勝った！" : "負けた…"}`,
+          undefined,
+          true
+        );
         break;
       }
       case "instructorRemoved":
@@ -2190,7 +2198,7 @@ function FieldRow({
  * バトル勝敗の全画面カットイン。
  * 勝ち: 祝福背景に「バトル勝利！」／負け: 沈む闇に「バトル敗北…」／相打ちは激突背景
  */
-function BattleResultCutIn({
+export function BattleResultCutIn({
   mine,
   tie,
   atk,
@@ -2754,7 +2762,7 @@ function PulseRing({
  * 暗転した画面に赤い斜め帯が交差し、対戦する2枚のカードが
  * 左右から飛び込んでぶつかり、「いざ、勝負！」が飛び出す。
  */
-function BattleCutIn({
+export function BattleCutIn({
   subtitle,
   atkCardId,
   defCardId,
