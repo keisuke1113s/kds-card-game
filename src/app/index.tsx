@@ -156,11 +156,11 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
-      {/* fal.ai生成の教習所イラストをうっすら敷く（文字の読みやすさ優先で薄め） */}
+      {/* KDS校舎のイラスト（ユーザー提供）をタイトルの後ろにうっすら敷く */}
       <Image
         source={require("../../assets/images/fx/bg_home.webp")}
-        style={[StyleSheet.absoluteFill, { opacity: 0.2 }]}
-        contentFit="cover"
+        style={styles.homeBgArt}
+        contentFit="contain"
         pointerEvents="none"
       />
       <SafeAreaView style={styles.safe}>
@@ -544,6 +544,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: colors.primary,
     marginTop: 2,
+  },
+  homeBgArt: {
+    position: "absolute",
+    top: 24,
+    left: 0,
+    right: 0,
+    height: 280,
+    opacity: 0.38,
   },
   collectionRibbon: {
     alignSelf: "center",
