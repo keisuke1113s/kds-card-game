@@ -94,7 +94,15 @@ type Owner = "self" | "cpu";
 interface Announcement {
   key: number;
   /** "turn"=帯 / "battle"=バトル / "lesson"=教習の増減 / "power"=教習力の増減 / "text"=実況 */
-  kind: "text" | "turn" | "battle" | "lesson" | "power" | "battleResult" | "recycle";
+  kind:
+    | "text"
+    | "turn"
+    | "battle"
+    | "lesson"
+    | "power"
+    | "battleResult"
+    | "recycle"
+    | "trackComplete";
   text: string;
   cardId?: string;
   emph?: boolean;
@@ -153,6 +161,8 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
     out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
+  // このバッチで決着している場合、修了のお祝いは勝利演出に譲る
+  const endsGame = events.some((e) => e.type === "gameEnded");
 
   for (const e of events) {
     switch (e.type) {
@@ -251,8 +261,9 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         });
         break;
       }
-      case "trackAdvanced":
+      case "trackAdvanced": {
         // 進んだときも戻されたときも、全画面で大きく知らせる
+        const goal = e.track === "academic" ? ACADEMIC_GOAL : SKILL_GOAL;
         if (e.amount !== 0) {
           out.push({
             key: ++annSeq,
@@ -262,10 +273,21 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
             track: e.track,
             amount: e.amount,
             newValue: e.newValue,
-            goal: e.track === "academic" ? ACADEMIC_GOAL : SKILL_GOAL,
+            goal,
+          });
+        }
+        // 全課程修了！（両方そろって勝利したときは勝利演出に譲る）
+        if (e.amount > 0 && e.newValue >= goal && !endsGame) {
+          out.push({
+            key: ++annSeq,
+            kind: "trackComplete",
+            text: "",
+            mine: e.player === ME,
+            track: e.track,
           });
         }
         break;
+      }
       case "jankenPlayed": {
         const humanWon = (e.owner === ME) === e.won;
         // 双方の出した手も見せる（0=グー 1=チョキ 2=パー）
@@ -698,6 +720,8 @@ export default function BattleScreen() {
             ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
             : next.kind === "battle" || next.kind === "battleResult"
             ? 3200 // いざ勝負！と勝敗はしっかり見せる
+            : next.kind === "trackComplete"
+            ? 2600 // 全課程修了のお祝い
             : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
               ? 2000
               : next.cardId
@@ -1484,6 +1508,13 @@ export default function BattleScreen() {
               atk={currentAnn.resAtk ?? 0}
               def={currentAnn.resDef ?? 0}
               deciding={reachOn}
+            />
+          ) : currentAnn.kind === "trackComplete" ? (
+            <TrackCompleteCutIn
+              key={currentAnn.key}
+              mine={currentAnn.mine ?? false}
+              track={currentAnn.track ?? "academic"}
+              oppName={oppLabel}
             />
           ) : currentAnn.kind === "recycle" ? (
             <RecycleCutIn
@@ -2312,6 +2343,63 @@ export function BattleResultCutIn({
               : mine
                 ? "相手のインストラクターを場外に追いやった！"
                 : "インストラクターが場外へ送られた…"}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * 学科・技能の全課程修了の全画面カットイン。
+ * 実況キュー経由で表示されるため、他のカットインとは重ならない。
+ * 両方そろって勝利したときは勝利演出に譲る（表示しない）
+ */
+function TrackCompleteCutIn({
+  mine,
+  track,
+  oppName,
+}: {
+  mine: boolean;
+  track: Track;
+  oppName: string;
+}) {
+  const scale = useSharedValue(0.4);
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    playSe(mine ? "janken_win" : "hit");
+    haptic(mine ? "success" : "warning");
+    scale.value = withSequence(
+      withTiming(1.12, { duration: 220, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 150 })
+    );
+    opacity.value = withTiming(1, { duration: 140 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  const bg = mine
+    ? require("../../assets/images/fx/fx_up.webp")
+    : require("../../assets/images/fx/fx_down.webp");
+  const label = track === "academic" ? "学科" : "技能";
+  const other = track === "academic" ? "技能" : "学科";
+  const emoji = track === "academic" ? "🎓" : "🚗";
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Image source={bg} style={[StyleSheet.absoluteFill, { opacity: 0.85 }]} contentFit="cover" />
+      <Animated.View style={[styles.reachBox, box]}>
+        <Text
+          style={[styles.reachTitle, styles.reachTitleLong, { color: mine ? "#ffd54d" : "#ff8a80" }]}
+          allowFontScaling={false}
+          numberOfLines={1}
+        >
+          {mine ? `${emoji} ${label} 全課程修了！！` : `⚠️ 相手が${label}を修了！`}
+        </Text>
+        <Text style={styles.reachSub}>
+          {mine
+            ? `おめでとう！ 卒業まで、あとは「${other}」だけ！`
+            : `${oppName}の卒業が近い…！ 追い上げよう！`}
         </Text>
       </Animated.View>
     </View>
