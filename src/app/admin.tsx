@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import QRCode from "react-native-qrcode-svg";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
@@ -289,15 +289,37 @@ async function downloadQrPng(cardId: string, name: string): Promise<void> {
   a.click();
 }
 
-/** QR1つぶんの保存ボタン */
+/** QR1つぶんの操作ボタン（画像の保存・単独表示） */
 function QrDownloadButton({ cardId, name }: { cardId: string; name: string }) {
+  const [solo, setSolo] = useState(false);
   return (
-    <Pressable
-      style={styles.qrDownloadButton}
-      onPress={() => void downloadQrPng(cardId, name)}
-    >
-      <Text style={styles.qrDownloadText}>⬇ 画像を保存</Text>
-    </Pressable>
+    <>
+      <Pressable
+        style={styles.qrDownloadButton}
+        onPress={() => void downloadQrPng(cardId, name)}
+      >
+        <Text style={styles.qrDownloadText}>⬇ 画像を保存</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.qrDownloadButton, { backgroundColor: "#4a5568" }]}
+        onPress={() => setSolo(true)}
+      >
+        <Text style={styles.qrDownloadText}>🔍 単独で表示</Text>
+      </Pressable>
+      {/* 1つのQRだけを大きく表示する（画面からそのまま読み取るとき、隣のQRが映り込まない） */}
+      <Modal visible={solo} transparent animationType="fade" onRequestClose={() => setSolo(false)}>
+        <Pressable style={styles.soloBackdrop} onPress={() => setSolo(false)}>
+          <View style={styles.soloBox}>
+            <QRCode value={qrPayloadFor(cardId)} size={280} ecl="L" quietZone={10} />
+            <Text style={styles.soloName}>{name}</Text>
+            <Text style={styles.qrId}>{cardId}</Text>
+            <Pressable style={styles.soloClose} onPress={() => setSolo(false)}>
+              <Text style={styles.qrDownloadText}>閉じる</Text>
+            </Pressable>
+          </View>
+        </Pressable>
+      </Modal>
+    </>
   );
 }
 
@@ -659,4 +681,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#2b6cb0",
   },
   qrDownloadText: { color: "#fff", fontSize: 11, fontWeight: "700" },
+  soloBackdrop: {
+    flex: 1,
+    backgroundColor: "#000000cc",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  soloBox: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+    gap: 10,
+  },
+  soloName: { fontSize: 18, fontWeight: "800", color: "#222" },
+  soloClose: {
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    backgroundColor: "#4a5568",
+  },
 });
