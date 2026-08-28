@@ -330,6 +330,7 @@ function applyOp(
     case "buffCombat": {
       if (state.phase.type !== "battleSupport") break;
       state.phase.battle.buffs.push({ player: owner, amount: op.amount });
+      events.push({ type: "battleBuffApplied", player: owner, amount: op.amount });
       break;
     }
 

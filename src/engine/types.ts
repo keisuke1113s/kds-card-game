@@ -297,6 +297,8 @@ export type GameEvent =
   | { type: "cardSalvaged"; player: PlayerId; cardId: string }
   | { type: "abilityActivated"; player: PlayerId; cardId: string }
   | { type: "combatModApplied"; player: PlayerId; uid: string; amount: number }
+  /** バトル中のサポート等による、この一戦だけの戦闘力の上乗せ */
+  | { type: "battleBuffApplied"; player: PlayerId; amount: number }
   | { type: "lessonModApplied"; player: PlayerId; uid: string | null; amount: number }
   | { type: "jankenPlayed"; owner: PlayerId; won: boolean }
   | { type: "handRevealed"; player: PlayerId; cardIds: string[] } // player = 手札を見られた側

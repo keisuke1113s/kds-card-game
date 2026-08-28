@@ -119,6 +119,7 @@ export function redactEventsFor(events: GameEvent[], playerId: PlayerId): GameEv
       case "cardDiscarded":
       case "cardSalvaged":
       case "abilityActivated":
+      case "battleBuffApplied":
       case "combatModApplied":
       case "lessonModApplied":
       case "jankenPlayed":

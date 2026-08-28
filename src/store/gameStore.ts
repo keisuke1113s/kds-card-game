@@ -344,6 +344,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
           break;
         case "supportPlayed":
         case "abilityActivated":
+        case "battleBuffApplied":
         case "instructorBounced":
           keys.add("support");
           break;

@@ -48,6 +48,10 @@ export function eventText(e: GameEvent, human: PlayerId, opp = "CPU"): string | 
       return `${who(e.player)}が場外から「${getCard(e.cardId).name}」を回収した`;
     case "abilityActivated":
       return `${who(e.player)}が「${getCard(e.cardId).name}」の力を使った`;
+    case "battleBuffApplied":
+      return e.amount > 0
+        ? `${who(e.player)}の戦闘力が＋${e.amount}された（バトル中）`
+        : `${who(e.player)}の戦闘力が${e.amount}された（バトル中）`;
     case "combatModApplied":
       return e.amount > 0 ? `戦闘力が＋${e.amount}された` : `戦闘力が${e.amount}された`;
     case "lessonModApplied":

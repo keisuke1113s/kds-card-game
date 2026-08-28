@@ -181,20 +181,28 @@ export default function HomeScreen() {
               {opponentDeck.name}
             </Text>
           </View>
-          {/* 通算成績（1戦でもしたら出す）。タップで対戦記録の一覧へ */}
+          {/* 通算成績（1戦でもしたら出す） */}
           {record.wins + record.losses > 0 && (
-            <Pressable onPress={() => router.push("/records")}>
-              <Text style={styles.recordLine}>
-                通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
-                <Text style={styles.recordLose}>{record.losses}敗</Text>
-                {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
-              </Text>
-              <Text style={styles.recordLink}>📜 対戦記録を見る ▸</Text>
-            </Pressable>
+            <Text style={styles.recordLine}>
+              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+              <Text style={styles.recordLose}>{record.losses}敗</Text>
+              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
+            </Text>
           )}
-          <Pressable onPress={() => router.push("/achievements")}>
-            <Text style={styles.recordLink}>🏅 実績と称号 ▸</Text>
-          </Pressable>
+          <View style={styles.row}>
+            <AppButton
+              label="📜 対戦記録"
+              tone="ghost"
+              style={styles.flex}
+              onPress={() => router.push("/records")}
+            />
+            <AppButton
+              label="🏅 実績と称号"
+              tone="ghost"
+              style={styles.flex}
+              onPress={() => router.push("/achievements")}
+            />
+          </View>
 
           <View style={styles.row}>
             <AppButton

@@ -93,7 +93,7 @@ type Owner = "self" | "cpu";
 interface Announcement {
   key: number;
   /** "turn"=帯 / "battle"=バトル / "lesson"=教習の増減 / "power"=教習力の増減 / "text"=実況 */
-  kind: "text" | "turn" | "battle" | "lesson" | "power";
+  kind: "text" | "turn" | "battle" | "lesson" | "power" | "battleResult" | "recycle";
   text: string;
   cardId?: string;
   emph?: boolean;
@@ -109,6 +109,12 @@ interface Announcement {
   amount?: number;
   newValue?: number;
   goal?: number;
+  /** kind === "battleResult" のときの内訳 */
+  resTie?: boolean;
+  resAtk?: number;
+  resDef?: number;
+  /** kind === "recycle" のときの枚数 */
+  recycleCount?: number;
   /** kind === "power" のとき、何の力か（教習力／戦闘力） */
   powerLabel?: string;
 }
@@ -213,6 +219,19 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
           });
         }
         break;
+      case "battleBuffApplied":
+        // バトル中のサポート等による上乗せも全画面で見せる
+        if (e.amount !== 0) {
+          out.push({
+            key: ++annSeq,
+            kind: "power",
+            text: "",
+            mine: e.player === ME,
+            amount: e.amount,
+            powerLabel: "戦闘力",
+          });
+        }
+        break;
       case "battleDeclared": {
         // 宣言直後は両者とも場にいるので、uid からカードを引ける
         const atk = view
@@ -266,14 +285,35 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         );
         break;
       case "cardSalvaged":
-        if (e.player === OPP)
-          add(`場外から「${getCard(e.cardId).name}」を回収した`, e.cardId, false, "cpu");
+        add(`場外から「${getCard(e.cardId).name}」を回収した！`, e.cardId, true, ownerOf(e.player));
         break;
-      case "battleResolved":
-        add(`バトル解決！ ${e.attackerTotal} vs ${e.defenderTotal}`, undefined, true);
+      case "battleResolved": {
+        const winner =
+          e.attackerTotal > e.defenderTotal
+            ? e.attackerPlayer
+            : e.defenderTotal > e.attackerTotal
+              ? 1 - e.attackerPlayer
+              : null;
+        out.push({
+          key: ++annSeq,
+          kind: "battleResult",
+          text: "",
+          mine: winner === null ? undefined : winner === ME,
+          resTie: winner === null,
+          resAtk: e.attackerTotal,
+          resDef: e.defenderTotal,
+        });
         break;
+      }
       case "supportsRecycled":
-        if (e.player === OPP) add(`${oppLabel}がサポート${e.count}枚を山札に戻した`);
+        // 場外→山札のリサイクルは全画面で見せる
+        out.push({
+          key: ++annSeq,
+          kind: "recycle",
+          text: "",
+          mine: e.player === ME,
+          recycleCount: e.count,
+        });
         break;
     }
   }
@@ -344,7 +384,17 @@ export default function BattleScreen() {
 
   // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
   const [reachFx, setReachFx] = useState<{ mine: boolean } | null>(null);
+  // 実況が流れている間は待ち、捌けてから表示する（演出の重なり防止）
+  const [pendingReach, setPendingReach] = useState<{ mine: boolean } | null>(null);
   const reachShown = useRef({ me: false, opp: false });
+
+  // 進捗バーの表示値。学科技能の全画面演出が終わってから動かす
+  const [shownTracks, setShownTracks] = useState<{
+    ma: number;
+    ms: number;
+    oa: number;
+    os: number;
+  } | null>(null);
 
   // オンライン対戦: 相手の考え中の経過秒数
   const [oppThinkSec, setOppThinkSec] = useState(0);
@@ -428,18 +478,45 @@ export default function BattleScreen() {
     const oppReach = remain(view.opponent) <= 2;
     if (meReach && !reachShown.current.me) {
       reachShown.current.me = true;
-      setReachFx({ mine: true });
-      haptic("success");
+      setPendingReach({ mine: true });
     } else if (oppReach && !reachShown.current.opp) {
       reachShown.current.opp = true;
-      setReachFx({ mine: false });
-      haptic("warning");
+      setPendingReach({ mine: false });
     }
     if (!meReach) reachShown.current.me = false;
     if (!oppReach) reachShown.current.opp = false;
     setBgmTense(meReach || oppReach);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
+
+  // リーチ演出は、流れている実況が捌けてから表示する
+  useEffect(() => {
+    if (!pendingReach) return;
+    if (currentAnn !== null || annQueue.length > 0) return;
+    setReachFx(pendingReach);
+    setPendingReach(null);
+    haptic(pendingReach.mine ? "success" : "warning");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingReach, currentAnn, annQueue]);
+
+  // 進捗バーは、学科技能の全画面演出が終わってから動かす
+  useEffect(() => {
+    if (!view) {
+      setShownTracks(null);
+      return;
+    }
+    const lessonPending =
+      currentAnn?.kind === "lesson" || annQueue.some((a) => a.kind === "lesson");
+    if (!lessonPending || shownTracks === null) {
+      setShownTracks({
+        ma: view.self.academic,
+        ms: view.self.skill,
+        oa: view.opponent.academic,
+        os: view.opponent.skill,
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, currentAnn, annQueue]);
 
   // リーチ演出は少し見せて自動で閉じる
   useEffect(() => {
@@ -496,9 +573,9 @@ export default function BattleScreen() {
         },
         next.kind === "turn"
           ? 900
-          : next.kind === "battle"
+          : next.kind === "battle" || next.kind === "battleResult"
             ? 2400
-            : next.kind === "lesson" || next.kind === "power"
+            : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
               ? 2000
               : next.cardId
                 ? 1600
@@ -586,16 +663,26 @@ export default function BattleScreen() {
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
   }, [pendingDraw, busy, drawFx]);
 
-  // 対戦中BGM（bgm_battle が無ければ bgm_main）
+  // BGM: ふだんは bgm_main、バトルの流れ（対象選択〜サポート〜解決）の間は
+  // 緊張感のある bgm_battle に切り替える
+  const inBattleSeq =
+    targetingUid !== null ||
+    view?.phase.type === "battleSupport" ||
+    currentAnn?.kind === "battle" ||
+    currentAnn?.kind === "battleResult" ||
+    annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult");
   useEffect(() => {
-    if (bgmEnabled) {
-      // bgm_battle が無ければ bgm_main にフォールバック
+    if (!bgmEnabled) {
+      stopBgm();
+      return;
+    }
+    if (inBattleSeq) {
       if (!playBgm("bgm_battle")) playBgm("bgm_main");
     } else {
-      stopBgm();
+      playBgm("bgm_main");
     }
-    return () => stopBgm();
-  }, [bgmEnabled]);
+  }, [bgmEnabled, inBattleSeq]);
+  useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(
     () => (view ? getLegalActionsFromView(ctx, view) : []),
@@ -844,8 +931,8 @@ export default function BattleScreen() {
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
-        <TrackBar label="学科" kind="academic" value={cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
-        <TrackBar label="技能" kind="skill" value={cpu.skill} goal={SKILL_GOAL} color={colors.success} />
+        <TrackBar label="学科" kind="academic" value={shownTracks?.oa ?? cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
+        <TrackBar label="技能" kind="skill" value={shownTracks?.os ?? cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
           view={view}
           player={OPP}
@@ -1056,8 +1143,8 @@ export default function BattleScreen() {
             }
           }}
         />
-        <TrackBar label="学科" kind="academic" value={me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
-        <TrackBar label="技能" kind="skill" value={me.skill} goal={SKILL_GOAL} color={colors.success} />
+        <TrackBar label="学科" kind="academic" value={shownTracks?.ma ?? me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
+        <TrackBar label="技能" kind="skill" value={shownTracks?.ms ?? me.skill} goal={SKILL_GOAL} color={colors.success} />
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>あなた</Text>
           {/* 山札・場外はタップで中身を確認できる */}
@@ -1214,6 +1301,21 @@ export default function BattleScreen() {
               atkCardId={currentAnn.atkCardId}
               defCardId={currentAnn.defCardId}
               atkIsCpu={currentAnn.atkIsCpu ?? false}
+            />
+          ) : currentAnn.kind === "battleResult" ? (
+            <BattleResultCutIn
+              key={currentAnn.key}
+              mine={currentAnn.mine}
+              tie={currentAnn.resTie ?? false}
+              atk={currentAnn.resAtk ?? 0}
+              def={currentAnn.resDef ?? 0}
+            />
+          ) : currentAnn.kind === "recycle" ? (
+            <RecycleCutIn
+              key={currentAnn.key}
+              mine={currentAnn.mine ?? false}
+              count={currentAnn.recycleCount ?? 0}
+              oppName={oppLabel}
             />
           ) : currentAnn.kind === "turn" ? (
             <Animated.View
@@ -1888,6 +1990,149 @@ function FieldRow({
 }
 
 /** CPUの思考中を示す、ゆっくり明滅する点 */
+/**
+ * バトル勝敗の全画面カットイン。
+ * 勝ち: 祝福背景に「バトル勝利！」／負け: 沈む闇に「バトル敗北…」／相打ちは激突背景
+ */
+function BattleResultCutIn({
+  mine,
+  tie,
+  atk,
+  def,
+}: {
+  mine?: boolean;
+  tie: boolean;
+  atk: number;
+  def: number;
+}) {
+  const scale = useSharedValue(0.4);
+  const opacity = useSharedValue(0);
+  useEffect(() => {
+    playSe(tie ? "hit" : mine ? "janken_win" : "janken_lose");
+    haptic(tie ? "heavy" : mine ? "success" : "warning");
+    scale.value = withSequence(
+      withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 150 })
+    );
+    opacity.value = withTiming(1, { duration: 140 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  const bg = tie
+    ? require("../../assets/images/fx/fx_battle.webp")
+    : mine
+      ? require("../../assets/images/fx/fx_victory.webp")
+      : require("../../assets/images/fx/fx_down.webp");
+  const title = tie ? "⚡ 相打ち！" : mine ? "🔥 バトル勝利！" : "💥 バトル敗北…";
+  const color = tie ? "#8fd3ee" : mine ? "#ffd54d" : "#90a4c8";
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Image source={bg} style={[StyleSheet.absoluteFill, { opacity: 0.85 }]} contentFit="cover" />
+      <Animated.View style={[styles.reachBox, box]}>
+        <Text style={[styles.reachTitle, { color }]} allowFontScaling={false}>
+          {title}
+        </Text>
+        <Text style={styles.battleResultScore} allowFontScaling={false}>
+          {atk} <Text style={styles.battleResultVs}>vs</Text> {def}
+        </Text>
+        <Text style={styles.reachSub}>
+          {tie
+            ? "両者のインストラクターが場外へ！"
+            : mine
+              ? "相手のインストラクターを場外に追いやった！"
+              : "インストラクターが場外へ送られた…"}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/**
+ * 場外のサポートが山札に戻るリサイクルの全画面演出。
+ * カードが渦を巻きながら中央（山札）へ吸い込まれていく
+ */
+function RecycleCutIn({
+  mine,
+  count,
+  oppName,
+}: {
+  mine: boolean;
+  count: number;
+  oppName: string;
+}) {
+  const opacity = useSharedValue(0);
+  const pop = useSharedValue(0.5);
+  useEffect(() => {
+    playSe("support");
+    opacity.value = withTiming(1, { duration: 160 });
+    pop.value = withSequence(
+      withTiming(1.1, { duration: 220, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 150 })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: pop.value }],
+    opacity: opacity.value,
+  }));
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Image
+        source={require("../../assets/images/fx/fx_up.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.8 }]}
+        contentFit="cover"
+      />
+      {Array.from({ length: Math.min(Math.max(count, 3), 7) }, (_, i) => (
+        <RecycleCard key={i} index={i} />
+      ))}
+      <Animated.View style={[styles.reachBox, box]}>
+        <Text
+          style={[styles.reachTitle, { color: "#7ce6a0", fontSize: 34 }]}
+          allowFontScaling={false}
+        >
+          ♻️ 山札にリサイクル！
+        </Text>
+        <Text style={styles.reachSub}>
+          {mine ? "あなた" : oppName}の場外からサポート{count}枚が山札に戻った！
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** リサイクル演出で渦を巻いて吸い込まれるカード */
+function RecycleCard({ index }: { index: number }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      index * 140,
+      withTiming(1, { duration: 950, easing: Easing.in(Easing.cubic) })
+    );
+  }, [index, p]);
+  const startAngle = (index / 7) * Math.PI * 2;
+  const style = useAnimatedStyle(() => {
+    const angle = startAngle + p.value * 3.6;
+    const dist = (1 - p.value) * 190;
+    return {
+      opacity: p.value < 0.92 ? 1 : (1 - p.value) / 0.08,
+      transform: [
+        { translateX: Math.cos(angle) * dist },
+        { translateY: Math.sin(angle) * dist },
+        { rotate: `${p.value * 540}deg` },
+        { scale: 0.9 - p.value * 0.55 },
+      ],
+    };
+  });
+  return (
+    <Animated.View style={[styles.recycleCard, style]} pointerEvents="none">
+      <CardFace cardId="cardback" size="sm" faceDown />
+    </Animated.View>
+  );
+}
+
 /**
  * リーチの全画面カットイン。
  * 自分: 金色に輝く「リーチ！」／相手: 赤い警告「相手がリーチ！」
@@ -3407,6 +3652,19 @@ const styles = StyleSheet.create({
     zIndex: 5,
     textShadowColor: "#000",
     textShadowRadius: 4,
+  },
+  battleResultScore: {
+    color: "#fff",
+    fontSize: 40,
+    fontWeight: "900",
+    textShadowColor: "#000",
+    textShadowRadius: 10,
+  },
+  battleResultVs: { fontSize: 20, color: "#ffffffaa" },
+  recycleCard: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "42%",
   },
   reachLayer: {
     ...StyleSheet.absoluteFill,

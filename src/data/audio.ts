@@ -17,5 +17,6 @@ export const seAssets: Record<string, number> = {
 };
 
 export const bgmAssets: Record<string, number> = {
+  "bgm_battle": require("@/assets/audio/bgm_battle.mp3"),
   "bgm_main": require("@/assets/audio/bgm_main.mp3"),
 };
