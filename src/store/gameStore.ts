@@ -205,6 +205,9 @@ function trackMatchEvents(
       matchMeta = null; // 二重記録を防ぐ
       if (meta.tutorial) return; // 練習対戦は記録しない
       const opponentName = meta.mode === "online" ? (useGameStore.getState().opponentName ?? "相手") : null;
+      // 通算・連戦の勝敗カウント（CPU・オンライン共通。練習対戦は上で除外済み）
+      if (e.winner === myId) useRecordStore.getState().addWin();
+      else useRecordStore.getState().addLoss();
       useRecordStore.getState().addMatch({
         at: new Date().toISOString(),
         mode: meta.mode,
@@ -399,14 +402,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         lastEvents: visible,
         eventLog: [...get().eventLog, ...visible],
       });
-      // 決着したら成績に記録する（途中でやめた対局は数えない）
-      for (const e of events) {
-        if (e.type === "gameEnded") {
-          const rec = useRecordStore.getState();
-          if (e.winner === HUMAN) rec.addWin();
-          else rec.addLoss();
-        }
-      }
+      // 決着時の成績カウントは trackMatchEvents 側で行う（オンラインと共通化）
       trackMatchEvents(events, get().view, HUMAN);
       playEventSounds(events);
       scheduleAI();
@@ -620,6 +616,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
 
     connectOnline: ({ serverUrl, mode, code, name, deck }) => {
+      // 新しいオンライン対戦の始まり＝「今回の連戦」をここから数え直す
+      // （再戦は接続を張り直さないので連戦カウントは続く）
+      useRecordStore.getState().resetSession();
       // 既存の対局・接続を片づけてから始める
       gameToken++;
       clearAiTimer();
