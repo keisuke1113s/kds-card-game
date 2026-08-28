@@ -72,9 +72,8 @@ export function MatchPrep({
   const [draw, setDraw] = useState(false);
 
   useEffect(() => {
-    // シャッフルが始まった瞬間からメインBGMを流す
-    // （対戦画面に移っても同じ曲なので途切れない）
-    playBgm("bgm_main");
+    // シャッフル中はBGMなし（シャッフルの効果音だけを聞かせる）。
+    // メインBGMは対戦画面の「この手札で始めますか？」表示から始まる
     const t = setTimeout(() => setPhase("choose"), SHUFFLE_MS);
     // 準備をしている間に、対戦で使うカードの絵をそろえておく
     void preloadForMatch(cardIds);

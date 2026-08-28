@@ -349,6 +349,7 @@ export default function BattleScreen() {
   const myStamp = useGameStore((s) => s.myStamp);
   const sendStamp = useGameStore((s) => s.sendStamp);
   const replayActive = useGameStore((s) => s.replayActive);
+  const jankenActive = useGameStore((s) => s.jankenActive);
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
   const isOnline = matchMode === "online";
@@ -728,6 +729,11 @@ export default function BattleScreen() {
       }, 1200);
       return () => clearTimeout(t);
     }
+    if (jankenActive) {
+      // オンラインの先攻決めじゃんけん中はドラムロール曲
+      if (!playBgm("bgm_janken")) pauseBgm();
+      return;
+    }
     if (battleBgmOn) {
       // バトルBGMは効果音設定に連動。オフ（や曲なし）の間はふだんの曲を流し続ける
       if (!playBgm("bgm_battle") && !playBgm("bgm_main")) pauseBgm();
@@ -744,7 +750,7 @@ export default function BattleScreen() {
       if (!playBgm("bgm_main")) pauseBgm();
     }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
 
   const legal = useMemo(
