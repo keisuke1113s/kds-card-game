@@ -67,6 +67,10 @@ export function AppButton({
     shadowRadius: shadow.button.shadowRadius * (1 - press.value * 0.5),
   }));
 
+  // style で高さが固定されているときは、見た目の枠（内側）も
+  // その高さいっぱいに広げる（外側だけ大きくなって枠の高さが揃わない事故を防ぐ）
+  const fixedHeight = !!style && style.height !== undefined;
+
   const pad =
     size === "lg"
       ? { paddingVertical: 16, paddingHorizontal: spacing.xl }
@@ -104,6 +108,7 @@ export function AppButton({
         style={[
           styles.base,
           pad,
+          fixedHeight && styles.fillHeight,
           {
             backgroundColor: disabled ? colors.border : c.bg,
             borderColor: c.border ?? "transparent",
@@ -140,5 +145,6 @@ const styles = StyleSheet.create({
   icon: { color: "#fff" },
   label: { fontWeight: "800", textAlign: "center", letterSpacing: 0.3 },
   fullWidth: { alignSelf: "stretch" },
+  fillHeight: { height: "100%", paddingVertical: 0 },
   disabledShadow: { shadowOpacity: 0, elevation: 0 },
 });
