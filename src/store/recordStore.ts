@@ -23,7 +23,7 @@ export interface MatchRecord {
   reason: "complete" | "deckOut";
   /** 自分が使ったデッキ名 */
   myDeckName: string;
-  /** 「教官に挑戦」の相手教官のカードID（通常対戦は undefined） */
+  /** 「インストラクターに挑戦」の相手のカードID（通常対戦は undefined） */
   kyokan?: string;
   /** 自分が先攻だったか */
   first: boolean;

@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { stopBgm } from "@/audio/sound";
@@ -7,30 +7,34 @@ import { CardFace } from "@/components/CardFace";
 import { MatchPrep } from "@/components/MatchPrep";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { buildKyokanDeck, KYOKAN_LIST, KyokanDef } from "@/data/kyokan";
-import { useAchievementStore } from "@/store/achievementStore";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
+import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { colors, radius, spacing } from "@/theme";
 
 const HUMAN = 0 as const;
 const CPU = 1 as const;
 
-/** 教官ごとの実績ID（達成済みバッジの表示用） */
-const KYOKAN_ACH: Record<string, string> = {
-  i_okumura: "kyokanOkumura",
-  i_shigaya: "kyokanShigaya",
-  i_iida: "kyokanIida",
-};
-
 export default function KyokanScreen() {
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
-  const earned = useAchievementStore((s) => s.earned);
+  const history = useRecordStore((s) => s.history);
   const [target, setTarget] = useState<KyokanDef | null>(null);
 
   const playerDeck = resolveActiveDeck(useDeckStore());
+
+  // 撃破済みのインストラクター（勝利記録から）
+  const beaten = useMemo(
+    () =>
+      new Set(
+        history
+          .filter((r) => r.result === "win" && r.kyokan)
+          .map((r) => r.kyokan as string)
+      ),
+    [history]
+  );
 
   const begin = (firstPlayerIsMe: boolean) => {
     if (!target) return;
@@ -49,15 +53,18 @@ export default function KyokanScreen() {
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.note}>
-          実在のインストラクターがキャラデッキで立ちはだかる特別対戦です。
-          強さは「つよい」固定。勝てば教官ごとの称号がもらえます！
+          全インストラクターが、本人のカード入りキャラデッキで立ちはだかる特別対戦です。
+          強さは「つよい」固定。勝つと撃破の記録が残ります！
+        </Text>
+        <Text style={styles.progress}>
+          🏆 撃破 {beaten.size} / {KYOKAN_LIST.length} 人
         </Text>
         {KYOKAN_LIST.map((k) => {
-          const beaten = !!earned[KYOKAN_ACH[k.cardId]];
+          const won = beaten.has(k.cardId);
           return (
             <Pressable
               key={k.cardId}
-              style={styles.kyokanCard}
+              style={[styles.kyokanCard, won && styles.kyokanCardBeaten]}
               onPress={() => {
                 haptic("medium");
                 setTarget(k);
@@ -66,7 +73,7 @@ export default function KyokanScreen() {
               <CardFace cardId={k.cardId} size="md" />
               <View style={styles.kyokanInfo}>
                 <Text style={styles.kyokanName}>
-                  {k.name}教官 {beaten ? "✅ 撃破済み" : ""}
+                  {k.name} {won ? "✅ 撃破済み" : ""}
                 </Text>
                 <Text style={styles.kyokanDesc}>{k.desc}</Text>
                 <Text style={styles.kyokanChallenge}>タップして挑戦 ▸</Text>
@@ -97,6 +104,7 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.md },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
+  progress: { fontSize: 15, fontWeight: "900", color: colors.primaryDark },
   kyokanCard: {
     flexDirection: "row",
     gap: 14,
@@ -105,6 +113,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     alignItems: "center",
   },
+  kyokanCardBeaten: { opacity: 0.75 },
   kyokanInfo: { flex: 1, gap: 4 },
   kyokanName: { fontSize: 18, fontWeight: "900", color: colors.text },
   kyokanDesc: { fontSize: 13, lineHeight: 20, color: colors.textMuted },

@@ -302,7 +302,7 @@ export default function HomeScreen() {
           />
           <View style={styles.row}>
             <AppButton
-              label="👨‍🏫 教官に挑戦"
+              label="👨‍🏫 インストラクターに挑戦"
               tone="ghost"
               style={styles.flex}
               onPress={() => router.push("/kyokan")}

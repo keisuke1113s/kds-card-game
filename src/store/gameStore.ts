@@ -110,10 +110,10 @@ interface GameStore {
     tutorial?: boolean;
     /** じゃんけんで決まった先攻。省略すると乱数で決まる */
     firstPlayer?: PlayerId;
-    /** 「教官に挑戦」の相手教官のカードID */
+    /** 「インストラクターに挑戦」の相手のカードID */
     kyokan?: string;
   }) => void;
-  /** 「教官に挑戦」中の相手教官のカードID（通常対戦は null） */
+  /** 「インストラクターに挑戦」中の相手のカードID（通常対戦は null） */
   kyokanId: string | null;
   /** 人間のアクションを適用する。不正な手は無視（UIは合法手のみ出す前提の保険） */
   dispatch: (action: GameAction) => void;
@@ -176,7 +176,7 @@ let matchMeta: {
   firstIsMe: boolean | null;
   /** メタ分析用: 自分のデッキのカードID一覧（匿名集計に送る） */
   myCards: string[];
-  /** 「教官に挑戦」の相手教官のカードID */
+  /** 「インストラクターに挑戦」の相手のカードID */
   kyokan: string | null;
   /** リプレイ用（CPU対戦のみ）: 種・デッキ・全アクション */
   replaySeed: number | null;

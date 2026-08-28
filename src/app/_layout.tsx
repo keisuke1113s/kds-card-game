@@ -138,7 +138,7 @@ export default function RootLayout() {
         <Stack.Screen name="admin" options={{ title: "管理画面", headerLeft: () => null }} />
         <Stack.Screen name="rules" options={{ title: "ルール" }} />
         <Stack.Screen name="quiz" options={{ title: "学科クイズ" }} />
-        <Stack.Screen name="kyokan" options={{ title: "教官に挑戦" }} />
+        <Stack.Screen name="kyokan" options={{ title: "インストラクターに挑戦" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
           name="settings"

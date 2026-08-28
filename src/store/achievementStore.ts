@@ -68,6 +68,7 @@ export function evaluateAchievements(): void {
     totalCards: allCards.length,
     quizPlays: useQuizStore.getState().plays,
     quizPerfects: useQuizStore.getState().perfects,
+    totalInstructors: allCards.filter((c) => c.type === "instructor").length,
   };
   const got: string[] = [];
   for (const a of ACHIEVEMENTS) {

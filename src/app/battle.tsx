@@ -390,7 +390,7 @@ export default function BattleScreen() {
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
   const isOnline = matchMode === "online";
-  oppLabel = isOnline ? (opponentName ?? "相手") : kyokanDef ? `${kyokanDef.name}教官` : "CPU";
+  oppLabel = isOnline ? (opponentName ?? "相手") : kyokanDef ? kyokanDef.name : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
@@ -1111,7 +1111,7 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>
-            {isOnline ? (opponentName ?? "相手") : `${kyokanDef ? `${kyokanDef.name}教官` : "CPU"} ${aiThinking ? "🤔" : ""}`}
+            {isOnline ? (opponentName ?? "相手") : `${kyokanDef ? kyokanDef.name : "CPU"} ${aiThinking ? "🤔" : ""}`}
           </Text>
           {/* 相手の称号（実績で獲得したもの） */}
           {isOnline && opponentTitle && (

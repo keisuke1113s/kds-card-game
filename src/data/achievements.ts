@@ -19,6 +19,8 @@ export interface AchievementInput {
   /** 学科クイズの成績 */
   quizPlays: number;
   quizPerfects: number;
+  /** 「インストラクターに挑戦」の対象人数 */
+  totalInstructors: number;
 }
 
 export interface AchievementDef {
@@ -32,6 +34,9 @@ export interface AchievementDef {
 }
 
 const winsOf = (h: MatchRecord[]) => h.filter((r) => r.result === "win");
+/** 「インストラクターに挑戦」で撃破した人数（重複なし） */
+const kyokanBeaten = (h: MatchRecord[]) =>
+  new Set(winsOf(h).map((r) => r.kyokan).filter(Boolean)).size;
 
 export const ACHIEVEMENTS: AchievementDef[] = [
   // ---- 勝利数 ----
@@ -58,7 +63,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "firstWin", emoji: "🌱", name: "先攻の勝利", desc: "先攻で勝つ", check: (s) => winsOf(s.history).some((r) => r.first) },
   { id: "secondWin", emoji: "🌿", name: "後攻の勝利", desc: "後攻で勝つ", check: (s) => winsOf(s.history).some((r) => !r.first) },
   { id: "bothSides", emoji: "⚖️", name: "先攻も後攻も", desc: "先攻でも後攻でも勝つ", check: (s) => winsOf(s.history).some((r) => r.first) && winsOf(s.history).some((r) => !r.first) },
-  { id: "cpuHardWin", emoji: "😈", name: "つよいCPUを倒す", desc: "CPU（つよい）に勝つ", title: "鬼教官超え", check: (s) => winsOf(s.history).some((r) => r.mode === "cpu" && r.difficulty === "hard") },
+  { id: "cpuHardWin", emoji: "😈", name: "つよいCPUを倒す", desc: "CPU（つよい）に勝つ", title: "鬼インストラクター超え", check: (s) => winsOf(s.history).some((r) => r.mode === "cpu" && r.difficulty === "hard") },
   // ---- コレクション ----
   { id: "scan1", emoji: "📷", name: "はじめてのQR登録", desc: "QRコードでカードを1枚登録する", check: (s) => s.scannedCount >= 1 },
   { id: "scan10", emoji: "🗂️", name: "コレクター", desc: "QRコードでカードを10枚登録する", title: "コレクター", check: (s) => s.scannedCount >= 10 },
@@ -70,10 +75,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "quiz1", emoji: "📝", name: "学科クイズに挑戦", desc: "学科クイズを1回プレイする", check: (s) => s.quizPlays >= 1 },
   { id: "quizPerfect", emoji: "💯", name: "学科マスター", desc: "学科クイズで全問正解する", title: "学科マスター", check: (s) => s.quizPerfects >= 1 },
   { id: "quiz10", emoji: "📚", name: "勉強熱心", desc: "学科クイズを10回プレイする", title: "勉強熱心", check: (s) => s.quizPlays >= 10 },
-  // ---- 教官に挑戦 ----
-  { id: "kyokanOkumura", emoji: "🥋", name: "奥村教官を倒す", desc: "「教官に挑戦」で奥村教官に勝つ", title: "鉄壁くずし", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_okumura") },
-  { id: "kyokanShigaya", emoji: "🛡️", name: "志萱教官を倒す", desc: "「教官に挑戦」で志萱教官に勝つ", title: "サポート知らず", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_shigaya") },
-  { id: "kyokanIida", emoji: "⚔️", name: "飯田教官を倒す", desc: "「教官に挑戦」で飯田教官に勝つ", title: "猛攻くぐり", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_iida") },
+  // ---- インストラクターに挑戦 ----
+  { id: "kyokanOkumura", emoji: "🥋", name: "奥村を倒す", desc: "「インストラクターに挑戦」で奥村に勝つ", title: "鉄壁くずし", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_okumura") },
+  { id: "kyokanShigaya", emoji: "🛡️", name: "志萱を倒す", desc: "「インストラクターに挑戦」で志萱に勝つ", title: "サポート知らず", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_shigaya") },
+  { id: "kyokanIida", emoji: "⚔️", name: "飯田を倒す", desc: "「インストラクターに挑戦」で飯田に勝つ", title: "猛攻くぐり", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_iida") },
+  { id: "kyokan5", emoji: "🎖️", name: "5人撃破", desc: "「インストラクターに挑戦」で5人に勝つ", title: "道場破り", check: (s) => kyokanBeaten(s.history) >= 5 },
+  { id: "kyokan15", emoji: "🏵️", name: "15人撃破", desc: "「インストラクターに挑戦」で15人に勝つ", title: "常勝の教習生", check: (s) => kyokanBeaten(s.history) >= 15 },
+  { id: "kyokanAll", emoji: "🏆", name: "全インストラクター制覇", desc: "「インストラクターに挑戦」で全員に勝つ", title: "頂点の教習生", check: (s) => kyokanBeaten(s.history) >= s.totalInstructors },
   // ---- 対戦数・その他 ----
   { id: "play10", emoji: "🎮", name: "対戦10回", desc: "10回対戦する", check: (s) => s.history.length >= 10 },
   { id: "play50", emoji: "🕹️", name: "対戦50回", desc: "50回対戦する", check: (s) => s.history.length >= 50 },
