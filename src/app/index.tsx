@@ -609,8 +609,8 @@ const styles = StyleSheet.create({
     height: 280,
     opacity: 0.38,
   },
-  // 2つ並べたボタンの高さを揃える（長いラベルの折り返しで差が出ないように）
-  halfTall: { flex: 1, minHeight: 62, justifyContent: "center" },
+  // 2つ並べたボタンの高さを揃える（折り返しの有無に関係なく同じ固定高さにする）
+  halfTall: { flex: 1, height: 74, justifyContent: "center", paddingVertical: 0 },
   tipCard: {
     backgroundColor: "#fffbe8",
     borderWidth: 1.5,
