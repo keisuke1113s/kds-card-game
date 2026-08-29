@@ -10,6 +10,7 @@ import { useKytStore } from "@/store/kytStore";
 import { KYT_SCENES } from "@/data/kytScenes";
 import { useVisionStore } from "@/store/visionStore";
 import { useCourseStore } from "@/store/courseStore";
+import { useLineStore } from "@/store/lineStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 
@@ -81,6 +82,7 @@ export function evaluateAchievements(): void {
     visionBest: useVisionStore.getState().best,
     courseBoth:
       useCourseStore.getState().bestS !== null && useCourseStore.getState().bestCrank !== null,
+    lineLinked: useLineStore.getState().linked,
     totalInstructors: allCards.filter((c) => c.type === "instructor").length,
     dailyAllDone: useMissionStore.getState().everAllDone,
     tournamentWins: useTournamentStore.getState().champions,

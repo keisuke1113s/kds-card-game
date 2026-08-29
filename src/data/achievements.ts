@@ -25,6 +25,7 @@ export interface AchievementInput {
   kytTotal: number;
   visionBest: number;
   courseBoth: boolean;
+  lineLinked: boolean;
   /** 「インストラクターに挑戦」の対象人数 */
   totalInstructors: number;
   /** デイリーミッションを全達成したことがあるか */
@@ -92,6 +93,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "kytComplete", emoji: "🦺", name: "全場面制覇", desc: "危険予測トレーニングの全場面に正解する", title: "危険予測の達人", check: (s) => s.kytTotal > 0 && s.kytMastered >= s.kytTotal },
   { id: "eye15", emoji: "👁", name: "動体視力バツグン", desc: "動体視力チェックで15問以上正解する", title: "ハヤブサの目", check: (s) => s.visionBest >= 15 },
   { id: "courseBoth", emoji: "🚗", name: "所内コース制覇", desc: "S字とクランクを両方クリアする", title: "所内コースマスター", check: (s) => s.courseBoth },
+  { id: "lineFamily", emoji: "💚", name: "KDSファミリー", desc: "LINE連携をする", title: "KDSファミリー", check: (s) => s.lineLinked },
   // ---- インストラクターに挑戦 ----
   { id: "kyokanOkumura", emoji: "🥋", name: "奥村を倒す", desc: "「インストラクターに挑戦」で奥村に勝つ", title: "鉄壁くずし", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_okumura") },
   { id: "kyokanShigaya", emoji: "🛡️", name: "志萱を倒す", desc: "「インストラクターに挑戦」で志萱に勝つ", title: "サポート知らず", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_shigaya") },

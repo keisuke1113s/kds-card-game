@@ -186,6 +186,7 @@ export default function RootLayout() {
         <Stack.Screen name="shindan" options={{ title: "運転適性診断", headerStyle: { backgroundColor: "#e2604a" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="eyecheck" options={{ title: "動体視力チェック", headerStyle: { backgroundColor: "#3d8fd0" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="course" options={{ title: "S字・クランク" }} />
+        <Stack.Screen name="line" options={{ title: "LINE連携", headerStyle: { backgroundColor: "#06C755" }, headerTintColor: "#fff" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
           name="settings"

@@ -34,6 +34,8 @@ import { RANKS, lastMilestone, nextMilestone, rankIndexFor, totalDistanceKm, win
 import { useRankStore } from "@/store/rankStore";
 import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
 import { useQuizStore } from "@/store/quizStore";
+import { useLineStore } from "@/store/lineStore";
+import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -303,6 +305,9 @@ export default function HomeScreen() {
 
   const activeDeck = resolveActiveDeck(deckState);
   const record = useRecordStore();
+  // LINE連携（任意）。未連携だと一部機能がロックされる
+  const lineLinked = useLineStore((s) => s.linked);
+  const lineLock = LINE_GATE_ENABLED && !lineLinked;
 
   // 入校式（初回起動ガイド）。すでに遊んでいる人には出さない
   const entranceDone = useRankStore((s) => s.entranceDone);
@@ -579,10 +584,10 @@ export default function HomeScreen() {
               </Text>
             </View>
             <AppButton
-              label="👨‍🏫 インストラクターに挑戦"
+              label={lineLock ? "🔒 インストラクターに挑戦" : "👨‍🏫 インストラクターに挑戦"}
               custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
-              onPress={() => router.push("/kyokan")}
+              onPress={() => router.push(lineLock ? "/line" : "/kyokan")}
             />
             <AppButton
               label="🏆 トーナメント（4連戦）"
@@ -592,14 +597,28 @@ export default function HomeScreen() {
             />
           </View>
           <AppButton
-            label="オンライン対戦"
+            label={lineLock ? "🔒 オンライン対戦" : "オンライン対戦"}
             icon="🌐"
             custom={{ bg: brand.red }}
             size="lg"
             feel="medium"
             fullWidth
-            onPress={() => router.push("/online")}
+            onPress={() => router.push(lineLock ? "/line" : "/online")}
           />
+          {/* LINE連携（任意）。未連携なら解放の案内、連携済みなら小さく表示 */}
+          {LINE_GATE_ENABLED && (
+            <Pressable
+              style={[styles.lineBanner, lineLinked && styles.lineBannerDone]}
+              onPress={() => router.push("/line")}
+            >
+              <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
+                {lineLinked
+                  ? "💚 LINE連携ずみ（すべての機能が使えます）"
+                  : "💚 LINE連携（無料）で オンライン対戦・QR登録・挑戦 を解放！"}
+              </Text>
+            </Pressable>
+          )}
+
           {/* 自動車学校メニュー（学び系をひとつの枠にまとめる） */}
           <View style={styles.schoolGroup}>
             <View style={styles.cpuGroupHeader}>
@@ -1210,6 +1229,21 @@ const styles = StyleSheet.create({
   dailyQButtonText: { fontSize: 12, fontWeight: "800", color: "#8a6d00" },
   dailyQButtonDone: { backgroundColor: "#e9f5e2", borderColor: "#78b424" },
   dailyQButtonTextDone: { color: "#4e7d16" },
+  lineBanner: {
+    backgroundColor: "#06C755",
+    borderRadius: radius.md,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    alignItems: "center",
+  },
+  lineBannerDone: {
+    backgroundColor: "transparent",
+    borderWidth: 1.5,
+    borderColor: "#06C755",
+    paddingVertical: 6,
+  },
+  lineBannerText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  lineBannerTextDone: { color: "#04833a" },
   missionCard: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,
