@@ -175,7 +175,7 @@ function IssueNewCard() {
       return;
     }
     haptic("medium");
-    addIssued({ id: fullId, name, at: new Date().toISOString().slice(0, 10) });
+    addIssued({ id: fullId, name, at: jstToday() });
     setIssuedNow({ id: fullId, name });
     setNewId("");
     setNewName("");
@@ -433,6 +433,23 @@ const hourlyStyles = StyleSheet.create({
   count: { fontSize: 11, color: colors.textMuted, minWidth: 90, textAlign: "right" },
 });
 
+/** ISO形式(UTC)の時刻を日本時間の「YYYY-MM-DD HH:mm」にして返す */
+function formatJst(iso: string, withDate = true): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso;
+  const j = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const hm = `${p(j.getUTCHours())}:${p(j.getUTCMinutes())}`;
+  return withDate
+    ? `${j.getUTCFullYear()}-${p(j.getUTCMonth() + 1)}-${p(j.getUTCDate())} ${hm}`
+    : `${p(j.getUTCMonth() + 1)}-${p(j.getUTCDate())} ${hm}`;
+}
+
+/** 日本時間の今日の日付（YYYY-MM-DD） */
+function jstToday(): string {
+  return formatJst(new Date().toISOString()).slice(0, 10);
+}
+
 /** 利用状況の分析。対戦サーバーの集計とエラー報告を表示する */
 function StatsPanel() {
   interface Stats {
@@ -522,7 +539,7 @@ function StatsPanel() {
           <Text style={styles.smallButtonText}>🔄 最新に更新</Text>
         </Pressable>
         {stats && (
-          <Text style={styles.note}>集計時刻: {stats.generatedAt.slice(0, 16).replace("T", " ")}</Text>
+          <Text style={styles.note}>集計時刻: {formatJst(stats.generatedAt)}（日本時間）</Text>
         )}
       </View>
       {loadError && <Text style={styles.issueError}>{loadError}</Text>}
@@ -678,7 +695,7 @@ function StatsPanel() {
           {errors.length === 0 && <Text style={styles.note}>報告はありません 🎉</Text>}
           {errors.map((e, i) => (
             <Text key={i} style={styles.errLine} numberOfLines={2}>
-              {e.at.slice(5, 16).replace("T", " ")}｜{e.msg}
+              {formatJst(e.at, false)}｜{e.msg}
             </Text>
           ))}
         </>
