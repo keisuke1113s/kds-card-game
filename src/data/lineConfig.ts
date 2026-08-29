@@ -21,7 +21,7 @@ export const LINE_FRIEND_URL = "https://lin.ee/xxxxxxx"; // TODO: 本物の流�
 export const LINE_LINK_CODES = ["KDS946GO"];
 
 /** 連携ゲートを有効にするか（false にすると全機能が誰でも使える従来動作） */
-export const LINE_GATE_ENABLED = false; // 安定版ではLINE連携を無効（開発版のみ有効。反映時にtrueへ）
+export const LINE_GATE_ENABLED = true;
 
 /** コードの照合 */
 export function isValidLinkCode(input: string): boolean {
