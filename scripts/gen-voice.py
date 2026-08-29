@@ -19,20 +19,20 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 VOICE_ID = "Japanese_SportsCoach"  # 熱血コーチ風。無ければ下のFALLBACKを使う
 FALLBACK_VOICE_ID = "Japanese_KindLady"
 
-# 名前: (セリフ, 話速)
+# 名前: (セリフ, 話速, 最大秒数)
 LINES = {
-    "voice_reach": ("リーチ！", 1.15),
-    "voice_reach_opp": ("相手がリーチ！", 1.15),
-    "voice_double": ("両者リーチ！運命の最終局面！", 1.2),
-    "voice_lastbattle": ("ラストバトル！", 1.15),
-    "voice_kessyaku": ("けっちゃくー！", 1.1),
-    "voice_comeback": ("だいぎゃくてんー！", 1.1),
-    "voice_fullline": ("フルライン！", 1.15),
-    "voice_start": ("たいせん、かいし！", 1.0),
+    "voice_reach": ("リーチ！", 1.15, 1.9),
+    "voice_reach_opp": ("相手がリーチ！", 1.15, 2.2),
+    "voice_double": ("両者リーチ！うんめいの、さいしゅうきょくめん！", 1.15, 4.2),
+    "voice_lastbattle": ("ラストバトル！", 1.15, 1.9),
+    "voice_kessyaku": ("けっちゃくー！", 1.1, 2.2),
+    "voice_comeback": ("だいぎゃくてんー！", 1.1, 2.6),
+    "voice_fullline": ("フルライン！", 1.15, 1.9),
+    "voice_start": ("たいせん、かいし！", 1.0, 2.2),
 }
 
 
-def gen(name: str, text: str, speed: float, key: str, voice_id: str) -> None:
+def gen(name: str, text: str, speed: float, max_sec: float, key: str, voice_id: str) -> None:
     body = json.dumps(
         {
             "text": text,
@@ -57,7 +57,7 @@ def gen(name: str, text: str, speed: float, key: str, voice_id: str) -> None:
             "-af",
             "silenceremove=start_periods=1:start_threshold=-45dB,"
             "loudnorm=I=-14:TP=-1,"
-            "afade=t=out:st=1.8:d=0.1,atrim=0:1.9",
+            f"afade=t=out:st={max_sec - 0.1:.1f}:d=0.1,atrim=0:{max_sec}",
             "-ac", "1", "-ar", "44100", out,
         ],
         check=True, capture_output=True,
@@ -70,13 +70,13 @@ def main() -> None:
     key = open(os.path.expanduser("~/.fal_key")).read().strip()
     names = sys.argv[1:] or list(LINES)
     for name in names:
-        text, speed = LINES[name]
+        text, speed, max_sec = LINES[name]
         print(f"生成中: {name} 「{text}」...")
         try:
-            gen(name, text, speed, key, VOICE_ID)
+            gen(name, text, speed, max_sec, key, VOICE_ID)
         except Exception as e:
             print(f"  {VOICE_ID} で失敗（{e}）。{FALLBACK_VOICE_ID} で再試行")
-            gen(name, text, speed, key, FALLBACK_VOICE_ID)
+            gen(name, text, speed, max_sec, key, FALLBACK_VOICE_ID)
 
 
 if __name__ == "__main__":
