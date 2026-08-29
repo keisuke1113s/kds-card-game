@@ -143,6 +143,12 @@ window.addEventListener('appinstalled', function () {
 @keyframes kds-reachpulse { 0%, 100% { opacity: .2; } 50% { opacity: .55; } }
 @keyframes kds-dots { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
 @keyframes kds-fall { 0% { transform: translateY(-40px); opacity: 0; } 5% { opacity: .7; } 90% { opacity: .7; } 100% { transform: translateY(940px); opacity: 0; } }
+[data-kdsanim="wipeleft"] { animation-name: kds-wipeleft; }
+[data-kdsanim="wiperight"] { animation-name: kds-wiperight; }
+[data-kdsanim="wipebeam"] { animation-name: kds-wipebeam; }
+@keyframes kds-wipeleft { from { transform: translateX(0); } to { transform: translateX(calc(-52vw - 12px)); } }
+@keyframes kds-wiperight { from { transform: translateX(0); } to { transform: translateX(calc(52vw + 12px)); } }
+@keyframes kds-wipebeam { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
 @keyframes kds-sway { 0%, 100% { transform: translateX(-14px) rotate(-20deg); } 50% { transform: translateX(14px) rotate(20deg); } }
 @keyframes kds-cardflip {
   0%   { transform: rotate(0deg)   scale(1); }

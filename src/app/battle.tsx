@@ -4369,11 +4369,45 @@ function ResultScores({
 
 /** 対戦入場の暗転ワイプ（左右の幕が開き、中央がひと筋光る） */
 function BattleEnterWipe({ onDone }: { onDone: () => void }) {
+  useEffect(() => {
+    const t = setTimeout(onDone, 760);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Webではブラウザ合成のCSSアニメーションで開く。
+  // 対戦画面の初期描画（重い）と同じJSスレッドを使わないので滑らか
+  if (Platform.OS === "web") {
+    const wipeAnim = {
+      animationDuration: "520ms",
+      animationDelay: "120ms",
+      animationTimingFunction: "cubic-bezier(0.65, 0, 0.35, 1)",
+      animationFillMode: "forwards",
+    } as unknown as ViewStyle;
+    return (
+      <View style={styles.wipeLayer} pointerEvents="none">
+        <View
+          {...({ dataSet: { kdsanim: "wipeleft" } } as object)}
+          style={[styles.wipeHalf, { left: 0 }, wipeAnim]}
+        />
+        <View
+          {...({ dataSet: { kdsanim: "wiperight" } } as object)}
+          style={[styles.wipeHalf, { right: 0 }, wipeAnim]}
+        />
+        <View
+          {...({ dataSet: { kdsanim: "wipebeam" } } as object)}
+          style={[styles.wipeBeam, { opacity: 0 }, wipeAnim]}
+        />
+      </View>
+    );
+  }
+  return <BattleEnterWipeNative />;
+}
+
+/** ネイティブ用: reanimated 版のワイプ */
+function BattleEnterWipeNative() {
   const open = useSharedValue(0);
   useEffect(() => {
     open.value = withDelay(120, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.cubic) }));
-    const t = setTimeout(onDone, 760);
-    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const w = Dimensions.get("window").width;
