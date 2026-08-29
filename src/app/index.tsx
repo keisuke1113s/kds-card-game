@@ -614,7 +614,7 @@ export default function HomeScreen() {
               <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
                 {lineLinked
                   ? "💚 LINE連携ずみ（すべての機能が使えます）"
-                  : "💚 LINE連携（無料）で オンライン対戦・QR登録・挑戦 を解放！"}
+                  : "💚 LINE連携（無料）で 対戦・自動車学校メニューを解放！"}
               </Text>
             </Pressable>
           )}
@@ -627,30 +627,30 @@ export default function HomeScreen() {
             </View>
             <View style={styles.row}>
               <AppButton
-                label="📝 学科クイズ"
+                label={lineLock ? "🔒 学科クイズ" : "📝 学科クイズ"}
                 custom={{ bg: PALE_BG, fg: brand.green, border: brand.green }}
                 style={styles.halfTall}
-                onPress={() => router.push("/quiz")}
+                onPress={() => router.push(lineLock ? "/line" : "/quiz")}
               />
               <AppButton
-                label="⚠️ 危険予測"
+                label={lineLock ? "🔒 危険予測" : "⚠️ 危険予測"}
                 custom={{ bg: PALE_BG, fg: "#e8590c", border: "#e8590c" }}
                 style={styles.halfTall}
-                onPress={() => router.push("/kyt")}
+                onPress={() => router.push(lineLock ? "/line" : "/kyt")}
               />
             </View>
             <View style={styles.row}>
               <AppButton
-                label="🧠 適性診断"
+                label={lineLock ? "🔒 適性診断" : "🧠 適性診断"}
                 custom={{ bg: PALE_BG, fg: brand.coral, border: brand.coral }}
                 style={styles.halfTall}
-                onPress={() => router.push("/shindan")}
+                onPress={() => router.push(lineLock ? "/line" : "/shindan")}
               />
               <AppButton
-                label="👁 動体視力"
+                label={lineLock ? "🔒 動体視力" : "👁 動体視力"}
                 custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
                 style={styles.halfTall}
-                onPress={() => router.push("/eyecheck")}
+                onPress={() => router.push(lineLock ? "/line" : "/eyecheck")}
               />
             </View>
           </View>

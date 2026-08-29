@@ -18,6 +18,8 @@ import { useQuizStore } from "@/store/quizStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useMissionStore } from "@/store/missionStore";
 import { colors, radius, spacing } from "@/theme";
+import { useLineStore } from "@/store/lineStore";
+import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 
 const SET_SIZE = 10;
 
@@ -97,6 +99,9 @@ function QuizHanko({ pass }: { pass: boolean }) {
 }
 
 export default function QuizScreen() {
+  const lineLinked = useLineStore((s) => s.linked);
+  if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+
   const router = useRouter();
   const quiz = useQuizStore();
   const largeText = useSettingsStore((s) => s.largeText);
@@ -442,4 +447,52 @@ const styles = StyleSheet.create({
   hankoTextRetry: { color: "#b04030", letterSpacing: 2 },
   hankoSub: { color: "#d02020aa", fontSize: 8, fontWeight: "700", marginTop: 1 },
   wideButtonText: { color: "#fff", fontWeight: "800", fontSize: 16 },
+});
+
+/** LINE連携が必要な機能のロック画面 */
+function LineGate() {
+  const router = useRouter();
+  return (
+    <View style={lineGateStyles.root}>
+      <View style={lineGateStyles.card}>
+        <Text style={lineGateStyles.lockIcon}>🔒</Text>
+        <Text style={lineGateStyles.title}>この機能はLINE連携で解放されます</Text>
+        <Text style={lineGateStyles.note}>
+          KDS釧路自動車学校の公式LINEと連携（無料）すると使えるようになります。
+        </Text>
+        <Pressable style={lineGateStyles.button} onPress={() => router.replace("/line")}>
+          <Text style={lineGateStyles.buttonText}>💚 LINE連携する</Text>
+        </Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Text style={lineGateStyles.back}>戻る</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const lineGateStyles = StyleSheet.create({
+  root: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+    maxWidth: 420,
+    width: "100%",
+  },
+  lockIcon: { fontSize: 44 },
+  title: { fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center" },
+  note: { fontSize: 13, lineHeight: 20, color: colors.textMuted, textAlign: "center" },
+  button: {
+    backgroundColor: "#06C755",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
+  buttonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
+  back: { fontSize: 13, color: colors.textMuted, padding: 4 },
 });

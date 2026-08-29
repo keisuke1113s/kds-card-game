@@ -80,6 +80,7 @@ export default function LineScreen() {
               <Text style={styles.unlockItem}>📷 QRカード登録</Text>
               <Text style={styles.unlockItem}>👨‍🏫 インストラクターに挑戦</Text>
               <Text style={styles.unlockItem}>🏆 トーナメント</Text>
+              <Text style={styles.unlockItem}>🏫 自動車学校メニュー（クイズ・危険予測・診断・視力）</Text>
               <Text style={styles.unlockItem}>🎖 称号「KDSファミリー」</Text>
             </View>
             <AppButton label="ホームへ戻る" tone="primary" fullWidth onPress={() => router.replace("/")} />
@@ -95,6 +96,7 @@ export default function LineScreen() {
               <Text style={styles.unlockItem}>🔒 📷 QRカード登録</Text>
               <Text style={styles.unlockItem}>🔒 👨‍🏫 インストラクターに挑戦</Text>
               <Text style={styles.unlockItem}>🔒 🏆 トーナメント</Text>
+              <Text style={styles.unlockItem}>🔒 🏫 自動車学校メニュー（クイズ・危険予測・診断・視力）</Text>
               <Text style={styles.unlockItem}>🎁 称号「KDSファミリー」</Text>
             </View>
 
@@ -138,7 +140,7 @@ export default function LineScreen() {
 
             <Text style={styles.small}>
               連携は無料で、アプリが取得する個人情報はありません。
-              連携しなくてもCPU対戦・学科クイズなどはこれまで通り遊べます。
+              連携しなくてもCPU対戦・豆知識・今日の1問はこれまで通り遊べます。
             </Text>
             <AppButton label="あとで（ホームへ戻る）" tone="ghost" fullWidth onPress={() => router.back()} />
           </View>
