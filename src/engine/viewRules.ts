@@ -205,6 +205,9 @@ export function getLegalActionsFromView(ctx: GameContext, view: PlayerView): Gam
       view.self.hand.forEach((cardId, handIndex) => {
         const def = ctx.defs[cardId];
         if (def.type === "support" && (def.timing === "main" || def.timing === "any")) {
+          // 効果が「自分のインストラクターの教習力を上げる」だけのサポートは、
+          // このターン教習できる（休憩していない）インストラクターがいなければ出せない
+          if (ownLessonBuffOnly(def) && !view.self.field.some((f) => !f.rested)) return;
           actions.push({ type: "playSupport", player, handIndex });
         }
       });
@@ -249,4 +252,24 @@ export function getLegalActionsFromView(ctx: GameContext, view: PlayerView): Gam
   }
 
   return actions;
+}
+
+/**
+ * サポートの効果が「自分のインストラクターの教習力を上げる」だけか。
+ * 休憩は自分のターン開始時にしか回復しないため、全員が休憩状態なら
+ * このターンは誰も教習できず、効果が完全に無駄になる（＝出せない扱いにする）
+ */
+function ownLessonBuffOnly(def: CardDef): boolean {
+  const ops = (def.effects ?? [])
+    .filter((e) => e.trigger === "onSupport")
+    .flatMap((e) => e.ops);
+  return (
+    ops.length > 0 &&
+    ops.every(
+      (o) =>
+        o.op === "lessonMod" &&
+        (o.target === "allOwn" || o.target === "chooseOwn") &&
+        o.amount > 0
+    )
+  );
 }

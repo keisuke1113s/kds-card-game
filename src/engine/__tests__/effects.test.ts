@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { viewFor } from "../view";
-import { act, choose, fieldInst, makeState } from "./helpers";
+import { act, choose, ctx, fieldInst, makeState } from "./helpers";
 import { GameState } from "../types";
+import { getLegalActions } from "../legalActions";
 
 function jankenBoth(state: GameState, first: number, second: number) {
   let r = choose(state, first);
@@ -279,6 +280,18 @@ describe("修正値・元気化系", () => {
     const a = act(state, { type: "playSupport", player: 0, handIndex: 0 });
     const b = act(a.state, { type: "instructorAction", player: 0, uid: i1.uid, action: "skill" });
     expect(b.state.players[0].skill).toBe(3); // 2 + 1
+  });
+
+  it("永山: 全員休憩中は出せない（教習できる相手がいない）", () => {
+    const i1 = fieldInst("i_tomino", { rested: true });
+    const state = makeState({ hand: ["s_nagayama"], field: [i1] });
+    const legal = getLegalActions(ctx, state, 0);
+    expect(legal.some((a) => a.type === "playSupport")).toBe(false);
+    // 元気なインストラクターがいれば出せる
+    const i2 = fieldInst("i_oda");
+    const state2 = makeState({ hand: ["s_nagayama"], field: [i1, i2] });
+    const legal2 = getLegalActions(ctx, state2, 0);
+    expect(legal2.some((a) => a.type === "playSupport")).toBe(true);
   });
 
   it("送迎サポート: ターン終了時にインストラクターを1人元気にする", () => {
