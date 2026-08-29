@@ -403,6 +403,11 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
+          {/* 今日の安全運転豆知識（日替わり） */}
+          <View style={styles.tipCard}>
+            <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
+            <Text style={styles.tipText}>{tipOfToday()}</Text>
+          </View>
           <AppButton
             label="はじめての方へ（遊び方）"
             icon="📖"
@@ -459,11 +464,6 @@ export default function HomeScreen() {
           />
           {/* 今日のデイリーミッション */}
           <MissionCard />
-          {/* 今日の安全運転豆知識（日替わり） */}
-          <View style={styles.tipCard}>
-            <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
-            <Text style={styles.tipText}>{tipOfToday()}</Text>
-          </View>
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
