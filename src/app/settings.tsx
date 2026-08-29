@@ -190,7 +190,7 @@ export default function SettingsScreen() {
             style={[styles.wideButton, { backgroundColor: colors.danger }]}
             onPress={() => setConfirmQuit(true)}
           >
-            <Text style={styles.wideButtonText}>対戦をやめる</Text>
+            <Text style={styles.wideButtonText}>🛑 対戦をやめる</Text>
           </Pressable>
         </>
       )}
@@ -411,7 +411,18 @@ const styles = StyleSheet.create({
   recordResetText: { color: "#fff", fontWeight: "800", fontSize: 12 },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
-  sectionTitle: { fontSize: 15, fontWeight: "800", color: colors.text, marginTop: 8 },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: "#ffffff",
+    backgroundColor: "#1a5fb4",
+    alignSelf: "flex-start",
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    overflow: "hidden",
+    marginTop: 6,
+  },
   row: { flexDirection: "row", gap: 10 },
   choice: {
     flex: 1,

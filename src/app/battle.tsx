@@ -1609,11 +1609,16 @@ export default function BattleScreen() {
               status.mine ? styles.statusBarMine : styles.statusBarOpponent,
             ]}
           >
-            <View
-              style={[
-                styles.statusDot,
-                { backgroundColor: status.mine ? colors.success : colors.danger },
-              ]}
+            <SignalLight
+              state={
+                !status.mine
+                  ? "red"
+                  : view.phase.type === "choice" ||
+                      view.phase.type === "battleSupport" ||
+                      view.phase.type === "mulligan"
+                    ? "yellow"
+                    : "green"
+              }
             />
             <Text
               style={[
@@ -2402,6 +2407,8 @@ export default function BattleScreen() {
           }
           entering="bounce"
         >
+          {/* 検定の判子（勝ち=合格 / 負け=再検定） */}
+          <KenteiHanko pass={view.phase.winner === ME} />
           <Text style={styles.resultText}>
             {view.phase.reason === "deckOut"
               ? view.phase.winner === ME
@@ -4273,6 +4280,11 @@ function FlyCard({ item, onDone }: { item: FlyItem; onDone: (key: number) => voi
 
 /** ターン帯を車がビュンと横切る */
 function TurnCar({ mine }: { mine: boolean }) {
+  useEffect(() => {
+    // ターン交代はウインカーの「カチッカチッ」で合図
+    playSe("winker");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const x = useSharedValue(0);
   useEffect(() => {
     x.value = withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) });
@@ -4370,6 +4382,8 @@ function ResultScores({
 /** 対戦入場の暗転ワイプ（左右の幕が開き、中央がひと筋光る） */
 function BattleEnterWipe({ onDone }: { onDone: () => void }) {
   useEffect(() => {
+    // 対戦の始まりはエンジン始動から
+    playSe("engine_start");
     const t = setTimeout(onDone, 760);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -4635,6 +4649,64 @@ function TurnCounter({ n }: { n: number }) {
 }
 
 /** 対戦開始の顔合わせ「あなた VS ◯◯」 */
+/** 教習所の信号機風の手番ランプ（青=あなた / 黄=選択待ち / 赤=相手） */
+function SignalLight({ state }: { state: "green" | "yellow" | "red" }) {
+  const lamp = (c: string, on: boolean) => (
+    <View
+      style={[
+        styles.signalLamp,
+        { backgroundColor: on ? c : "#3a4553" },
+        on && { shadowColor: c, shadowOpacity: 0.9, shadowRadius: 4, shadowOffset: { width: 0, height: 0 } },
+      ]}
+    />
+  );
+  return (
+    <View style={styles.signalBody}>
+      {lamp("#35c463", state === "green")}
+      {lamp("#f2c40f", state === "yellow")}
+      {lamp("#e5484d", state === "red")}
+    </View>
+  );
+}
+
+/** 検定の判子。「合格」は朱色、「再検定」は少し落ち着いた赤で、バンッと押される */
+function KenteiHanko({ pass }: { pass: boolean }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    playSe("hit");
+    haptic(pass ? "success" : "medium");
+    t.value = withDelay(
+      350,
+      withSequence(
+        withTiming(1.06, { duration: 190, easing: Easing.in(Easing.cubic) }),
+        withTiming(1, { duration: 120 })
+      )
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    opacity: Math.min(1, t.value * 3),
+    transform: [
+      { rotate: "-10deg" },
+      { scale: t.value === 0 ? 2.2 : 2.2 - t.value * 1.2 },
+    ],
+  }));
+  return (
+    <View style={styles.hankoWrap} pointerEvents="none">
+      <Animated.View
+        style={[styles.hanko, !pass && styles.hankoRetry, st]}
+      >
+        <Text style={[styles.hankoText, !pass && styles.hankoTextRetry]} allowFontScaling={false}>
+          {pass ? "合格" : "再検定"}
+        </Text>
+        <Text style={styles.hankoSub} allowFontScaling={false}>
+          KDS釧路自動車学校
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 function VsIntro({
   oppName,
   kyokanCardId,
@@ -5455,6 +5527,29 @@ const styles = StyleSheet.create({
     zIndex: 60,
   },
   autoLightNoteText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  signalBody: {
+    flexDirection: "row",
+    gap: 3,
+    backgroundColor: "#222c38",
+    borderRadius: 8,
+    paddingVertical: 3,
+    paddingHorizontal: 5,
+  },
+  signalLamp: { width: 9, height: 9, borderRadius: 5 },
+  hankoWrap: { alignItems: "center", marginTop: 2, marginBottom: -2 },
+  hanko: {
+    borderWidth: 3,
+    borderColor: "#d02020",
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    backgroundColor: "#d0202008",
+  },
+  hankoRetry: { borderColor: "#b04030", backgroundColor: "#b0403008" },
+  hankoText: { color: "#d02020", fontSize: 26, fontWeight: "900", letterSpacing: 6 },
+  hankoTextRetry: { color: "#b04030", letterSpacing: 2 },
+  hankoSub: { color: "#d02020aa", fontSize: 8, fontWeight: "700", marginTop: 1 },
   queueBadge: {
     position: "absolute",
     top: 4,

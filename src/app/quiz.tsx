@@ -12,6 +12,7 @@ import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { QUIZ_CATEGORIES, QUIZ_QUESTIONS, QuizCategory, QuizQuestion } from "@/data/quizQuestions";
+import { SignImage } from "@/components/SignImage";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { useQuizStore } from "@/store/quizStore";
 import { useMissionStore } from "@/store/missionStore";
@@ -53,6 +54,47 @@ function pickQuestions(cat: QuizCategory | "all"): QuizQuestion[] {
   return pool.slice(0, SET_SIZE);
 }
 
+const KENTEI_SIZE = 50;
+const KENTEI_TIME = 300; // 秒（5分）
+const KENTEI_PASS = 45; // 90点相当
+
+function pickKenteiQuestions(): QuizQuestion[] {
+  const pool = [...QUIZ_QUESTIONS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, KENTEI_SIZE);
+}
+
+/** 効果測定の合否判子（対戦の検定判子と同じ意匠） */
+function QuizHanko({ pass }: { pass: boolean }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    playSe("hit");
+    haptic(pass ? "success" : "medium");
+    t.value = withSequence(
+      withTiming(1.06, { duration: 190, easing: Easing.in(Easing.cubic) }),
+      withTiming(1, { duration: 120 })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    opacity: Math.min(1, t.value * 3),
+    transform: [{ rotate: "-10deg" }, { scale: t.value === 0 ? 2 : 2 - t.value }],
+  }));
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Animated.View style={[styles.hanko, !pass && styles.hankoRetry, st]}>
+        <Text style={[styles.hankoText, !pass && styles.hankoTextRetry]} allowFontScaling={false}>
+          {pass ? "合格" : "再検定"}
+        </Text>
+        <Text style={styles.hankoSub} allowFontScaling={false}>KDS釧路自動車学校</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function QuizScreen() {
   const router = useRouter();
   const quiz = useQuizStore();
@@ -63,14 +105,51 @@ export default function QuizScreen() {
   const [picked, setPicked] = useState<boolean | null>(null); // 直前に選んだ答え
   const [comboStreak, setComboStreak] = useState(0); // 連続正解数
   const [category, setCategory] = useState<QuizCategory | "all">("all");
+  // 効果測定モード（50問・5分・90点合格）
+  const [kentei, setKentei] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(KENTEI_TIME);
 
   const start = () => {
+    setKentei(false);
     setQuestions(pickQuestions(category));
     setIndex(0);
     setScore(0);
     setPicked(null);
     setComboStreak(0);
     setPhase("play");
+  };
+
+  const startKentei = () => {
+    setKentei(true);
+    setQuestions(pickKenteiQuestions());
+    setIndex(0);
+    setScore(0);
+    setPicked(null);
+    setComboStreak(0);
+    setTimeLeft(KENTEI_TIME);
+    setPhase("play");
+  };
+
+  // 効果測定の残り時間。0になったらその場で採点
+  useEffect(() => {
+    if (!kentei || phase !== "play") return;
+    const h = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(h);
+          finishKentei();
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kentei, phase]);
+
+  const finishKentei = () => {
+    setPhase("result");
+    setTimeout(evaluateAchievements, 400);
   };
 
   const q = questions[index];
@@ -95,6 +174,12 @@ export default function QuizScreen() {
   const next = () => {
     if (index + 1 >= questions.length) {
       const finalScore = score;
+      if (kentei) {
+        quiz.addKentei(finalScore, finalScore >= KENTEI_PASS);
+        if (finalScore >= KENTEI_PASS) playSe("win");
+        finishKentei();
+        return;
+      }
       quiz.addResult(finalScore, questions.length, category);
       useMissionStore.getState().report("quizScore", finalScore);
       if (finalScore >= questions.length) playSe("win");
@@ -145,6 +230,22 @@ export default function QuizScreen() {
             <Pressable style={[styles.wideButton, { backgroundColor: colors.primary }]} onPress={start}>
               <Text style={styles.wideButtonText}>スタート！</Text>
             </Pressable>
+            {/* 教習所の効果測定と同じ本試験形式 */}
+            <View style={styles.kenteiBox}>
+              <Text style={styles.kenteiTitle}>🖊 効果測定（本試験形式）</Text>
+              <Text style={styles.kenteiNote}>
+                全分野から50問・制限時間5分・45問（90点）で合格。{"\n"}
+                合格すると判子と称号がもらえます。
+              </Text>
+              {quiz.kenteiPlays > 0 && (
+                <Text style={styles.record}>
+                  挑戦 {quiz.kenteiPlays}回 ／ 合格 {quiz.kenteiPassed}回 ／ 最高 {quiz.kenteiBest}問
+                </Text>
+              )}
+              <Pressable style={[styles.wideButton, { backgroundColor: "#b0413e" }]} onPress={startKentei}>
+                <Text style={styles.wideButtonText}>効果測定を受ける</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
@@ -152,7 +253,17 @@ export default function QuizScreen() {
           <View style={styles.card}>
             <Text style={styles.progress}>
               第{index + 1}問 / {questions.length}　（正解 {score}）
+              {kentei && (
+                <Text style={[styles.timer, timeLeft <= 30 && { color: colors.danger }]}>
+                  　⏱ {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
+                </Text>
+              )}
             </Text>
+            {!!q.sign && (
+              <View style={styles.signWrap}>
+                <SignImage id={q.sign} />
+              </View>
+            )}
             <Text style={styles.question}>{q.q}</Text>
             {/* 回答の瞬間、大きな○×がドンとスタンプされる */}
             {picked !== null && <JudgeStamp key={index} correct={correct} />}
@@ -188,7 +299,28 @@ export default function QuizScreen() {
           </View>
         )}
 
-        {phase === "result" && (
+        {phase === "result" && kentei && (
+          <View style={styles.card}>
+            <Text style={styles.title}>効果測定 結果</Text>
+            <QuizHanko pass={score >= KENTEI_PASS} />
+            <Text style={styles.resultScore}>
+              {score} <Text style={styles.resultTotal}>/ {KENTEI_SIZE} 問正解（{score * 2}点）</Text>
+            </Text>
+            <Text style={styles.note}>
+              {score >= KENTEI_PASS
+                ? "合格おめでとう！本試験でもこの調子！"
+                : `合格まであと${KENTEI_PASS - score}問。解説を読み直してもう一度挑戦しよう！`}
+            </Text>
+            <Pressable style={[styles.wideButton, { backgroundColor: "#b0413e" }]} onPress={startKentei}>
+              <Text style={styles.wideButtonText}>もう一度受ける</Text>
+            </Pressable>
+            <Pressable style={[styles.wideButton, { backgroundColor: colors.textMuted }]} onPress={() => setPhase("start")}>
+              <Text style={styles.wideButtonText}>クイズトップへ</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {phase === "result" && !kentei && (
           <View style={styles.card}>
             <Text style={styles.title}>
               {score >= questions.length ? "🎉 全問正解！！" : score >= 7 ? "💮 なかなかの好成績！" : "📚 おつかれさま！"}
@@ -281,5 +413,29 @@ const styles = StyleSheet.create({
   resultScore: { fontSize: 40, fontWeight: "900", color: colors.primaryDark, textAlign: "center" },
   resultTotal: { fontSize: 18, color: colors.textMuted },
   wideButton: { paddingVertical: 14, borderRadius: radius.md, alignItems: "center" },
+  kenteiBox: {
+    borderWidth: 1.5,
+    borderColor: "#b0413e",
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 8,
+    backgroundColor: "#b0413e0d",
+  },
+  kenteiTitle: { fontSize: 15, fontWeight: "900", color: "#b0413e" },
+  kenteiNote: { fontSize: 12, lineHeight: 19, color: colors.text },
+  timer: { fontWeight: "900", color: colors.primaryDark },
+  signWrap: { alignItems: "center", paddingVertical: 4 },
+  hanko: {
+    borderWidth: 3,
+    borderColor: "#d02020",
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  hankoRetry: { borderColor: "#b04030" },
+  hankoText: { color: "#d02020", fontSize: 24, fontWeight: "900", letterSpacing: 5 },
+  hankoTextRetry: { color: "#b04030", letterSpacing: 2 },
+  hankoSub: { color: "#d02020aa", fontSize: 8, fontWeight: "700", marginTop: 1 },
   wideButtonText: { color: "#fff", fontWeight: "800", fontSize: 16 },
 });

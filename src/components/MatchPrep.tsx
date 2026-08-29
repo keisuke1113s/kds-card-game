@@ -182,7 +182,7 @@ export function MatchPrep({
             ))}
           </View>
           <Pressable onPress={onCancel} hitSlop={8} style={styles.cancel}>
-            <Text style={styles.cancelText}>やめる</Text>
+            <Text style={styles.cancelText}>🛑 やめる</Text>
           </Pressable>
         </Animated.View>
       )}

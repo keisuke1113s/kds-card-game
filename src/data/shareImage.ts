@@ -120,6 +120,99 @@ export async function shareResultImage(data: ResultShareData): Promise<boolean> 
   return true;
 }
 
+/** 免許証風プロフィールカードの画像を共有/ダウンロードする */
+export interface LicenseShareData {
+  name: string;
+  rankName: string;
+  rankEmoji: string;
+  since: string;
+  wins: number;
+  losses: number;
+  km: number;
+  gold: boolean;
+}
+
+export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
+  if (Platform.OS !== "web") return false;
+  const W = 1080;
+  const H = 680;
+  const canvas = document.createElement("canvas");
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return false;
+
+  // 台紙（薄い若草色＝免許証風）
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, "#f2f7ec");
+  grad.addColorStop(1, "#e2ecd8");
+  ctx.fillStyle = grad;
+  roundRect(ctx, 0, 0, W, H, 36);
+  ctx.fill();
+  ctx.strokeStyle = "#9db48a";
+  ctx.lineWidth = 6;
+  roundRect(ctx, 8, 8, W - 16, H - 16, 30);
+  ctx.stroke();
+
+  // 上部の帯（免許取得＝金 / それ以外＝緑）
+  ctx.fillStyle = d.gold ? "#c9a227" : "#3f7d3a";
+  roundRect(ctx, 40, 40, W - 80, 90, 14);
+  ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+  ctx.font = "900 52px 'Hiragino Sans', sans-serif";
+  ctx.fillText("KDSカードゲーム 教習生免許証", W / 2, 102);
+
+  ctx.textAlign = "left";
+  const L = 80;
+  ctx.fillStyle = "#1c2a1a";
+  ctx.font = "900 64px 'Hiragino Sans', sans-serif";
+  ctx.fillText(`氏名　${d.name || "教習生"}`, L, 230);
+  ctx.font = "700 40px 'Hiragino Sans', sans-serif";
+  ctx.fillText(`段階　${d.rankEmoji} ${d.rankName}`, L, 310);
+  ctx.fillText(`交付日　${d.since}`, L, 375);
+  ctx.fillText(`通算成績　${d.wins}勝 ${d.losses}敗`, L, 440);
+  ctx.fillText(`総走行距離　${d.km.toLocaleString()}km`, L, 505);
+
+  // 判子
+  ctx.strokeStyle = "#d02020";
+  ctx.lineWidth = 6;
+  roundRect(ctx, W - 250, 400, 170, 110, 12);
+  ctx.stroke();
+  ctx.fillStyle = "#d02020";
+  ctx.textAlign = "center";
+  ctx.font = "900 56px 'Hiragino Sans', sans-serif";
+  ctx.fillText("KDS", W - 165, 448);
+  ctx.font = "900 30px 'Hiragino Sans', sans-serif";
+  ctx.fillText("釧路自動車学校", W - 165, 490);
+
+  ctx.fillStyle = "#5a6b50";
+  ctx.font = "800 32px 'Hiragino Sans', sans-serif";
+  ctx.fillText("運転が楽しくなる!! KDS a GO! GO!", W / 2, 610);
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+  if (!blob) return false;
+  const file = new File([blob], "kds-license.png", { type: "image/png" });
+  const nav = navigator as Navigator & {
+    canShare?: (x: { files: File[] }) => boolean;
+    share?: (x: { files: File[]; title?: string }) => Promise<void>;
+  };
+  if (nav.canShare?.({ files: [file] }) && nav.share) {
+    try {
+      await nav.share({ files: [file], title: "KDSカードゲーム 教習生免許証" });
+      return true;
+    } catch {
+      return true;
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "kds-license.png";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  return true;
+}
+
 function roundRect(
   ctx: CanvasRenderingContext2D,
   x: number,

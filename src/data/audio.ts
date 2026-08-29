@@ -11,6 +11,7 @@ export const seAssets: Record<string, number> = {
   "comeback": require("@/assets/audio/comeback.wav"),
   "cymbal": require("@/assets/audio/cymbal.wav"),
   "draw": require("@/assets/audio/draw.wav"),
+  "engine_start": require("@/assets/audio/engine_start.wav"),
   "hit": require("@/assets/audio/hit.wav"),
   "janken": require("@/assets/audio/janken.wav"),
   "janken_lose": require("@/assets/audio/janken_lose.wav"),
@@ -21,6 +22,7 @@ export const seAssets: Record<string, number> = {
   "support": require("@/assets/audio/support.wav"),
   "tap": require("@/assets/audio/tap.wav"),
   "win": require("@/assets/audio/win.wav"),
+  "winker": require("@/assets/audio/winker.wav"),
 };
 
 export const bgmAssets: Record<string, number> = {

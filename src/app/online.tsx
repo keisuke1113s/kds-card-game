@@ -366,7 +366,7 @@ export default function OnlineScreen() {
                 quitGame();
               }}
             >
-              <Text style={styles.cancelText}>やめる</Text>
+              <Text style={styles.cancelText}>🛑 やめる</Text>
             </Pressable>
           </View>
         ) : (
@@ -518,7 +518,7 @@ export default function OnlineScreen() {
                 setNamePrompt(null);
               }}
             >
-              <Text style={styles.cancelText}>やめる</Text>
+              <Text style={styles.cancelText}>🛑 やめる</Text>
             </Pressable>
           </View>
         </View>

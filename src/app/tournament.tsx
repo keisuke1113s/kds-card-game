@@ -149,7 +149,7 @@ export default function TournamentScreen() {
           </Text>
         </Pressable>
         <Pressable style={styles.abandon} onPress={() => t.abandon()}>
-          <Text style={styles.abandonText}>トーナメントをやめる（最初からになります）</Text>
+          <Text style={styles.abandonText}>🛑 トーナメントをやめる（最初からになります）</Text>
         </Pressable>
       </ScrollView>
 

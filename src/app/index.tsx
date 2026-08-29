@@ -6,6 +6,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   FadeInDown,
+  ZoomIn,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -29,6 +30,9 @@ import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
 import { tipOfToday } from "@/data/tips";
 import { todayMissions, useMissionStore } from "@/store/missionStore";
+import { RANKS, lastMilestone, nextMilestone, rankIndexFor, totalDistanceKm, winsToNextRank } from "@/data/rank";
+import { useRankStore } from "@/store/rankStore";
+import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -127,11 +131,18 @@ function MissionCard() {
   return (
     <View style={[styles.missionCard, allDone && styles.missionCardDone]}>
       <Text style={styles.missionTitle}>
-        {allDone ? "🎉 今日のミッション 全達成！" : "🎯 今日のミッション"}
+        {allDone ? "📔 教習手帳　🎉 本日ぶん 全達成！" : "📔 教習手帳（今日のミッション）"}
       </Text>
       {missions.map((m) => (
         <View key={m.def.id} style={styles.missionRow}>
-          <Text style={styles.missionCheck}>{m.done ? "✅" : "⬜"}</Text>
+          {/* 教習原簿の確認印。達成するとハンコがドンと押される */}
+          <View style={styles.hankoSlot}>
+            {m.done && (
+              <Animated.View entering={ZoomIn.springify().damping(11)} style={styles.hankoMini}>
+                <Text style={styles.hankoMiniText} allowFontScaling={false}>済</Text>
+              </Animated.View>
+            )}
+          </View>
           <Text style={[styles.missionLabel, m.done && styles.missionLabelDone]}>
             {m.def.label}
           </Text>
@@ -262,6 +273,7 @@ export default function HomeScreen() {
   // カードファンをタップすると1枚めくれる遊び
   const [peek, setPeek] = useState<{ cardId: string; key: number } | null>(null);
 
+
   // スクロールに合わせて背景イラストをわずかに視差で動かす（奥行き感）
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((ev) => {
@@ -287,6 +299,38 @@ export default function HomeScreen() {
 
   const activeDeck = resolveActiveDeck(deckState);
   const record = useRecordStore();
+
+  // 進級システム（通算勝利数で段階が上がる）
+  const rankIdx = rankIndexFor(record.wins);
+  const rank = RANKS[rankIdx];
+  const nextRank = winsToNextRank(record.wins);
+  const seenRankIndex = useRankStore((s) => s.seenRankIndex);
+  const setSeenRankIndex = useRankStore((s) => s.setSeenRankIndex);
+  const [rankUpShow, setRankUpShow] = useState(false);
+  useEffect(() => {
+    if (rankIdx > seenRankIndex) {
+      const t = setTimeout(() => {
+        playSe("achievement");
+        haptic("success");
+        setRankUpShow(true);
+      }, 600);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rankIdx, seenRankIndex]);
+
+  // 総走行距離（対戦数から換算）とご当地マイルストーン
+  const km = totalDistanceKm(record.wins + record.losses);
+  const nextDest = nextMilestone(km);
+  const lastDest = lastMilestone(km);
+
+  // 今日の1問（豆知識の下から挑戦できるミニクイズ）
+  const dayIndex = Math.floor(
+    (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
+  );
+  const dailyQ = QUIZ_QUESTIONS[dayIndex % QUIZ_QUESTIONS.length];
+  const [dailyQOpen, setDailyQOpen] = useState(false);
+  const [dailyQAnswer, setDailyQAnswer] = useState<boolean | null>(null);
   const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
 
   // コレクション達成ランク（22/44/64枚の節目で記章がグレードアップ）
@@ -416,11 +460,33 @@ export default function HomeScreen() {
 
           {/* 通算成績（1戦でもしたら出す） */}
           {record.wins + record.losses > 0 && (
-            <Text style={styles.recordLine}>
-              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
-              <Text style={styles.recordLose}>{record.losses}敗</Text>
-              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
-            </Text>
+            <View style={styles.recordBlock}>
+              <Text style={styles.recordLine}>
+                通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+                <Text style={styles.recordLose}>{record.losses}敗</Text>
+                {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
+              </Text>
+              {/* 教習の進級段階と総走行距離 */}
+              <View style={styles.rankRow}>
+                <View style={styles.rankChip}>
+                  <Text style={styles.rankChipText}>
+                    {rank.emoji} {rank.name}
+                  </Text>
+                </View>
+                {nextRank && (
+                  <Text style={styles.rankNext}>
+                    あと{nextRank.remain}勝で「{nextRank.next.name}」
+                  </Text>
+                )}
+              </View>
+              <Text style={styles.odoText}>
+                🚗 総走行距離 {km.toLocaleString()}km
+                {nextDest
+                  ? `（${nextDest.label}まであと${(nextDest.km - km).toLocaleString()}km）`
+                  : "（日本縦断 達成！）"}
+                {lastDest && nextDest ? `　✅ ${lastDest.label}` : ""}
+              </Text>
+            </View>
           )}
           {/* コレクション達成の記章（22/44/64枚の節目でランクアップ） */}
           {collectionRank && (
@@ -439,6 +505,16 @@ export default function HomeScreen() {
           <View style={styles.tipCard}>
             <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
             <Text style={styles.tipText}>{tipOfToday()}</Text>
+            <Pressable
+              style={styles.dailyQButton}
+              onPress={() => {
+                haptic("light");
+                setDailyQAnswer(null);
+                setDailyQOpen(true);
+              }}
+            >
+              <Text style={styles.dailyQButtonText}>📝 今日の1問に挑戦</Text>
+            </Pressable>
           </View>
           <AppButton
             label="はじめての方へ（遊び方）"
@@ -493,11 +569,25 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/online")}
           />
+          <View style={styles.row}>
+            <AppButton
+              label="📝 学科クイズ"
+              custom={{ bg: brand.green }}
+              style={styles.halfTall}
+              onPress={() => router.push("/quiz")}
+            />
+            <AppButton
+              label="⚠️ 危険予測"
+              custom={{ bg: "#e8590c" }}
+              style={styles.halfTall}
+              onPress={() => router.push("/kyt")}
+            />
+          </View>
           <AppButton
-            label="📝 学科クイズ"
-            custom={{ bg: brand.green }}
+            label="🪪 教習生免許証（プロフィール）"
+            tone="ghost"
             fullWidth
-            onPress={() => router.push("/quiz")}
+            onPress={() => router.push("/license")}
           />
           <View style={styles.row}>
             <AppButton
@@ -567,6 +657,85 @@ export default function HomeScreen() {
         {/* ランダムマッチの相手待ちをやめて戻ってきたときの全画面のお知らせ */}
         {queueCancelledNotice && (
           <QueueCancelledOverlay onClose={clearQueueCancelledNotice} />
+        )}
+
+        {/* 進級おめでとう（仮免交付などの認定書風） */}
+        {rankUpShow && (
+          <Pressable
+            style={styles.rankUpLayer}
+            onPress={() => {
+              setSeenRankIndex(rankIdx);
+              setRankUpShow(false);
+            }}
+          >
+            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.rankUpCard}>
+              <Text style={styles.rankUpSmall}>KDS釧路自動車学校</Text>
+              <Text style={styles.rankUpTitle}>進級おめでとう！</Text>
+              <Text style={styles.rankUpRank}>
+                {rank.emoji} {rank.name}
+              </Text>
+              <Text style={styles.rankUpMessage}>{rank.message}</Text>
+              <View style={styles.rankUpHanko}>
+                <Text style={styles.rankUpHankoText}>認定</Text>
+              </View>
+              <Text style={styles.rankUpClose}>タップで閉じる</Text>
+            </Animated.View>
+          </Pressable>
+        )}
+
+        {/* 今日の1問（豆知識から） */}
+        {dailyQOpen && (
+          <Pressable style={styles.rankUpLayer} onPress={() => setDailyQOpen(false)}>
+            <Pressable style={styles.dailyQCard} onPress={() => {}}>
+              <Text style={styles.dailyQTitle}>📝 今日の1問</Text>
+              <Text style={styles.dailyQCat}>{dailyQ.cat}</Text>
+              <Text style={styles.dailyQText}>{dailyQ.q}</Text>
+              {dailyQAnswer === null ? (
+                <View style={styles.dailyQRow}>
+                  <Pressable
+                    style={[styles.dailyQChoice, { borderColor: brand.blue }]}
+                    onPress={() => {
+                      haptic("light");
+                      playSe(dailyQ.answer === true ? "battle_win" : "battle_lose");
+                      setDailyQAnswer(true);
+                    }}
+                  >
+                    <Text style={[styles.dailyQChoiceText, { color: brand.blue }]}>⭕ 正しい</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.dailyQChoice, { borderColor: brand.red }]}
+                    onPress={() => {
+                      haptic("light");
+                      playSe(dailyQ.answer === false ? "battle_win" : "battle_lose");
+                      setDailyQAnswer(false);
+                    }}
+                  >
+                    <Text style={[styles.dailyQChoiceText, { color: brand.red }]}>❌ 誤り</Text>
+                  </Pressable>
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.dailyQResult}>
+                    {dailyQAnswer === dailyQ.answer ? "🎉 正解！" : "😢 残念…"}
+                    （答え: {dailyQ.answer ? "⭕ 正しい" : "❌ 誤り"}）
+                  </Text>
+                  <Text style={styles.dailyQNote}>{dailyQ.note}</Text>
+                  <AppButton
+                    label="もっと解く（学科クイズへ）"
+                    tone="ghost"
+                    fullWidth
+                    onPress={() => {
+                      setDailyQOpen(false);
+                      router.push("/quiz");
+                    }}
+                  />
+                </>
+              )}
+              <Pressable onPress={() => setDailyQOpen(false)} hitSlop={8}>
+                <Text style={styles.dailyQClose}>閉じる</Text>
+              </Pressable>
+            </Pressable>
+          </Pressable>
         )}
         {/* 季節の環境演出（桜・雪・紅葉・きらめき） */}
         <SeasonalParticles />
@@ -791,6 +960,102 @@ const styles = StyleSheet.create({
   },
   // 2つ並べたボタンの高さを揃える（折り返しの有無に関係なく同じ固定高さにする）
   halfTall: { flex: 1, height: 74, justifyContent: "center", paddingVertical: 0 },
+  recordBlock: { alignItems: "center", gap: 4 },
+  rankRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
+  rankChip: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: brand.blue,
+    borderRadius: 12,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  rankChipText: { fontSize: 12, fontWeight: "800", color: brand.blue },
+  rankNext: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
+  odoText: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
+  rankUpLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#000000a8",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 100,
+    padding: 24,
+  },
+  rankUpCard: {
+    backgroundColor: "#fffdf4",
+    borderWidth: 3,
+    borderColor: "#c9a227",
+    borderRadius: 12,
+    paddingVertical: 22,
+    paddingHorizontal: 26,
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    maxWidth: 340,
+  },
+  rankUpSmall: { fontSize: 11, fontWeight: "700", color: "#8a7a30", letterSpacing: 2 },
+  rankUpTitle: { fontSize: 20, fontWeight: "900", color: "#5a4a10" },
+  rankUpRank: { fontSize: 30, fontWeight: "900", color: "#1c3a5e", marginVertical: 4 },
+  rankUpMessage: { fontSize: 13, color: "#5a4a10", textAlign: "center", lineHeight: 20 },
+  rankUpHanko: {
+    borderWidth: 2.5,
+    borderColor: "#d02020",
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    transform: [{ rotate: "-8deg" }],
+    marginTop: 4,
+  },
+  rankUpHankoText: { color: "#d02020", fontSize: 16, fontWeight: "900", letterSpacing: 4 },
+  rankUpClose: { fontSize: 11, color: "#8a7a30", marginTop: 6 },
+  dailyQCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 18,
+    gap: 10,
+    width: "100%",
+    maxWidth: 360,
+    borderWidth: 2,
+    borderColor: colors.border,
+  },
+  dailyQTitle: { fontSize: 16, fontWeight: "900", color: colors.text, textAlign: "center" },
+  dailyQCat: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
+  dailyQText: { fontSize: 14, lineHeight: 22, color: colors.text },
+  dailyQRow: { flexDirection: "row", gap: 10 },
+  dailyQChoice: {
+    flex: 1,
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  dailyQChoiceText: { fontSize: 15, fontWeight: "900" },
+  dailyQResult: { fontSize: 15, fontWeight: "900", color: colors.text, textAlign: "center" },
+  dailyQNote: { fontSize: 12, lineHeight: 19, color: colors.textMuted },
+  dailyQClose: { fontSize: 12, color: colors.textMuted, textAlign: "center", padding: 4 },
+  hankoSlot: { width: 26, height: 26, alignItems: "center", justifyContent: "center" },
+  hankoMini: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#d02020",
+    alignItems: "center",
+    justifyContent: "center",
+    transform: [{ rotate: "-12deg" }],
+  },
+  hankoMiniText: { color: "#d02020", fontSize: 11, fontWeight: "900" },
+  dailyQButton: {
+    alignSelf: "flex-start",
+    backgroundColor: "#fff",
+    borderWidth: 1.5,
+    borderColor: "#c9a227",
+    borderRadius: 10,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginTop: 2,
+  },
+  dailyQButtonText: { fontSize: 12, fontWeight: "800", color: "#8a6d00" },
   missionCard: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,

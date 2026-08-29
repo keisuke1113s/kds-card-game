@@ -180,6 +180,8 @@ export default function RootLayout() {
         <Stack.Screen name="quiz" options={{ title: "学科クイズ" }} />
         <Stack.Screen name="kyokan" options={{ title: "インストラクターに挑戦" }} />
         <Stack.Screen name="tournament" options={{ title: "トーナメント" }} />
+        <Stack.Screen name="kyt" options={{ title: "危険予測トレーニング" }} />
+        <Stack.Screen name="license" options={{ title: "教習生免許証" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
           name="settings"

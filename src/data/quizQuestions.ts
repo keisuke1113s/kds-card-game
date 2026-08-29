@@ -9,6 +9,8 @@ export interface QuizQuestion {
   note: string;
   /** 分野 */
   cat: QuizCategory;
+  /** 標識画像つき問題（SignImage の id） */
+  sign?: string;
 }
 
 export type QuizCategory = "標識・信号" | "交差点・優先" | "駐停車" | "高速道路" | "安全の心得";
@@ -22,6 +24,17 @@ export const QUIZ_CATEGORIES: QuizCategory[] = [
 ];
 
 export const QUIZ_QUESTIONS: QuizQuestion[] = [
+  // ---- 標識・信号（画像つき） ----
+  { cat: "標識・信号", sign: "tomare", q: "この標識のある場所では、徐行すれば止まらずに通過してもよい。", answer: false, note: "「止まれ」は一時停止の標識。必ず停止して安全確認します。" },
+  { cat: "標識・信号", sign: "jokou", q: "この標識は「徐行」を表し、すぐ停止できる速度で進まなければならない。", answer: true, note: "徐行はおおむね時速10km以下が目安です。" },
+  { cat: "標識・信号", sign: "shinnyu_kinshi", q: "この標識は「車両進入禁止」で、この方向から入ってはいけない。", answer: true, note: "一方通行の出口などにあります。逆走防止の大事な標識です。" },
+  { cat: "標識・信号", sign: "chusha_kinshi", q: "この標識のある場所では、駐車も停車もしてはいけない。", answer: false, note: "斜線1本は「駐車禁止」。停車は可能です（斜線2本の「駐停車禁止」と区別）。" },
+  { cat: "標識・信号", sign: "chuteisha_kinshi", q: "この標識は「駐停車禁止」で、駐車も停車もしてはいけない。", answer: true, note: "斜線が2本（バツ）なら駐車も停車も禁止です。" },
+  { cat: "標識・信号", sign: "saikou_50", q: "この標識は「最低速度50km/h」を表す。", answer: false, note: "これは最高速度の標識。50km/hを超えてはいけません（最低速度は数字の下に横線）。" },
+  { cat: "標識・信号", sign: "ippou_tsukou", q: "この標識は「一方通行」を表し、矢印と反対の方向へは進めない。", answer: true, note: "出口側には「車両進入禁止」が立っています。" },
+  { cat: "標識・信号", sign: "sharyou_tsukoudome", q: "この標識は「車両通行止め」で、車は通行できないが歩行者は通れる。", answer: true, note: "車両（自動車・原付・軽車両）は通行不可。歩行者は通れます。" },
+  { cat: "標識・信号", sign: "hokousha_senyou", q: "この標識のある道路は、車も徐行すれば通行できる。", answer: false, note: "「歩行者専用」。許可を受けた車以外は通行できません。" },
+  { cat: "標識・信号", sign: "jitensha_hokousha", q: "この標識のある道路は、原動機付自転車も通行できる。", answer: false, note: "「自転車及び歩行者専用」。原付は通行できません。" },
   // ---- 標識・信号 ----
   { cat: "標識・信号", q: "「一時停止」の標識がある場所では、停止線の直前で必ず止まらなければならない。", answer: true, note: "停止線があるときはその直前で確実に止まります。" },
   { cat: "標識・信号", q: "信号機の黄色の灯火は「注意して進め」という意味である。", answer: false, note: "黄色は原則「止まれ」。停止位置で安全に止まれないときに限り進めます。" },

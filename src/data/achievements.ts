@@ -19,6 +19,8 @@ export interface AchievementInput {
   /** 学科クイズの成績 */
   quizPlays: number;
   quizPerfects: number;
+  kenteiPassed: number;
+  kytCleared: boolean;
   /** 「インストラクターに挑戦」の対象人数 */
   totalInstructors: number;
   /** デイリーミッションを全達成したことがあるか */
@@ -81,6 +83,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "quiz1", emoji: "📝", name: "学科クイズに挑戦", desc: "学科クイズを1回プレイする", check: (s) => s.quizPlays >= 1 },
   { id: "quizPerfect", emoji: "💯", name: "学科マスター", desc: "学科クイズで全問正解する", title: "学科マスター", check: (s) => s.quizPerfects >= 1 },
   { id: "quiz10", emoji: "📚", name: "勉強熱心", desc: "学科クイズを10回プレイする", title: "勉強熱心", check: (s) => s.quizPlays >= 10 },
+  { id: "kenteiPass", emoji: "🖊", name: "効果測定 合格", desc: "効果測定（50問）で90点以上をとる", title: "本試験いける！", check: (s) => s.kenteiPassed >= 1 },
+  { id: "kytClear", emoji: "⚠️", name: "危険予測マスター", desc: "危険予測トレーニングを全問クリアする", title: "先読みドライバー", check: (s) => s.kytCleared },
   // ---- インストラクターに挑戦 ----
   { id: "kyokanOkumura", emoji: "🥋", name: "奥村を倒す", desc: "「インストラクターに挑戦」で奥村に勝つ", title: "鉄壁くずし", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_okumura") },
   { id: "kyokanShigaya", emoji: "🛡️", name: "志萱を倒す", desc: "「インストラクターに挑戦」で志萱に勝つ", title: "サポート知らず", check: (s) => winsOf(s.history).some((r) => r.kyokan === "i_shigaya") },

@@ -6,6 +6,7 @@ import { allCards } from "@/data/cards";
 import { useRecordStore } from "@/store/recordStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { useQuizStore } from "@/store/quizStore";
+import { useKytStore } from "@/store/kytStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 
@@ -70,6 +71,8 @@ export function evaluateAchievements(): void {
     totalCards: allCards.length,
     quizPlays: useQuizStore.getState().plays,
     quizPerfects: useQuizStore.getState().perfects,
+    kenteiPassed: useQuizStore.getState().kenteiPassed,
+    kytCleared: useKytStore.getState().cleared,
     totalInstructors: allCards.filter((c) => c.type === "instructor").length,
     dailyAllDone: useMissionStore.getState().everAllDone,
     tournamentWins: useTournamentStore.getState().champions,
