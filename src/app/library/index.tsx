@@ -18,6 +18,8 @@ import { LockedCard } from "@/components/LockedCard";
 import { allCards, getCard } from "@/data/cards";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { colors } from "@/theme";
+import { useLineStore } from "@/store/lineStore";
+import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { ScreenEnter } from "@/components/ScreenEnter";
 
 const sections: { label: string; type: string }[] = [
@@ -43,6 +45,9 @@ const FILTERS: { key: LibraryFilter; label: string }[] = [
 ];
 
 export default function LibraryScreen() {
+  const lineLinkedLib = useLineStore((s) => s.linked);
+  const lineLock = LINE_GATE_ENABLED && !lineLinkedLib;
+
   const router = useRouter();
   const [selected, setSelected] = useState<string | null>(null);
   const [lockedTapped, setLockedTapped] = useState<string | null>(null);
@@ -119,11 +124,13 @@ export default function LibraryScreen() {
               実物のKDSカードのQRコードを読み込むと、そのカードが使えるようになるよ
             </Text>
             {/* 実カード配布の案内（ホームと同じトーンで目立たせる） */}
+            {!lineLock && (
             <View style={styles.promoBadge}>
               <Text style={styles.promoText}>
                 🎁 KDSに入校すると教習毎にトレーディングカードを1枚もらえるよ！
               </Text>
             </View>
+            )}
             {/* 絞り込み */}
             <View style={styles.filterRow}>
               {FILTERS.map((f) => (

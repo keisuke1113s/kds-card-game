@@ -461,12 +461,27 @@ export default function HomeScreen() {
               <Text style={styles.catchDark}>なる!!</Text>
             </OutlinedText>
             <OutlinedText stroke={4} style={styles.title}>トレーディングカードゲーム</OutlinedText>
-            {/* 実カード配布の案内 */}
-            <View style={styles.realCardNote}>
-              <Text style={styles.realCardNoteText}>
-                KDSに入校したら、本物のカードをもらえるよ♪
-              </Text>
-            </View>
+            {/* 実カード配布の案内（LINE連携後に表示） */}
+            {!lineLock && (
+              <View style={styles.realCardNote}>
+                <Text style={styles.realCardNoteText}>
+                  KDSに入校したら、本物のカードをもらえるよ♪
+                </Text>
+              </View>
+            )}
+            {/* LINE連携の状態（未連携なら解放の案内、連携済みなら小さく表示） */}
+            {LINE_GATE_ENABLED && (
+              <Pressable
+                style={[styles.lineBanner, lineLinked && styles.lineBannerDone]}
+                onPress={() => router.push("/line")}
+              >
+                <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
+                  {lineLinked
+                    ? "💚 LINE連携ずみ（すべての機能が使えます）"
+                    : "💚 LINE連携（無料）で 対戦・自動車学校メニューを解放！"}
+                </Text>
+              </Pressable>
+            )}
             <View style={styles.goalRow}>
               <GoalChip label="学科" value="10時限" color={colors.primary} />
               <GoalChip label="技能" value="19時限" color={colors.success} />
@@ -607,20 +622,6 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push(lineLock ? "/line" : "/online")}
           />
-          {/* LINE連携（任意）。未連携なら解放の案内、連携済みなら小さく表示 */}
-          {LINE_GATE_ENABLED && (
-            <Pressable
-              style={[styles.lineBanner, lineLinked && styles.lineBannerDone]}
-              onPress={() => router.push("/line")}
-            >
-              <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
-                {lineLinked
-                  ? "💚 LINE連携ずみ（すべての機能が使えます）"
-                  : "💚 LINE連携（無料）で 対戦・自動車学校メニューを解放！"}
-              </Text>
-            </Pressable>
-          )}
-
           {/* 自動車学校メニュー（学び系をひとつの枠にまとめる） */}
           <View style={styles.schoolGroup}>
             <View style={styles.cpuGroupHeader}>
