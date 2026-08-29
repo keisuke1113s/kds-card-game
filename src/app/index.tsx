@@ -417,43 +417,48 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/tutorial")}
           />
-          <AppButton
-            label="CPU対戦"
-            iconNode={<CrossedCards />}
-            tone="primary"
-            size="lg"
-            feel="medium"
-            fullWidth
-            onPress={() => router.push("/prematch")}
-          />
-          <View style={styles.matchupCard}>
-            <Text style={styles.matchupSide} numberOfLines={1}>
-              {activeDeck.name}
-            </Text>
-            <Text style={styles.matchupVs}>VS</Text>
-            <Text style={styles.matchupSide} numberOfLines={1}>
-              {opponentDeck.name}
-            </Text>
-          </View>
-          <View style={styles.row}>
+          {/* CPU対戦のくくり（ひとりで遊べるモードをひとつの枠にまとめる） */}
+          <View style={styles.cpuGroup}>
+            <View style={styles.cpuGroupHeader}>
+              <Text style={styles.cpuGroupTitle}>🤖 CPU対戦モード</Text>
+              <Text style={styles.cpuGroupNote}>ひとりで遊べる</Text>
+            </View>
+            <AppButton
+              label="CPU対戦"
+              iconNode={<CrossedCards />}
+              tone="primary"
+              size="lg"
+              feel="medium"
+              fullWidth
+              onPress={() => router.push("/prematch")}
+            />
+            <View style={styles.matchupCard}>
+              <Text style={styles.matchupSide} numberOfLines={1}>
+                {activeDeck.name}
+              </Text>
+              <Text style={styles.matchupVs}>VS</Text>
+              <Text style={styles.matchupSide} numberOfLines={1}>
+                {opponentDeck.name}
+              </Text>
+            </View>
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
               tone="ghost"
-              style={styles.halfTall}
+              fullWidth
               onPress={() => router.push("/kyokan")}
             />
             <AppButton
-              label="📝 学科クイズ"
+              label="🏆 トーナメント（4連戦）"
               tone="ghost"
-              style={styles.halfTall}
-              onPress={() => router.push("/quiz")}
+              fullWidth
+              onPress={() => router.push("/tournament")}
             />
           </View>
           <AppButton
-            label="🏆 トーナメント（4連戦を勝ち抜け！）"
+            label="📝 学科クイズ"
             tone="ghost"
             fullWidth
-            onPress={() => router.push("/tournament")}
+            onPress={() => router.push("/quiz")}
           />
           <AppButton
             label="オンライン対戦"
@@ -906,6 +911,22 @@ const styles = StyleSheet.create({
   },
   crossLeft: { transform: [{ translateX: -8 }, { rotate: "-18deg" }] },
   crossRight: { transform: [{ translateX: 8 }, { rotate: "18deg" }] },
+  cpuGroup: {
+    borderWidth: 1.5,
+    borderColor: colors.primaryLight,
+    backgroundColor: colors.primary + "14",
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  cpuGroupHeader: {
+    flexDirection: "row",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.xs,
+  },
+  cpuGroupTitle: { fontSize: 13, fontWeight: "800", color: colors.primary },
+  cpuGroupNote: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
   matchupCard: {
     flexDirection: "row",
     alignItems: "center",
