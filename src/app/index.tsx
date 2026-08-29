@@ -528,9 +528,10 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
-          {/* 今日のデイリーミッション */}
-          <MissionCard />
-          {/* 今日の安全運転豆知識（日替わり） */}
+          {/* 今日のデイリーミッション（教習手帳）。LINE連携後に表示 */}
+          {!lineLock && <MissionCard />}
+          {/* 今日の安全運転豆知識（日替わり）。LINE連携後に表示 */}
+          {!lineLock && (
           <View style={styles.tipCard}>
             <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
             <Text style={styles.tipText}>{tipOfToday()}</Text>
@@ -552,6 +553,7 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           </View>
+          )}
           <AppButton
             label="はじめての方へ（遊び方）"
             icon="📖"
@@ -654,12 +656,14 @@ export default function HomeScreen() {
               />
             </View>
           </View>
-          <AppButton
-            label="🪪 教習生免許証（プロフィール）"
-            custom={{ bg: brand.coral }}
-            fullWidth
-            onPress={() => router.push("/license")}
-          />
+          {!lineLock && (
+            <AppButton
+              label="🪪 教習生免許証（プロフィール）"
+              custom={{ bg: brand.coral }}
+              fullWidth
+              onPress={() => router.push("/license")}
+            />
+          )}
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
