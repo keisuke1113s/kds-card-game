@@ -561,6 +561,15 @@ export default function BattleScreen() {
   // 対戦入場の暗転ワイプ → 顔合わせ「VS」画面
   const [enterWipe, setEnterWipe] = useState(true);
   const [vsIntro, setVsIntro] = useState(false);
+  // 開始演出は「暗転 → 手札を配る → VS → 手札の確認」の順に流す
+  const wipeDoneRef = useRef(false);
+  const dealDoneRef = useRef(false);
+  const vsShownRef = useRef(false);
+  const showVsIntro = useCallback(() => {
+    if (vsShownRef.current || replayActive) return;
+    vsShownRef.current = true;
+    setVsIntro(true);
+  }, [replayActive]);
   useEffect(() => {
     const adds: FlyItem[] = [];
     for (const e of lastEvents) {
@@ -1753,7 +1762,11 @@ export default function BattleScreen() {
         <OpeningDeal
           key={dealing.key}
           cards={dealing.cards}
-          onDone={() => setDealing(null)}
+          onDone={() => {
+            setDealing(null);
+            dealDoneRef.current = true;
+            if (wipeDoneRef.current) showVsIntro();
+          }}
         />
       )}
 
@@ -1944,7 +1957,14 @@ export default function BattleScreen() {
         <BattleEnterWipe
           onDone={() => {
             setEnterWipe(false);
-            if (!replayActive) setVsIntro(true);
+            wipeDoneRef.current = true;
+            // 手札を配る演出が控えている場合はその完了を待ってからVSを出す
+            const dealingExpected =
+              !dealDoneRef.current &&
+              (dealing !== null ||
+                view === null ||
+                (view.phase.type === "mulligan" && !view.self.mulliganDecided));
+            if (!dealingExpected) showVsIntro();
           }}
         />
       )}
@@ -2013,7 +2033,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {view.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !autoPlay && (
+      {view.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !enterWipe && !vsIntro && !autoPlay && (
         <Overlay title="この手札で始めますか？">
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
