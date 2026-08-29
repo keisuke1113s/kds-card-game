@@ -428,6 +428,46 @@ export default function BattleScreen() {
   const reachOnRef = useRef(false);
   reachOnRef.current = reachOn;
 
+  // カードの移動演出（出す・引く・退場・サポート叩きつけ）
+  const [flyFx, setFlyFx] = useState<FlyItem[]>([]);
+  const flySeq = useRef(0);
+  // 効果を発動したカードの金フラッシュ（cardId単位）
+  const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
+  // 対戦入場の暗転ワイプ
+  const [enterWipe, setEnterWipe] = useState(true);
+  useEffect(() => {
+    const adds: FlyItem[] = [];
+    for (const e of lastEvents) {
+      if (e.type === "instructorPlayed") {
+        adds.push({ key: ++flySeq.current, kind: "play", cardId: e.cardId, mine: e.player === ME });
+      } else if (e.type === "supportPlayed") {
+        adds.push({ key: ++flySeq.current, kind: "slam", cardId: e.cardId, mine: e.player === ME });
+      } else if (e.type === "cardDrawn" && e.player !== ME) {
+        // 自分のドローは既存の手札演出があるため、相手のぶんだけ飛ばす
+        adds.push({
+          key: ++flySeq.current,
+          kind: "draw",
+          cardId: e.cardId ?? "cardback",
+          mine: false,
+        });
+      } else if (e.type === "instructorRemoved") {
+        adds.push({ key: ++flySeq.current, kind: "remove", cardId: e.cardId, mine: e.player === ME });
+      }
+    }
+    if (adds.length > 0) setFlyFx((q) => [...q.slice(-4), ...adds]);
+    // 効果発動カードの金フラッシュ
+    const flashed = lastEvents
+      .filter((e) => e.type === "abilityActivated")
+      .map((e) => (e as { cardId: string }).cardId);
+    if (flashed.length > 0) {
+      setFlashIds(new Set(flashed));
+      const t = setTimeout(() => setFlashIds(new Set()), 800);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+  const removeFly = (key: number) => setFlyFx((q) => q.filter((f) => f.key !== key));
+
   // CPUの口上セリフ（CPU対戦のみ。リプレイ観戦では出さない）
   const [cpuSpeech, setCpuSpeech] = useState<string | null>(null);
   const speechTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -874,13 +914,17 @@ export default function BattleScreen() {
   }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
 
-  // 決着時のCPUのひとこと（勝てば称賛、負ければ励まし）
+  // 決着時のCPUのひとこと（勝てば称賛、負ければ励まし）＋勝利の3連振動
   useEffect(() => {
     if (!finishedOutcome) return;
     say(
       finishedOutcome === "win" ? CPU_LINES.cpuLose : CPU_LINES.cpuWin,
       finishedOutcome === "win" ? "cpuLose" : "cpuWin"
     );
+    if (finishedOutcome === "win") {
+      const ts = [0, 180, 360].map((ms) => setTimeout(() => haptic("success"), ms));
+      return () => ts.forEach(clearTimeout);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [finishedOutcome]);
 
@@ -1142,6 +1186,7 @@ export default function BattleScreen() {
         <TrackBar label="学科" kind="academic" value={shownTracks?.oa ?? cpu.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" kind="skill" value={shownTracks?.os ?? cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
+          flashIds={flashIds}
           view={view}
           player={OPP}
           field={cpu.field}
@@ -1333,6 +1378,7 @@ export default function BattleScreen() {
       {/* ===== 自分エリア ===== */}
       <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
         <FieldRow
+          flashIds={flashIds}
           view={view}
           player={ME}
           field={me.field}
@@ -1411,8 +1457,16 @@ export default function BattleScreen() {
         >
           {me.hand.map((cardId, i) => {
             const playable = handActionFor(i) !== null;
+            // 手札をわずかに扇状に並べる（中央が高く、端がわずかに沈んで傾く）
+            const mid = (me.hand.length - 1) / 2;
+            const fanRot = (i - mid) * 2.2;
+            const fanDrop = Math.abs(i - mid) * 2.5;
             return (
-              <Animated.View key={`${cardId}-${i}`} entering={FadeInDown.duration(250)}>
+              <Animated.View
+                key={`${cardId}-${i}`}
+                entering={FadeInDown.duration(250)}
+                style={{ transform: [{ rotate: `${fanRot}deg` }, { translateY: fanDrop }] }}
+              >
                 {/* 出せるカードはゆっくり浮き沈みして、目で追えるようにする */}
                 <FloatIdle active={playable} offset={i}>
                   <View style={playable ? styles.playableCard : undefined}>
@@ -1544,6 +1598,7 @@ export default function BattleScreen() {
               ]}
             >
               <Text style={styles.turnFxText}>{currentAnn.text}</Text>
+              <TurnCar mine={currentAnn.mine ?? false} />
             </Animated.View>
           ) : currentAnn.cardId ? (
             <Animated.View
@@ -1634,6 +1689,12 @@ export default function BattleScreen() {
 
       {/* リーチ演出（残り2時限以下になった瞬間の全画面カットイン） */}
       {reachFx && <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />}
+      {/* カードの移動演出（出す・引く・退場・サポート） */}
+      {flyFx.map((f) => (
+        <FlyCard key={f.key} item={f} onDone={removeFly} />
+      ))}
+      {/* 対戦入場の暗転ワイプ */}
+      {enterWipe && <BattleEnterWipe onDone={() => setEnterWipe(false)} />}
       {/* リーチ中は画面のフチが赤く脈動する */}
       {reachOn && view.phase.type !== "finished" && <ReachVignette />}
       {/* 進捗の折返し到達のお祝い */}
@@ -2021,6 +2082,14 @@ export default function BattleScreen() {
                   : "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : `${oppLabel}が先に教習を修了しました`}
           </Text>
+          {/* 学科・技能の到達度をカウントアップで見せる */}
+          <ResultScores
+            meA={me.academic}
+            meS={me.skill}
+            opA={cpu.academic}
+            opS={cpu.skill}
+            oppLabelText={oppLabel}
+          />
           {/* 連勝の勢いを見せる（3連勝で炎、5連勝で金） */}
           {view.phase.winner === ME && record.streak >= 3 && (
             <View
@@ -2187,6 +2256,7 @@ function FieldRow({
   highlightColor,
   selectedUid,
   onPress,
+  flashIds,
 }: {
   view: PlayerView;
   player: 0 | 1;
@@ -2195,6 +2265,8 @@ function FieldRow({
   highlightColor: string;
   selectedUid?: string | null;
   onPress: (uid: string) => void;
+  /** 効果を発動して金色に光らせるカードID */
+  flashIds?: Set<string>;
 }) {
   return (
     <ScrollView
@@ -2233,7 +2305,11 @@ function FieldRow({
               <RestRotator rested={inst.rested}>
                 {/* 元気なカードはゆっくり呼吸するように揺れる */}
                 <Breathe active={!inst.rested}>
-                  <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+                  <View>
+                    <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
+                    {/* 効果を発動した瞬間、金色に光る */}
+                    {flashIds?.has(inst.cardId) && <GoldFlash key={inst.uid + "f"} />}
+                  </View>
                 </Breathe>
               </RestRotator>
               <Text style={styles.fieldCaption}>
@@ -2583,7 +2659,9 @@ function DeckCount({
   suffix?: string;
 }) {
   const low = count <= 3;
+  const critical = count <= 1;
   const blink = useSharedValue(1);
+  const tremble = useSharedValue(0);
   useEffect(() => {
     if (low) {
       blink.value = withRepeat(
@@ -2593,8 +2671,20 @@ function DeckCount({
     } else {
       blink.value = 1;
     }
-  }, [low, blink]);
-  const style = useAnimatedStyle(() => ({ opacity: blink.value }));
+    // 残り1枚はカタカタ震えて崖っぷち感を出す
+    if (critical) {
+      tremble.value = withRepeat(
+        withSequence(withTiming(-1.2, { duration: 60 }), withTiming(1.2, { duration: 60 })),
+        -1
+      );
+    } else {
+      tremble.value = withTiming(0, { duration: 80 });
+    }
+  }, [low, critical, blink, tremble]);
+  const style = useAnimatedStyle(() => ({
+    opacity: blink.value,
+    transform: [{ translateX: tremble.value }],
+  }));
   return (
     <Animated.Text style={[baseStyle, style, low && { color: colors.danger, fontWeight: "900" }]}>
       {low ? "⚠️ " : ""}山札 {count}
@@ -3585,6 +3675,216 @@ function Breathe({ active, children }: { active: boolean; children: React.ReactN
   return <Animated.View style={st}>{children}</Animated.View>;
 }
 
+/** カードが飛ぶ演出の種類 */
+type FlyKind = "play" | "draw" | "remove" | "slam";
+interface FlyItem {
+  key: number;
+  kind: FlyKind;
+  cardId: string;
+  mine: boolean;
+}
+
+/**
+ * カードの移動演出（1枚ぶん）。
+ *  play  … 手札から場へ弧を描いて飛び、着地で衝撃リング＋バウンド
+ *  draw  … 山札から手札へ滑り込む
+ *  remove… 場外へ吹き飛ばされて回転しながら消える
+ *  slam  … バトル中のサポートを左右から叩きつける
+ */
+function FlyCard({ item, onDone }: { item: FlyItem; onDone: (key: number) => void }) {
+  const t = useSharedValue(0);
+  const ring = useSharedValue(0);
+  useEffect(() => {
+    const dur = item.kind === "slam" ? 300 : item.kind === "remove" ? 620 : item.kind === "draw" ? 380 : 520;
+    t.value = withTiming(1, { duration: dur, easing: Easing.out(Easing.cubic) });
+    if (item.kind === "play") {
+      ring.value = withDelay(dur - 80, withTiming(1, { duration: 340 }));
+    }
+    const done = setTimeout(() => onDone(item.key), dur + (item.kind === "slam" ? 320 : 380));
+    return () => clearTimeout(done);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const sign = item.mine ? 1 : -1;
+  const style = useAnimatedStyle(() => {
+    const p = t.value;
+    if (item.kind === "play") {
+      // 弧: 横は等速、縦はイーズ、最後に小さくバウンド
+      const bounce = p > 0.92 ? Math.sin((p - 0.92) / 0.08 * Math.PI) * 6 : 0;
+      return {
+        transform: [
+          { translateY: sign * (260 - 190 * p) - bounce },
+          { translateX: 40 * (1 - p) * sign },
+          { rotate: `${(1 - p) * -9 * sign}deg` },
+          { scale: 0.72 + 0.28 * p },
+        ],
+        opacity: p > 0.9 ? 1 - (p - 0.9) * 6 : 1,
+      };
+    }
+    if (item.kind === "draw") {
+      return {
+        transform: [
+          { translateX: 130 * (1 - p) },
+          { translateY: sign * (110 + 160 * p) },
+          { rotate: `${(1 - p) * 12}deg` },
+          { scale: 0.55 + 0.12 * p },
+        ],
+        opacity: p > 0.75 ? 1 - (p - 0.75) * 4 : 0.95,
+      };
+    }
+    if (item.kind === "remove") {
+      return {
+        transform: [
+          { translateX: sign * -1 * (330 * p) },
+          { translateY: sign * (90 + 250 * p) },
+          { rotate: `${540 * p * sign}deg` },
+          { scale: 1 - 0.55 * p },
+        ],
+        opacity: 1 - p * 0.9,
+      };
+    }
+    // slam
+    const shake = p >= 1 ? 0 : 0;
+    return {
+      transform: [
+        { translateX: sign * -1 * 230 * (1 - p) + shake },
+        { translateY: sign * 70 },
+        { rotate: `${sign * -1 * 14 * (1 - p)}deg` },
+        { scale: 0.9 + 0.1 * p },
+      ],
+      opacity: 1,
+    };
+  });
+  const ringStyle = useAnimatedStyle(() => ({
+    opacity: ring.value === 0 ? 0 : 1 - ring.value,
+    transform: [
+      { translateY: sign * 70 },
+      { scale: 0.4 + ring.value * 1.9 },
+    ],
+  }));
+  return (
+    <View style={styles.flyLayer} pointerEvents="none">
+      {item.kind === "play" && <Animated.View style={[styles.impactRing, ringStyle]} />}
+      <Animated.View style={style}>
+        <CardFace cardId={item.cardId} size="sm" faceDown={item.kind === "draw" && !item.mine} />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** ターン帯を車がビュンと横切る */
+function TurnCar({ mine }: { mine: boolean }) {
+  const x = useSharedValue(0);
+  useEffect(() => {
+    x.value = withTiming(1, { duration: 700, easing: Easing.inOut(Easing.quad) });
+  }, [x]);
+  const w = Dimensions.get("window").width;
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateX: -w / 2 - 40 + x.value * (w + 80) },
+      { scaleX: -1 },
+    ],
+    opacity: x.value < 0.05 ? x.value * 20 : x.value > 0.92 ? (1 - x.value) * 12 : 1,
+  }));
+  return (
+    <Animated.Text style={[styles.turnCar, style]} allowFontScaling={false}>
+      {mine ? "🚙" : "🚗"}
+    </Animated.Text>
+  );
+}
+
+/** 効果を発動したカードが金色に光る */
+function GoldFlash() {
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    glow.value = withSequence(
+      withTiming(1, { duration: 160 }),
+      withTiming(0.4, { duration: 160 }),
+      withTiming(1, { duration: 160 }),
+      withTiming(0, { duration: 260 })
+    );
+  }, [glow]);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return <Animated.View style={[styles.goldFlash, style]} pointerEvents="none" />;
+}
+
+/** リザルトの学科・技能スコアをカウントアップで見せる */
+function ResultScores({
+  meA,
+  meS,
+  opA,
+  opS,
+  oppLabelText,
+}: {
+  meA: number;
+  meS: number;
+  opA: number;
+  opS: number;
+  oppLabelText: string;
+}) {
+  const [p, setP] = useState(0);
+  useEffect(() => {
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setP(Math.min(1, i / 22));
+      if (i >= 22) clearInterval(timer);
+    }, 40);
+    return () => clearInterval(timer);
+  }, []);
+  const row = (label: string, a: number, sk: number, mine: boolean) => (
+    <View style={[styles.resultScoreRow, mine && styles.resultScoreRowMine]}>
+      <Text style={styles.resultScoreName} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.resultScoreBars}>
+        <View style={styles.resultScoreBarWrap}>
+          <View
+            style={[styles.resultScoreBar, { width: `${(Math.round(a * p) / ACADEMIC_GOAL) * 100}%`, backgroundColor: colors.primary }]}
+          />
+        </View>
+        <View style={styles.resultScoreBarWrap}>
+          <View
+            style={[styles.resultScoreBar, { width: `${(Math.round(sk * p) / SKILL_GOAL) * 100}%`, backgroundColor: colors.success }]}
+          />
+        </View>
+      </View>
+      <Text style={styles.resultScoreNums} allowFontScaling={false}>
+        学{Math.round(a * p)}・技{Math.round(sk * p)}
+      </Text>
+    </View>
+  );
+  return (
+    <View style={styles.resultScores}>
+      {row("あなた", meA, meS, true)}
+      {row(oppLabelText, opA, opS, false)}
+    </View>
+  );
+}
+
+/** 対戦入場の暗転ワイプ（左右の幕が開き、中央がひと筋光る） */
+function BattleEnterWipe({ onDone }: { onDone: () => void }) {
+  const open = useSharedValue(0);
+  useEffect(() => {
+    open.value = withDelay(120, withTiming(1, { duration: 520, easing: Easing.inOut(Easing.cubic) }));
+    const t = setTimeout(onDone, 760);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const w = Dimensions.get("window").width;
+  const left = useAnimatedStyle(() => ({ transform: [{ translateX: -open.value * (w / 2 + 10) }] }));
+  const right = useAnimatedStyle(() => ({ transform: [{ translateX: open.value * (w / 2 + 10) }] }));
+  const beam = useAnimatedStyle(() => ({
+    opacity: open.value < 0.3 ? open.value * 3 : 1 - (open.value - 0.3) / 0.7,
+  }));
+  return (
+    <View style={styles.wipeLayer} pointerEvents="none">
+      <Animated.View style={[styles.wipeHalf, { left: 0 }, left]} />
+      <Animated.View style={[styles.wipeHalf, { right: 0 }, right]} />
+      <Animated.View style={[styles.wipeBeam, beam]} />
+    </View>
+  );
+}
+
 /** 拡大表示の上部に出す「あなた」「CPU」バッジ */
 function OwnerBadge({ owner }: { owner: Owner }) {
   const isSelf = owner === "self";
@@ -3981,6 +4281,66 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff30",
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
+  flyLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 15,
+  },
+  impactRing: {
+    position: "absolute",
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 4,
+    borderColor: "#ffd54d",
+  },
+  turnCar: { position: "absolute", bottom: 4, fontSize: 22, alignSelf: "center" },
+  goldFlash: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 6,
+    borderWidth: 3,
+    borderColor: "#ffd54d",
+    backgroundColor: "#ffd54d33",
+    zIndex: 3,
+  },
+  resultScores: { alignSelf: "stretch", gap: 6 },
+  resultScoreRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: colors.background,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  resultScoreRowMine: { borderWidth: 1.5, borderColor: colors.primary },
+  resultScoreName: { width: 64, fontSize: 12, fontWeight: "800", color: colors.text },
+  resultScoreBars: { flex: 1, gap: 3 },
+  resultScoreBarWrap: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+  },
+  resultScoreBar: { height: "100%", borderRadius: 3 },
+  resultScoreNums: { fontSize: 12, fontWeight: "800", color: colors.text, width: 74, textAlign: "right" },
+  wipeLayer: { ...StyleSheet.absoluteFill, zIndex: 90 },
+  wipeHalf: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: "51%",
+    backgroundColor: "#0b1226",
+  },
+  wipeBeam: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    alignSelf: "center",
+    width: 5,
+    backgroundColor: "#fff7cc",
+  },
   cpuSpeechBubble: {
     position: "absolute",
     top: 34,

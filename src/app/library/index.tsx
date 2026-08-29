@@ -1,8 +1,14 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
 import { Platform } from "react-native";
 import Svg, { Circle } from "react-native-svg";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { PackOpeningFX } from "@/app/scan";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { CardDetail } from "@/components/CardDetail";
@@ -46,6 +52,11 @@ export default function LibraryScreen() {
   const [query, setQuery] = useState("");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
+  // 3日以内にQRで開放したカードにはNEWバッジ＋輝きを出す
+  const isNew = (id: string) => {
+    const at = unlockState.scannedLog[id];
+    return !!at && Date.now() - new Date(at).getTime() < 3 * 86400000;
+  };
   const total = allCards.length;
   const collected = Math.min(unlocked.size, total);
 
@@ -162,7 +173,14 @@ export default function LibraryScreen() {
               <View style={styles.grid}>
                 {cards.map((c) =>
                   unlocked.has(c.id) ? (
-                    <CardFace key={c.id} cardId={c.id} size="md" onPress={() => setSelected(c.id)} />
+                    <View key={c.id}>
+                      <CardFace cardId={c.id} size="md" onPress={() => setSelected(c.id)} />
+                      {isNew(c.id) && (
+                        <View style={styles.newBadge} pointerEvents="none">
+                          <Text style={styles.newBadgeText}>NEW</Text>
+                        </View>
+                      )}
+                    </View>
                   ) : (
                     <LockedCard key={c.id} size="md" onPress={() => setLockedTapped(c.id)} />
                   )
@@ -177,7 +195,9 @@ export default function LibraryScreen() {
         <Pressable style={styles.overlayBg} onPress={() => setSelected(null)}>
           <Pressable style={styles.overlayBox} onPress={() => {}}>
             <Text style={styles.overlayTitle}>{getCard(selected).name}</Text>
-            <CardDetail cardId={selected} />
+            <FlipIn key={selected}>
+              <CardDetail cardId={selected} />
+            </FlipIn>
             <Pressable style={styles.closeButton} onPress={() => setSelected(null)}>
               <Text style={styles.closeText}>閉じる</Text>
             </Pressable>
@@ -269,6 +289,19 @@ function CompletionRing({ collected, total }: { collected: number; total: number
       </View>
     </View>
   );
+}
+
+/** 拡大表示のカードが裏からクルッとめくれて現れる */
+function FlipIn({ children }: { children: React.ReactNode }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+  }, [t]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ perspective: 900 }, { rotateY: `${(1 - t.value) * 90}deg` }],
+    opacity: t.value < 0.4 ? t.value * 2.5 : 1,
+  }));
+  return <Animated.View style={style}>{children}</Animated.View>;
 }
 
 const styles = StyleSheet.create({
@@ -381,6 +414,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overlayTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  newBadge: {
+    position: "absolute",
+    top: -6,
+    right: -6,
+    backgroundColor: "#e4318a",
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    zIndex: 3,
+    borderWidth: 1.5,
+    borderColor: "#fff",
+  },
+  newBadgeText: { color: "#fff", fontSize: 9, fontWeight: "900", letterSpacing: 0.5 },
   lockedEmoji: { fontSize: 36 },
   lockedText: { fontSize: 14, color: colors.textMuted, textAlign: "center", lineHeight: 21 },
   closeButton: {

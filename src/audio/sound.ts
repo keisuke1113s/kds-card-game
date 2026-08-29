@@ -117,9 +117,15 @@ export type SeKey =
   | "win"
   | "lose"
   | "pack_open"
+  | "achievement"
   | "tap";
 
-export function playSe(key: SeKey): void {
+/**
+ * 効果音を1つ鳴らす。
+ * rate を渡すと音程（再生速度）を変えられる。教習が連続で進んだときに
+ * 半音ずつ上がっていくコンボの快感などに使う
+ */
+export function playSe(key: SeKey, rate = 1): void {
   if (!unlocked) return;
   if (!useSettingsStore.getState().seEnabled) return;
   const asset = seAssets[key];
@@ -130,6 +136,11 @@ export function playSe(key: SeKey): void {
     if (!p) {
       p = createAudioPlayer(asset);
       sePlayers[key] = p;
+    }
+    try {
+      p.setPlaybackRate(rate);
+    } catch {
+      // 速度変更に対応しない環境では通常の音程で鳴らす
     }
     safeSeek(p, 0);
     safePlay(p);

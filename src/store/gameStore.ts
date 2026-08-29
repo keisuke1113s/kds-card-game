@@ -185,6 +185,10 @@ let matchMeta: {
   replayActions: GameAction[];
 } | null = null;
 
+/** 教習が連続で進んだときのコンボ段数（効果音の音程が半音ずつ上がる） */
+let advanceCombo = 0;
+let lastAdvanceAt = 0;
+
 /** スタンプ表示を自動で消すタイマー */
 let stampTimer: ReturnType<typeof setTimeout> | null = null;
 let myStampTimer: ReturnType<typeof setTimeout> | null = null;
@@ -372,7 +376,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
           keys.add("hit");
           break;
         case "trackAdvanced":
-          if (e.amount > 0) keys.add("advance");
+          // advance はコンボで音程が変わるため keys ではなく個別に鳴らす
           break;
         case "supportPlayed":
         case "abilityActivated":
@@ -388,6 +392,16 @@ export const useGameStore = create<GameStore>()((set, get) => {
       }
     }
     [...keys].slice(0, 3).forEach((k) => playSe(k));
+    // 教習が進む音: 短い間隔で連続すると半音ずつ音程が上がる（コンボの快感）
+    if (events.some((e) => e.type === "gameStarted")) {
+      advanceCombo = 0;
+    }
+    if (events.some((e) => e.type === "trackAdvanced" && e.amount > 0)) {
+      const now = Date.now();
+      advanceCombo = now - lastAdvanceAt < 15000 ? advanceCombo + 1 : 0;
+      lastAdvanceAt = now;
+      playSe("advance", 1 + Math.min(0.3, advanceCombo * 0.06));
+    }
   }
 
   function applyAndContinue(action: GameAction) {

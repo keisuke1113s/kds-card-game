@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -60,6 +60,8 @@ export function AppButton({
 }: Props) {
   const press = useSharedValue(0);
   const c = toneColor[tone];
+  // 押した位置から波紋が広がる
+  const [ripple, setRipple] = useState<{ x: number; y: number; key: number } | null>(null);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - press.value * 0.035 }, { translateY: press.value * 2 }],
@@ -92,9 +94,11 @@ export function AppButton({
       ]}
     >
       <Pressable
-        onPressIn={() => {
+        onPressIn={(ev) => {
           if (disabled) return;
           press.value = withTiming(1, { duration: 70 });
+          const ne = ev.nativeEvent as { locationX?: number; locationY?: number };
+          setRipple({ x: ne.locationX ?? 40, y: ne.locationY ?? 20, key: Date.now() });
         }}
         onPressOut={() => {
           press.value = withSpring(0, { damping: 15, stiffness: 320 });
@@ -116,6 +120,15 @@ export function AppButton({
           },
         ]}
       >
+        {ripple && (
+          <Ripple
+            key={ripple.key}
+            x={ripple.x}
+            y={ripple.y}
+            color={tone === "ghost" ? colors.primary + "26" : "#ffffff4d"}
+            onDone={() => setRipple(null)}
+          />
+        )}
         <View style={styles.inner}>
           {iconNode ?? (!!icon && <Text style={[styles.icon, { fontSize: fontSize + 2 }]}>{icon}</Text>)}
           <Text
@@ -133,6 +146,41 @@ export function AppButton({
   );
 }
 
+/** 押した位置から広がる波紋 */
+function Ripple({
+  x,
+  y,
+  color,
+  onDone,
+}: {
+  x: number;
+  y: number;
+  color: string;
+  onDone: () => void;
+}) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 480 });
+    const timer = setTimeout(onDone, 520);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    opacity: 0.9 - t.value * 0.9,
+    transform: [{ scale: 0.15 + t.value * 1.1 }],
+  }));
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.ripple,
+        { left: x - 90, top: y - 90, backgroundColor: color },
+        style,
+      ]}
+    />
+  );
+}
+
 const styles = StyleSheet.create({
   // 影は角丸に沿わせる（四角い影が角に残らないように）
   shadowWrap: { borderRadius: radius.md, backgroundColor: "transparent" },
@@ -140,11 +188,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   inner: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   icon: { color: "#fff" },
   label: { fontWeight: "800", textAlign: "center", letterSpacing: 0.3 },
   fullWidth: { alignSelf: "stretch" },
+  ripple: { position: "absolute", width: 180, height: 180, borderRadius: 90 },
   fillHeight: { height: "100%", paddingVertical: 0 },
   disabledShadow: { shadowOpacity: 0, elevation: 0 },
 });

@@ -5,6 +5,7 @@ import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-n
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   FadeInDown,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
   withDelay,
@@ -158,6 +159,15 @@ export default function HomeScreen() {
   const clearQueueCancelledNotice = useGameStore((s) => s.clearQueueCancelledNotice);
   const deckState = useDeckStore();
 
+  // スクロールに合わせて背景イラストをわずかに視差で動かす（奥行き感）
+  const scrollY = useSharedValue(0);
+  const onScroll = useAnimatedScrollHandler((ev) => {
+    scrollY.value = ev.contentOffset.y;
+  });
+  const bgParallax = useAnimatedStyle(() => ({
+    transform: [{ translateY: -scrollY.value * 0.25 }],
+  }));
+
   // BGMは対戦中のみ。ホームに戻ったら止める
   useFocusEffect(
     useCallback(() => {
@@ -190,15 +200,19 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
-      {/* KDS校舎のイラスト（ユーザー提供）をタイトルの後ろにうっすら敷く */}
-      <Image
-        source={require("../../assets/images/fx/bg_home.webp")}
-        style={styles.homeBgArt}
-        contentFit="contain"
-        pointerEvents="none"
-      />
+      {/* KDS校舎のイラスト（ユーザー提供）をタイトルの後ろにうっすら敷く。
+          スクロールでわずかに視差で動く */}
+      <Animated.View style={[styles.homeBgArt, bgParallax]} pointerEvents="none">
+        <Image
+          source={require("../../assets/images/fx/bg_home.webp")}
+          style={StyleSheet.absoluteFill}
+          contentFit="contain"
+        />
+      </Animated.View>
       <SafeAreaView style={styles.safe}>
-        <ScrollView
+        <Animated.ScrollView
+          onScroll={onScroll}
+          scrollEventThrottle={16}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
@@ -410,7 +424,7 @@ export default function HomeScreen() {
         </ScreenEnter>
 
         <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
-        </ScrollView>
+        </Animated.ScrollView>
 
         {/* ランダムマッチの相手待ちをやめて戻ってきたときの全画面のお知らせ */}
         {queueCancelledNotice && (

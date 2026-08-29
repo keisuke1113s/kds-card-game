@@ -18,6 +18,8 @@ import { builtinDefaults, useDeckStore } from "@/store/deckStore";
 interface UnlockState {
   initialSet: string[] | null;
   scannedIds: string[];
+  /** QRで開放した日時（図鑑のNEWバッジ用。id→ISO日時） */
+  scannedLog: Record<string, string>;
   issued: { id: string; name: string; at: string }[];
   /** テスト用: true の間は全カードが登録済みになる（設定画面で切り替え） */
   allOpenMode: boolean;
@@ -36,11 +38,17 @@ export const useUnlockStore = create<UnlockState>()(
     (set) => ({
       initialSet: null,
       scannedIds: [],
+      scannedLog: {},
       issued: [],
       allOpenMode: ALL_CARDS_OPEN_FOR_TESTING,
       unlock: (cardId) =>
         set((s) =>
-          s.scannedIds.includes(cardId) ? s : { scannedIds: [...s.scannedIds, cardId] }
+          s.scannedIds.includes(cardId)
+            ? s
+            : {
+                scannedIds: [...s.scannedIds, cardId],
+                scannedLog: { ...s.scannedLog, [cardId]: new Date().toISOString() },
+              }
         ),
       setInitialSet: (initialSet) => set({ initialSet }),
       setAllOpenMode: (allOpenMode) => set({ allOpenMode }),
@@ -48,8 +56,8 @@ export const useUnlockStore = create<UnlockState>()(
         set((s) =>
           s.issued.some((e) => e.id === entry.id) ? s : { issued: [...s.issued, entry] }
         ),
-      resetScanned: () => set({ scannedIds: [] }),
-      resetAll: () => set({ initialSet: null, scannedIds: [] }),
+      resetScanned: () => set({ scannedIds: [], scannedLog: {} }),
+      resetAll: () => set({ initialSet: null, scannedIds: [], scannedLog: {} }),
     }),
     {
       name: "kds-unlocks",
@@ -61,6 +69,7 @@ export const useUnlockStore = create<UnlockState>()(
         return {
           initialSet: s.initialSet ?? null,
           scannedIds: s.scannedIds ?? [],
+          scannedLog: s.scannedLog ?? {},
           issued: s.issued ?? [],
           allOpenMode: s.allOpenMode ?? ALL_CARDS_OPEN_FOR_TESTING,
         } as UnlockState;

@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 
 export const seAssets: Record<string, number> = {
+  "achievement": require("@/assets/audio/achievement.wav"),
   "advance": require("@/assets/audio/advance.wav"),
   "battle": require("@/assets/audio/battle.wav"),
   "battle_lose": require("@/assets/audio/battle_lose.wav"),

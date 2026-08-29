@@ -21,7 +21,7 @@ export function AchievementToast() {
 
   useEffect(() => {
     if (!toast) return;
-    playSe("janken_win");
+    playSe("achievement");
     haptic("success");
     const t = setTimeout(shiftToast, 2800);
     return () => clearTimeout(t);
@@ -36,6 +36,8 @@ export function AchievementToast() {
         style={[StyleSheet.absoluteFill, { opacity: 0.6 }]}
         contentFit="cover"
       />
+      {/* 金の帯が画面を横切る */}
+      <GoldSweep key={`sweep-${toast.id}`} />
       <PopBox key={toast.id}>
         <Text style={styles.kicker}>🏅 実績達成！</Text>
         <Text style={styles.emoji}>{toast.emoji}</Text>
@@ -66,7 +68,31 @@ function PopBox({ children }: { children: React.ReactNode }) {
   return <Animated.View style={[styles.box, style]}>{children}</Animated.View>;
 }
 
+/** 実績達成の瞬間、金の帯が画面を斜めに横切る */
+function GoldSweep() {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 650 });
+  }, [t]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ translateX: -500 + t.value * 1000 }, { rotate: "-14deg" }],
+    opacity: t.value < 0.15 ? t.value * 6 : 1 - (t.value - 0.15) / 0.85,
+  }));
+  return <Animated.View pointerEvents="none" style={[styles.goldSweep, style]} />;
+}
+
 const styles = StyleSheet.create({
+  goldSweep: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "30%",
+    width: 700,
+    height: 90,
+    backgroundColor: "#ffd54d55",
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: "#ffd54daa",
+  },
   layer: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(10, 12, 34, 0.78)",

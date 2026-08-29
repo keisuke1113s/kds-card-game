@@ -30,6 +30,12 @@ interface Props {
  * 数字がはずみ、「＋N」が浮かび上がる。
  */
 export function TrackBar({ label, value, goal, color, kind }: Props) {
+  // バーの先端を走る小さなマーカー（技能=車・学科=本）。ゴールで旗になる
+  const markerPos = useSharedValue(value / goal);
+  useEffect(() => {
+    markerPos.value = withSpring(value / goal, { damping: 14, stiffness: 120 });
+  }, [value, goal, markerPos]);
+
   const prev = useRef(value);
   const [delta, setDelta] = useState<{ amount: number; key: number } | null>(null);
   const [from, setFrom] = useState(value);
@@ -111,6 +117,7 @@ export function TrackBar({ label, value, goal, color, kind }: Props) {
             <Text style={styles.deltaUnit}>時限</Text>
           </Animated.Text>
         )}
+        <TrackMarker pos={markerPos} done={value >= goal} kind={kind} />
       </View>
       <Animated.Text style={[styles.count, countStyle, lost && styles.countLost]}>
         {value}/{goal}
@@ -418,7 +425,34 @@ function Segment({
   );
 }
 
+/** バーの先端に常駐する小さなマーカー。進むとスプリングで走り、達成で旗になる */
+function TrackMarker({
+  pos,
+  done,
+  kind,
+}: {
+  pos: { value: number };
+  done: boolean;
+  kind: "academic" | "skill";
+}) {
+  const style = useAnimatedStyle(() => ({
+    left: `${Math.min(1, Math.max(0, (pos as { value: number }).value)) * 100}%`,
+  }));
+  return (
+    <Animated.Text style={[styles.marker, style]} allowFontScaling={false}>
+      {done ? "🏁" : kind === "skill" ? "🚗" : "📖"}
+    </Animated.Text>
+  );
+}
+
 const styles = StyleSheet.create({
+  marker: {
+    position: "absolute",
+    top: -7,
+    marginLeft: -8,
+    fontSize: 12,
+    zIndex: 5,
+  },
   row: { flexDirection: "row", alignItems: "center", gap: 6 },
   label: { width: 30, fontSize: 11, fontWeight: "700", color: colors.text },
   labelLost: { color: colors.danger },
