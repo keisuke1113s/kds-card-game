@@ -81,6 +81,7 @@ export function startServer(port: number): http.Server {
       res.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
         "access-control-allow-origin": "*",
+        "cache-control": "no-store",
       });
       res.end(JSON.stringify(telemetry.stats()));
       return;
@@ -127,6 +128,7 @@ export function startServer(port: number): http.Server {
       res.writeHead(200, {
         "content-type": "application/json; charset=utf-8",
         "access-control-allow-origin": "*",
+        "cache-control": "no-store",
       });
       res.end(JSON.stringify([...errorLog].reverse(), null, 2));
       return;
