@@ -10,7 +10,7 @@ import { applyBgmVolume } from "@/audio/sound";
 import { exportTransferCode, importTransferCode } from "@/data/transfer";
 import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { useLineStore } from "@/store/lineStore";
-import { LINE_GATE_ENABLED } from "@/data/lineConfig";
+import { LINE_GATE_ENABLED, LINE_LINK_CODES } from "@/data/lineConfig";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
 
@@ -389,8 +389,8 @@ function DevLineReset() {
     <View style={{ gap: 8 }}>
       <Text style={styles.sectionTitle}>LINE連携（テスト用）</Text>
       <Text style={styles.note}>
-        いまは連携ずみです。連携前のロック状態を確認したいときは解除できます
-        （連携コードでいつでも再連携できます）。
+        いまは連携ずみです。連携前のロック状態を確認したいときは解除できます。
+        再連携用の連携コード: <Text style={{ fontWeight: "900" }} selectable>{LINE_LINK_CODES[0]}</Text>
       </Text>
       <Pressable
         style={[styles.wideButton, { backgroundColor: colors.danger }]}
