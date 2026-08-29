@@ -9,6 +9,7 @@ import {
   StyleProp,
   StyleSheet,
   Text,
+  TextStyle,
   View,
   ViewStyle,
 } from "react-native";
@@ -3043,6 +3044,24 @@ function DeckCount({
 }
 
 function ThinkingDots() {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    return (
+      <Text
+        {...({ dataSet: { kdsanim: "dots" } } as object)}
+        style={[
+          styles.thinkingDots,
+          {
+            animationDuration: "1040ms",
+            animationTimingFunction: "ease-in-out",
+            animationIterationCount: "infinite",
+          } as unknown as TextStyle,
+        ]}
+      >
+        ●●●
+      </Text>
+    );
+  }
   const o = useSharedValue(0.25);
   useEffect(() => {
     o.value = withRepeat(
@@ -3255,6 +3274,22 @@ function FloatIdle({
   offset?: number;
   children: React.ReactNode;
 }) {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    const anim = active
+      ? ({
+          animationDuration: "1800ms",
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+          animationDelay: `${(offset % 4) * 160}ms`,
+        } as unknown as ViewStyle)
+      : null;
+    return (
+      <View {...(active ? ({ dataSet: { kdsanim: "float" } } as object) : null)} style={anim}>
+        {children}
+      </View>
+    );
+  }
   const y = useSharedValue(0);
   useEffect(() => {
     if (!active) {
@@ -3288,6 +3323,25 @@ function PulseRing({
   style?: StyleProp<ViewStyle>;
   children: React.ReactNode;
 }) {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    const anim = active
+      ? ({
+          animationDuration: "1240ms",
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+          shadowColor: colors.highlight,
+          shadowOpacity: 0.55,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 0 },
+        } as unknown as ViewStyle)
+      : null;
+    return (
+      <View {...(active ? ({ dataSet: { kdsanim: "pulsering" } } as object) : null)} style={[style, anim]}>
+        {children}
+      </View>
+    );
+  }
   const p = useSharedValue(0);
   useEffect(() => {
     if (!active) {
@@ -3940,6 +3994,26 @@ function pickLine(lines: readonly string[]): string {
 
 /** リーチ中、画面のフチが赤く脈動して緊迫感を出すビネット */
 function ReachVignette() {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "reachpulse" } } as object)}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 25 },
+          {
+            animationDuration: "1240ms",
+            animationTimingFunction: "ease-in-out",
+            animationIterationCount: "infinite",
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      >
+        <ReachVignetteBody />
+      </View>
+    );
+  }
   const pulse = useSharedValue(0.2);
   useEffect(() => {
     pulse.value = withRepeat(
@@ -3953,6 +4027,15 @@ function ReachVignette() {
   const st = useAnimatedStyle(() => ({ opacity: pulse.value }));
   return (
     <Animated.View style={[StyleSheet.absoluteFill, st, { zIndex: 25 }]} pointerEvents="none">
+      <ReachVignetteBody />
+    </Animated.View>
+  );
+}
+
+/** リーチ演出の4辺の赤いグラデーション（本体は再描画不要なのでメモ化） */
+const ReachVignetteBody = React.memo(function ReachVignetteBody() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
         colors={["#d83030aa", "transparent"]}
         style={styles.vignetteTop}
@@ -3977,9 +4060,9 @@ function ReachVignette() {
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
       />
-    </Animated.View>
+    </View>
   );
-}
+})
 
 /** 進捗の折返し到達のお祝いチップ（ポンと出て消える） */
 function MilestonePop({ label }: { label: string }) {
@@ -4006,6 +4089,21 @@ function MilestonePop({ label }: { label: string }) {
 
 /** 場のカードがゆっくり呼吸するように揺れる（休憩中は止まる） */
 function Breathe({ active, children }: { active: boolean; children: React.ReactNode }) {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    const anim = active
+      ? ({
+          animationDuration: "2500ms",
+          animationTimingFunction: "ease-in-out",
+          animationIterationCount: "infinite",
+        } as unknown as ViewStyle)
+      : null;
+    return (
+      <View {...(active ? ({ dataSet: { kdsanim: "breathe" } } as object) : null)} style={anim}>
+        {children}
+      </View>
+    );
+  }
   const s = useSharedValue(1);
   useEffect(() => {
     if (active) {
@@ -4367,6 +4465,21 @@ function FlyingStamp({ emoji, up }: { emoji: string; up: boolean }) {
 
 /** バトルで狙われているカードの怯え（小刻みな震え） */
 function Tremble({ active, children }: { active: boolean; children: React.ReactNode }) {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    const anim = active
+      ? ({
+          animationDuration: "110ms",
+          animationTimingFunction: "linear",
+          animationIterationCount: "infinite",
+        } as unknown as ViewStyle)
+      : null;
+    return (
+      <View {...(active ? ({ dataSet: { kdsanim: "tremble" } } as object) : null)} style={anim}>
+        {children}
+      </View>
+    );
+  }
   const x = useSharedValue(0);
   useEffect(() => {
     if (active) {
@@ -4384,6 +4497,23 @@ function Tremble({ active, children }: { active: boolean; children: React.ReactN
 
 /** 出せる手札カードの金縁パルス */
 function GoldPulseBorder() {
+  // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
+  if (Platform.OS === "web") {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "goldpulse" } } as object)}
+        style={[
+          styles.goldPulseBorder,
+          {
+            animationDuration: "1400ms",
+            animationTimingFunction: "ease-in-out",
+            animationIterationCount: "infinite",
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      />
+    );
+  }
   const glow = useSharedValue(0.25);
   useEffect(() => {
     glow.value = withRepeat(

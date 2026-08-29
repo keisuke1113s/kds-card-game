@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -170,9 +170,40 @@ const PARTICLE_IMG: Record<string, number> = {
 
 /** 画面の上からゆっくり舞い落ちる粒（1つぶん） */
 function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
+  const screenH = 900;
+  const size = 15 + (index % 3) * 6;
+  // Webではブラウザ合成のCSSアニメーションで落とす（JSが混んでいても滑らか）。
+  // 落下と横揺れは同時にtransformできないので、外側=落下・内側=揺れの2層にする
+  if (Platform.OS === "web") {
+    const fallAnim = {
+      animationDuration: `${7000 + ((index * 977) % 5000)}ms`,
+      animationTimingFunction: "linear",
+      animationIterationCount: "infinite",
+      animationDelay: `${(index * 823) % 6000}ms`,
+    } as unknown as ViewStyle;
+    const swayAnim = {
+      animationDuration: `${(1600 + (index % 4) * 300) * 2}ms`,
+      animationTimingFunction: "ease-in-out",
+      animationIterationCount: "infinite",
+    } as unknown as ViewStyle;
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "fall" } } as object)}
+        style={[{ position: "absolute", left: `${(index * 83) % 100}%`, top: 0, opacity: 0 }, fallAnim]}
+        pointerEvents="none"
+      >
+        <View {...({ dataSet: { kdsanim: "sway" } } as object)} style={swayAnim}>
+          <Image
+            source={PARTICLE_IMG[emoji]}
+            style={{ width: size, height: size }}
+            contentFit="contain"
+          />
+        </View>
+      </View>
+    );
+  }
   const fall = useSharedValue(0);
   const sway = useSharedValue(0);
-  const screenH = 900;
   useEffect(() => {
     const duration = 7000 + ((index * 977) % 5000);
     fall.value = withDelay(
@@ -195,7 +226,6 @@ function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
     ],
     opacity: fall.value < 0.05 ? fall.value * 14 : fall.value > 0.9 ? (1 - fall.value) * 7 : 0.7,
   }));
-  const size = 15 + (index % 3) * 6;
   return (
     <Animated.View
       style={[{ position: "absolute", left: `${(index * 83) % 100}%`, top: 0 }, st]}

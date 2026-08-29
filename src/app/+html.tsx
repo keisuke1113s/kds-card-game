@@ -122,6 +122,26 @@ window.addEventListener('appinstalled', function () {
 }
 /* 3D回転（rotateY）だと真横を向いた瞬間や描画の相性でカードが
  * 見えなくなる端末があるため、常に見えている2D回転にしている */
+/* ループ演出用（アプリ側から data-kdsanim 属性で使う。
+ * ブラウザ合成で動くため、JSが混んでいてもカクつかない） */
+[data-kdsanim="float"] { animation-name: kds-float; }
+[data-kdsanim="pulsering"] { animation-name: kds-pulsering; }
+[data-kdsanim="breathe"] { animation-name: kds-breathe; }
+[data-kdsanim="tremble"] { animation-name: kds-tremble; }
+[data-kdsanim="goldpulse"] { animation-name: kds-goldpulse; }
+[data-kdsanim="reachpulse"] { animation-name: kds-reachpulse; }
+[data-kdsanim="dots"] { animation-name: kds-dots; }
+[data-kdsanim="fall"] { animation-name: kds-fall; }
+[data-kdsanim="sway"] { animation-name: kds-sway; }
+@keyframes kds-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+@keyframes kds-pulsering { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes kds-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.022); } }
+@keyframes kds-tremble { 0%, 100% { transform: translateX(-1.6px); } 50% { transform: translateX(1.6px); } }
+@keyframes kds-goldpulse { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
+@keyframes kds-reachpulse { 0%, 100% { opacity: .2; } 50% { opacity: .55; } }
+@keyframes kds-dots { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@keyframes kds-fall { 0% { transform: translateY(-40px); opacity: 0; } 5% { opacity: .7; } 90% { opacity: .7; } 100% { transform: translateY(940px); opacity: 0; } }
+@keyframes kds-sway { 0%, 100% { transform: translateX(-14px) rotate(-20deg); } 50% { transform: translateX(14px) rotate(20deg); } }
 @keyframes kds-cardflip {
   0%   { transform: rotate(0deg)   scale(1); }
   50%  { transform: rotate(180deg) scale(0.88); }

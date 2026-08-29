@@ -29,7 +29,8 @@ interface Props {
  * 教習が進むと、増えたマスが順番に光りながら埋まり、
  * 数字がはずみ、「＋N」が浮かび上がる。
  */
-export function TrackBar({ label, value, goal, color, kind }: Props) {
+/** 進捗が変わらない限り再描画しない（実況のたびに20マス×2本を作り直さない） */
+export const TrackBar = React.memo(function TrackBar({ label, value, goal, color, kind }: Props) {
   // バーの先端を走る小さなマーカー（技能=車・学科=本）。ゴールで旗になる
   const markerPos = useSharedValue(value / goal);
   useEffect(() => {
@@ -124,7 +125,7 @@ export function TrackBar({ label, value, goal, color, kind }: Props) {
       </Animated.Text>
     </Animated.View>
   );
-}
+});
 
 /**
  * 教習の増減を、種類ごとの絵で伝える。

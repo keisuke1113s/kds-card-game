@@ -94,7 +94,22 @@ function TextFace({ cardId, size }: { cardId: string; size: CardSizeKey }) {
   );
 }
 
-export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: Props) {
+/**
+ * カードの見た目本体。画像の組み立てが重いので React.memo で、
+ * cardId など見た目が変わるときだけ再描画する（実況や演出のたびに
+ * 盤面全体のカードが作り直されるのを防ぐ＝カクつき対策の要）
+ */
+const CardBody = React.memo(function CardBody({
+  cardId,
+  size,
+  faceDown,
+  dimmed,
+}: {
+  cardId: string;
+  size: CardSizeKey;
+  faceDown?: boolean;
+  dimmed?: boolean;
+}) {
   const dims = cardSize[size];
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -147,7 +162,12 @@ export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: 
     );
   }
 
-  if (!onPress) return <>{body}</>;
+  return <>{body}</>;
+});
+
+export function CardFace({ cardId, size, faceDown, dimmed, onPress, disabled }: Props) {
+  const body = <CardBody cardId={cardId} size={size} faceDown={faceDown} dimmed={dimmed} />;
+  if (!onPress) return body;
   return (
     <Pressable onPress={onPress} disabled={disabled} hitSlop={4}>
       {body}
