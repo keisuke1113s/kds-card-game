@@ -428,15 +428,6 @@ export default function HomeScreen() {
               {opponentDeck.name}
             </Text>
           </View>
-          <AppButton
-            label="オンライン対戦"
-            icon="🌐"
-            tone="primary"
-            size="lg"
-            feel="medium"
-            fullWidth
-            onPress={() => router.push("/online")}
-          />
           <View style={styles.row}>
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
@@ -456,6 +447,15 @@ export default function HomeScreen() {
             tone="ghost"
             fullWidth
             onPress={() => router.push("/tournament")}
+          />
+          <AppButton
+            label="オンライン対戦"
+            icon="🌐"
+            tone="primary"
+            size="lg"
+            feel="medium"
+            fullWidth
+            onPress={() => router.push("/online")}
           />
           {/* 今日のデイリーミッション */}
           <MissionCard />
