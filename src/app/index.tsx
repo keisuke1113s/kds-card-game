@@ -621,7 +621,7 @@ export default function HomeScreen() {
           </View>
           <AppButton
             label="🪪 教習生免許証（プロフィール）"
-            custom={{ bg: brand.amber }}
+            custom={{ bg: brand.coral }}
             fullWidth
             onPress={() => router.push("/license")}
           />
@@ -634,7 +634,7 @@ export default function HomeScreen() {
             />
             <AppButton
               label="🏅 実績と称号"
-              custom={{ bg: brand.yellow }}
+              custom={{ bg: brand.red }}
               style={styles.flex}
               onPress={() => router.push("/achievements")}
             />
@@ -650,7 +650,7 @@ export default function HomeScreen() {
                   contentFit="cover"
                 />
               }
-              custom={{ bg: brand.coral }}
+              custom={{ bg: brand.green }}
               style={styles.flex}
               onPress={() => router.push("/deck")}
             />
@@ -663,7 +663,7 @@ export default function HomeScreen() {
                   contentFit="cover"
                 />
               }
-              custom={{ bg: brand.yellow }}
+              custom={{ bg: brand.blue }}
               style={styles.flex}
               onPress={() => router.push("/library")}
             />
@@ -671,14 +671,14 @@ export default function HomeScreen() {
           <AppButton
             label="ルール"
             icon="📋"
-            custom={{ bg: brand.green }}
+            custom={{ bg: brand.amber }}
             fullWidth
             onPress={() => router.push("/rules")}
           />
           <AppButton
             label="設定"
             icon="⚙️"
-            custom={{ bg: brand.blue }}
+            custom={{ bg: brand.lime, fg: "#33420a" }}
             fullWidth
             onPress={() => router.push("/settings")}
           />
