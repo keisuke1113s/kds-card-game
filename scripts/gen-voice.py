@@ -25,8 +25,8 @@ LINES = {
     "voice_reach_opp": ("相手がリーチ！", 1.15),
     "voice_double": ("両者リーチ！運命の最終局面！", 1.2),
     "voice_lastbattle": ("ラストバトル！", 1.15),
-    "voice_kessyaku": ("決着ー！", 1.1),
-    "voice_comeback": ("大逆転ー！", 1.1),
+    "voice_kessyaku": ("けっちゃくー！", 1.1),
+    "voice_comeback": ("だいぎゃくてんー！", 1.1),
     "voice_fullline": ("フルライン！", 1.15),
     "voice_start": ("たいせん、かいし！", 1.0),
 }
@@ -34,7 +34,11 @@ LINES = {
 
 def gen(name: str, text: str, speed: float, key: str, voice_id: str) -> None:
     body = json.dumps(
-        {"text": text, "voice_setting": {"voice_id": voice_id, "speed": speed}}
+        {
+            "text": text,
+            "language_boost": "Japanese",
+            "voice_setting": {"voice_id": voice_id, "speed": speed},
+        }
     ).encode()
     req = urllib.request.Request(
         "https://fal.run/fal-ai/minimax/speech-02-turbo",
