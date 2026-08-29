@@ -141,7 +141,7 @@ export default function LicenseScreen() {
 
         <AppButton
           label="📤 免許証を画像で共有"
-          tone="primary"
+          custom={{ bg: "#e2604a" }}
           fullWidth
           onPress={() =>
             shareLicenseImage({

@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  title: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
+  title: { fontSize: 22, fontWeight: "900", color: "#1a5fb4", textAlign: "center" },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
   record: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
   progress: { fontSize: 14, fontWeight: "800", color: colors.text },

@@ -227,7 +227,7 @@ export default function QuizScreen() {
                 {quiz.perfects}回
               </Text>
             )}
-            <Pressable style={[styles.wideButton, { backgroundColor: colors.primary }]} onPress={start}>
+            <Pressable style={[styles.wideButton, { backgroundColor: "#78b424" }]} onPress={start}>
               <Text style={styles.wideButtonText}>スタート！</Text>
             </Pressable>
             {/* 教習所の効果測定と同じ本試験形式 */}
@@ -358,7 +358,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  title: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
+  title: { fontSize: 22, fontWeight: "900", color: "#4e7d16", textAlign: "center" },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
   record: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
   catLabel: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
@@ -368,10 +368,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 999,
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: "#78b424",
   },
-  catChipActive: { backgroundColor: colors.primary },
-  catChipText: { fontSize: 12, fontWeight: "800", color: colors.primary },
+  catChipActive: { backgroundColor: "#78b424" },
+  catChipText: { fontSize: 12, fontWeight: "800", color: "#4e7d16" },
   catChipTextActive: { color: "#fff" },
   progress: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
   question: { fontSize: 17, lineHeight: 26, fontWeight: "700", color: colors.text },

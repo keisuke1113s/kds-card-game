@@ -63,7 +63,7 @@ export default function ShindanScreen() {
                 前回の診断: {saved.emoji} {saved.name}
               </Text>
             )}
-            <AppButton label="診断をはじめる" tone="primary" fullWidth onPress={start} />
+            <AppButton label="診断をはじめる" custom={{ bg: "#e2604a" }} fullWidth onPress={start} />
             <AppButton label="ホームへ戻る" tone="ghost" fullWidth onPress={() => router.back()} />
           </View>
         )}
@@ -133,22 +133,22 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  title: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
+  title: { fontSize: 22, fontWeight: "900", color: "#c4432e", textAlign: "center" },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
   record: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
   progress: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
   question: { fontSize: 18, lineHeight: 27, fontWeight: "800", color: colors.text },
   choice: {
     borderWidth: 2,
-    borderColor: colors.primary,
+    borderColor: "#e2604a",
     borderRadius: radius.md,
     paddingVertical: 16,
     paddingHorizontal: 14,
   },
-  choiceText: { fontSize: 15, fontWeight: "700", color: colors.primary },
+  choiceText: { fontSize: 15, fontWeight: "700", color: "#c4432e" },
   resultLabel: { fontSize: 14, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
   resultEmoji: { fontSize: 56, textAlign: "center" },
-  resultName: { fontSize: 24, fontWeight: "900", color: colors.text, textAlign: "center" },
+  resultName: { fontSize: 24, fontWeight: "900", color: "#c4432e", textAlign: "center" },
   adviceBox: {
     backgroundColor: colors.background,
     borderRadius: radius.md,

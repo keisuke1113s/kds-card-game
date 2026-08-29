@@ -256,7 +256,7 @@ const styles = StyleSheet.create({
     width: "100%",
     alignSelf: "center",
   },
-  title: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
+  title: { fontSize: 22, fontWeight: "900", color: "#c74e0a", textAlign: "center" },
   sceneTitle: { fontSize: 16, fontWeight: "900", color: colors.text },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
   record: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
@@ -310,12 +310,12 @@ const styles = StyleSheet.create({
   labelList: { gap: 8 },
   labelButton: {
     borderWidth: 1.5,
-    borderColor: colors.primary,
+    borderColor: "#e8590c",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 12,
   },
-  labelButtonText: { fontSize: 14, fontWeight: "700", color: colors.primary },
+  labelButtonText: { fontSize: 14, fontWeight: "700", color: "#c74e0a" },
   judge: { fontSize: 18, fontWeight: "900", textAlign: "center" },
   explain: {
     fontSize: 14,
