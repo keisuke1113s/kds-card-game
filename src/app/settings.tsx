@@ -9,6 +9,8 @@ import { useSettingsStore } from "@/store/settingsStore";
 import { applyBgmVolume } from "@/audio/sound";
 import { exportTransferCode, importTransferCode } from "@/data/transfer";
 import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
+import { useLineStore } from "@/store/lineStore";
+import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
 
@@ -198,6 +200,7 @@ export default function SettingsScreen() {
 
       {/* テスト期間中は安定版でも切り替えを出す（本番公開時はフラグを戻すと開発版のみに戻る） */}
       {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
+      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && LINE_GATE_ENABLED && <DevLineReset />}
 
       {!inBattle && <BugReport />}
 
@@ -376,6 +379,33 @@ function Choice({
  * 開発版だけに出す、カード配布のやり直しボタン（動作確認用）。
  * iPhoneでサイトデータを消さなくても、初回のランダム配布を再体験できる
  */
+/** テスト用: LINE連携を解除して連携前の状態（ロックあり）に戻す */
+function DevLineReset() {
+  const linked = useLineStore((s) => s.linked);
+  const unlink = useLineStore((s) => s.unlink);
+  const router = useRouter();
+  if (!linked) return null;
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>LINE連携（テスト用）</Text>
+      <Text style={styles.note}>
+        いまは連携ずみです。連携前のロック状態を確認したいときは解除できます
+        （連携コードでいつでも再連携できます）。
+      </Text>
+      <Pressable
+        style={[styles.wideButton, { backgroundColor: colors.danger }]}
+        onPress={() => {
+          unlink();
+          // ロック対象の画面が下に残らないよう、ホームに戻してから反映する
+          router.replace("/");
+        }}
+      >
+        <Text style={styles.wideButtonText}>💔 LINE連携を解除（連携前に戻す）</Text>
+      </Pressable>
+    </View>
+  );
+}
+
 function DevCardReset() {
   const unlockState = useUnlockStore();
   const count = unlockedSet(unlockState).size;

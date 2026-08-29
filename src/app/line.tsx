@@ -118,7 +118,7 @@ export default function LineScreen() {
               <Text style={styles.stepTitle}>STEP 2　連携コードを入力</Text>
               <Text style={styles.stepNote}>
                 友だち追加すると、LINEに「連携コード」が届きます。
-                届かないときはトークで「連携」と送ってみてね。
+                届かないときはトークで「トレカ連携」と送ってみてね。
               </Text>
               <TextInput
                 style={styles.codeInput}
