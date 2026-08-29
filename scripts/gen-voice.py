@@ -19,26 +19,36 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 VOICE_ID = "Japanese_SportsCoach"  # 熱血コーチ風。無ければ下のFALLBACKを使う
 FALLBACK_VOICE_ID = "Japanese_KindLady"
 
+# テンションを上げたいボイスの追加設定（感情・声の高さ）
+EXTRA = {
+    "voice_reach": {"emotion": "surprised", "pitch": 2},
+    "voice_reach_opp": {"emotion": "surprised", "pitch": 2},
+    "voice_double": {"emotion": "surprised", "pitch": 2},
+    "voice_lastbattle": {"emotion": "surprised", "pitch": 2},
+    "voice_kessyaku": {"emotion": "surprised", "pitch": 2},
+    "voice_comeback": {"emotion": "surprised", "pitch": 2},
+    "voice_fullline": {"emotion": "surprised", "pitch": 2},
+    "voice_start": {"emotion": "surprised", "pitch": 2},
+}
+
 # 名前: (セリフ, 話速, 最大秒数)
 LINES = {
-    "voice_reach": ("リーチ！", 1.15, 1.9),
-    "voice_reach_opp": ("相手がリーチ！", 1.15, 2.2),
-    "voice_double": ("両者リーチ！うんめいの、さいしゅうきょくめん！", 1.15, 4.2),
-    "voice_lastbattle": ("ラストバトル！", 1.15, 1.9),
-    "voice_kessyaku": ("けっちゃくー！", 1.1, 2.2),
-    "voice_comeback": ("だいぎゃくてんー！", 1.1, 2.6),
-    "voice_fullline": ("フルライン！", 1.15, 1.9),
-    "voice_start": ("たいせん、かいし！", 1.0, 2.2),
+    "voice_reach": ("リーチ！！", 1.2, 1.9),
+    "voice_reach_opp": ("あいてがリーチ！！", 1.2, 2.2),
+    "voice_double": ("りょうしゃリーチ！うんめいの、さいしゅうきょくめん！！", 1.2, 4.2),
+    "voice_lastbattle": ("ラストバトルーー！！", 1.2, 2.2),
+    "voice_kessyaku": ("けっちゃくううーーー！！", 1.2, 2.6),
+    "voice_comeback": ("だいぎゃくてんだあーーー！！", 1.2, 3.0),
+    "voice_fullline": ("フルライーン！！", 1.2, 2.0),
+    "voice_start": ("たいせん、かいしー！！", 1.1, 2.2),
 }
 
 
 def gen(name: str, text: str, speed: float, max_sec: float, key: str, voice_id: str) -> None:
+    voice_setting = {"voice_id": voice_id, "speed": speed}
+    voice_setting.update(EXTRA.get(name, {}))
     body = json.dumps(
-        {
-            "text": text,
-            "language_boost": "Japanese",
-            "voice_setting": {"voice_id": voice_id, "speed": speed},
-        }
+        {"text": text, "language_boost": "Japanese", "voice_setting": voice_setting}
     ).encode()
     req = urllib.request.Request(
         "https://fal.run/fal-ai/minimax/speech-02-turbo",
