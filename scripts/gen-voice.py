@@ -28,7 +28,7 @@ LINES = {
     "voice_kessyaku": ("決着ー！", 1.1),
     "voice_comeback": ("大逆転ー！", 1.1),
     "voice_fullline": ("フルライン！", 1.15),
-    "voice_start": ("対戦開始！", 1.15),
+    "voice_start": ("たいせん、かいし！", 1.0),
 }
 
 
