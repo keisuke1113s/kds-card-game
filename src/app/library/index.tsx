@@ -120,9 +120,6 @@ export default function LibraryScreen() {
             <Pressable style={styles.scanButton} onPress={() => router.push("/scan")}>
               <Text style={styles.scanButtonText}>📷 QRコードでカードを登録</Text>
             </Pressable>
-            <Text style={styles.scanHint}>
-              実物のKDSカードのQRコードを読み込むと、そのカードが使えるようになるよ
-            </Text>
             {/* 実カード配布の案内（ホームと同じトーンで目立たせる） */}
             {!lineLock && (
             <View style={styles.promoBadge}>
@@ -131,6 +128,9 @@ export default function LibraryScreen() {
               </Text>
             </View>
             )}
+            <Text style={styles.scanHint}>
+              実物のKDSトレーディングカードのQRコードを読み込むと、そのカードが使えるようになるよ！
+            </Text>
             {/* 絞り込み */}
             <View style={styles.filterRow}>
               {FILTERS.map((f) => (
@@ -439,7 +439,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   scanButtonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
-  scanHint: { fontSize: 12, color: colors.textMuted, textAlign: "center", lineHeight: 18 },
+  scanHint: {
+    fontSize: 13,
+    color: "#d83030",
+    fontWeight: "800",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   promoBadge: {
     backgroundColor: colors.accent,
     borderRadius: 999,
