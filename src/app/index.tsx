@@ -1148,6 +1148,7 @@ const styles = StyleSheet.create({
   odoText: { fontSize: 11, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
   rankUpLayer: {
     ...StyleSheet.absoluteFill,
+    overflow: "hidden",
     backgroundColor: "#000000a8",
     alignItems: "center",
     justifyContent: "center",

@@ -117,6 +117,9 @@ export default function QuizScreen() {
   // 効果測定モード（50問・5分・90点合格）
   const [kentei, setKentei] = useState(false);
   const [timeLeft, setTimeLeft] = useState(KENTEI_TIME);
+  // 効果測定の見直し用: 自分の解答の記録と、結果画面の絞り込み
+  const [answers, setAnswers] = useState<(boolean | null)[]>([]);
+  const [reviewFilter, setReviewFilter] = useState<"wrong" | "all">("wrong");
 
   const start = () => {
     setKentei(false);
@@ -130,6 +133,8 @@ export default function QuizScreen() {
 
   const startKentei = () => {
     setKentei(true);
+    setAnswers([]);
+    setReviewFilter("wrong");
     setQuestions(pickKenteiQuestions());
     setIndex(0);
     setScore(0);
@@ -166,8 +171,24 @@ export default function QuizScreen() {
 
   const choose = (ans: boolean) => {
     if (picked !== null || !q) return;
-    setPicked(ans);
     const ok = ans === q.answer;
+    if (kentei) {
+      // 本試験形式: 正誤は明かさず、テンポよく次の問題へ。解説は最後にまとめて
+      playSe("tap");
+      haptic("light");
+      setAnswers((a) => [...a, ans]);
+      const newScore = score + (ok ? 1 : 0);
+      if (ok) setScore(newScore);
+      if (index + 1 >= questions.length) {
+        quiz.addKentei(newScore, newScore >= KENTEI_PASS);
+        if (newScore >= KENTEI_PASS) playSe("win");
+        finishKentei();
+        return;
+      }
+      setIndex((i) => i + 1);
+      return;
+    }
+    setPicked(ans);
     if (ok) {
       setScore((s) => s + 1);
       setComboStreak((c) => c + 1);
@@ -183,12 +204,6 @@ export default function QuizScreen() {
   const next = () => {
     if (index + 1 >= questions.length) {
       const finalScore = score;
-      if (kentei) {
-        quiz.addKentei(finalScore, finalScore >= KENTEI_PASS);
-        if (finalScore >= KENTEI_PASS) playSe("win");
-        finishKentei();
-        return;
-      }
       quiz.addResult(finalScore, questions.length, category);
       useMissionStore.getState().report("quizScore", finalScore);
       if (finalScore >= questions.length) playSe("win");
@@ -244,7 +259,7 @@ export default function QuizScreen() {
               <Text style={styles.kenteiTitle}>🖊 効果測定（本試験形式）</Text>
               <Text style={styles.kenteiNote}>
                 全分野から50問・制限時間5分・45問（90点）で合格。{"\n"}
-                合格すると判子と称号がもらえます。
+                本試験と同じく解答中は正誤が分かりません。終了後に解説をゆっくり見直せます。
               </Text>
               {quiz.kenteiPlays > 0 && (
                 <Text style={styles.record}>
@@ -261,7 +276,8 @@ export default function QuizScreen() {
         {phase === "play" && q && (
           <View style={styles.card}>
             <Text style={styles.progress}>
-              第{index + 1}問 / {questions.length}　（正解 {score}）
+              第{index + 1}問 / {questions.length}
+              {!kentei && `　（正解 ${score}）`}
               {kentei && (
                 <Text style={[styles.timer, timeLeft <= 30 && { color: colors.danger }]}>
                   　⏱ {Math.floor(timeLeft / 60)}:{String(timeLeft % 60).padStart(2, "0")}
@@ -320,6 +336,50 @@ export default function QuizScreen() {
                 ? "合格おめでとう！本試験でもこの調子！"
                 : `合格まであと${KENTEI_PASS - score}問。解説を読み直してもう一度挑戦しよう！`}
             </Text>
+            {/* 全問の見直し（間違えた問題を中心に、解説をゆっくり読める） */}
+            <Text style={styles.reviewTitle}>📖 解答の見直し</Text>
+            <View style={styles.catRow}>
+              <Pressable
+                style={[styles.catChip, reviewFilter === "wrong" && styles.catChipActive]}
+                onPress={() => setReviewFilter("wrong")}
+              >
+                <Text style={[styles.catChipText, reviewFilter === "wrong" && styles.catChipTextActive]}>
+                  間違えた問題（{questions.length - score}問）
+                </Text>
+              </Pressable>
+              <Pressable
+                style={[styles.catChip, reviewFilter === "all" && styles.catChipActive]}
+                onPress={() => setReviewFilter("all")}
+              >
+                <Text style={[styles.catChipText, reviewFilter === "all" && styles.catChipTextActive]}>
+                  すべて（{questions.length}問）
+                </Text>
+              </Pressable>
+            </View>
+            {questions.map((qq, i) => {
+              const my = answers[i];
+              const ok = my === qq.answer;
+              if (reviewFilter === "wrong" && ok) return null;
+              return (
+                <View key={i} style={[styles.reviewItem, ok ? styles.reviewItemOk : styles.reviewItemNg]}>
+                  <Text style={styles.reviewQ}>
+                    {ok ? "⭕" : "❌"} 第{i + 1}問　{qq.q}
+                  </Text>
+                  {!!qq.sign && (
+                    <View style={styles.signWrap}>
+                      <SignImage id={qq.sign} />
+                    </View>
+                  )}
+                  <Text style={styles.reviewA}>
+                    あなたの答え: {my === null || my === undefined ? "未回答" : my ? "○" : "×"}　／　正解: {qq.answer ? "○" : "×"}
+                  </Text>
+                  <Text style={styles.reviewNote}>{qq.note}</Text>
+                </View>
+              );
+            })}
+            {reviewFilter === "wrong" && questions.length - score === 0 && (
+              <Text style={styles.record}>全問正解！見直しは不要です 🎉</Text>
+            )}
             <Pressable style={[styles.wideButton, { backgroundColor: "#b0413e" }]} onPress={startKentei}>
               <Text style={styles.wideButtonText}>もう一度受ける</Text>
             </Pressable>
@@ -433,6 +493,19 @@ const styles = StyleSheet.create({
   kenteiTitle: { fontSize: 15, fontWeight: "900", color: "#b0413e" },
   kenteiNote: { fontSize: 12, lineHeight: 19, color: colors.text },
   timer: { fontWeight: "900", color: colors.primaryDark },
+  reviewTitle: { fontSize: 16, fontWeight: "900", color: colors.text, marginTop: 6 },
+  reviewItem: {
+    borderRadius: 10,
+    borderLeftWidth: 4,
+    padding: 10,
+    gap: 6,
+    backgroundColor: colors.background,
+  },
+  reviewItemOk: { borderLeftColor: "#2f9e44" },
+  reviewItemNg: { borderLeftColor: "#d83030" },
+  reviewQ: { fontSize: 13, lineHeight: 20, fontWeight: "700", color: colors.text },
+  reviewA: { fontSize: 12, fontWeight: "800", color: colors.textMuted },
+  reviewNote: { fontSize: 12, lineHeight: 19, color: colors.text },
   signWrap: { alignItems: "center", paddingVertical: 4 },
   hanko: {
     borderWidth: 3,
