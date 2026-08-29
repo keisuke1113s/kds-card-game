@@ -3330,14 +3330,30 @@ function PulseRing({
           animationDuration: "1240ms",
           animationTimingFunction: "ease-in-out",
           animationIterationCount: "infinite",
-          shadowColor: colors.highlight,
-          shadowOpacity: 0.55,
-          shadowRadius: 8,
-          shadowOffset: { width: 0, height: 0 },
         } as unknown as ViewStyle)
       : null;
     return (
       <View {...(active ? ({ dataSet: { kdsanim: "pulsering" } } as object) : null)} style={[style, anim]}>
+        {/* 光は別レイヤーにして不透明度だけを脈打たせる（拡縮と同期・低コスト） */}
+        {active && (
+          <View
+            {...({ dataSet: { kdsanim: "glowpulse" } } as object)}
+            pointerEvents="none"
+            style={[
+              StyleSheet.absoluteFill,
+              {
+                borderRadius: 8,
+                shadowColor: colors.highlight,
+                shadowOpacity: 0.9,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: 0 },
+                animationDuration: "1240ms",
+                animationTimingFunction: "ease-in-out",
+                animationIterationCount: "infinite",
+              } as unknown as ViewStyle,
+            ]}
+          />
+        )}
         {children}
       </View>
     );
@@ -4858,11 +4874,12 @@ const styles = StyleSheet.create({
     paddingVertical: 22,
     alignItems: "center",
     justifyContent: "center",
+    // 毎ターン全幅でスライドする帯なので、ぼかしは小さく（カクつき対策）
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 5 },
-    elevation: 10,
+    shadowOpacity: 0.22,
+    shadowRadius: 5,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
   turnFxText: {
     color: "#fff",
@@ -4886,10 +4903,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 10,
     shadowColor: "#000",
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 10,
+    shadowOpacity: 0.28,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 8,
   },
   annCardTitle: {
     fontSize: 18,
@@ -4914,10 +4931,10 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     shadowColor: "#000",
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 8,
+    shadowOpacity: 0.24,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
   annText: { fontSize: 15, fontWeight: "700", color: colors.text, textAlign: "center" },
   annHint: { fontSize: 10, color: colors.textMuted },
@@ -4955,10 +4972,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 3,
     shadowColor: "#000",
-    shadowOpacity: 0.28,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 10,
+    shadowOpacity: 0.26,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
   },
   hintLabel: { fontSize: 10, fontWeight: "800", color: colors.accent },
   hintTitle: { fontSize: 15, fontWeight: "800", color: colors.text },

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, ViewStyle } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -73,10 +73,16 @@ export function AppButton({
   // 押した位置から波紋が広がる
   const [ripple, setRipple] = useState<{ x: number; y: number; key: number } | null>(null);
 
+  // Webでは影（box-shadow）の毎フレーム更新が重いので、押下時は変形だけ動かす
+  const animateShadow = Platform.OS !== "web";
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ scale: 1 - press.value * 0.035 }, { translateY: press.value * 2 }],
-    shadowOpacity: (shadow.button.shadowOpacity ?? 0.18) * (1 - press.value * 0.7),
-    shadowRadius: shadow.button.shadowRadius * (1 - press.value * 0.5),
+    ...(animateShadow
+      ? {
+          shadowOpacity: (shadow.button.shadowOpacity ?? 0.18) * (1 - press.value * 0.7),
+          shadowRadius: shadow.button.shadowRadius * (1 - press.value * 0.5),
+        }
+      : null),
   }));
 
   // style で高さが固定されているときは、見た目の枠（内側）も

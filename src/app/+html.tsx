@@ -135,6 +135,8 @@ window.addEventListener('appinstalled', function () {
 [data-kdsanim="sway"] { animation-name: kds-sway; }
 @keyframes kds-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 @keyframes kds-pulsering { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+@keyframes kds-glowpulse { 0%, 100% { opacity: .1; } 50% { opacity: 1; } }
+[data-kdsanim="glowpulse"] { animation-name: kds-glowpulse; }
 @keyframes kds-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.022); } }
 @keyframes kds-tremble { 0%, 100% { transform: translateX(-1.6px); } 50% { transform: translateX(1.6px); } }
 @keyframes kds-goldpulse { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
