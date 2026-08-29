@@ -34,6 +34,7 @@ SES = {
     "janken": ("single playful taiko drum don hit, japanese festival drum, short game sound effect", 2, 0.8),
     "janken_win": ("happy short win jingle, two bright chime notes, playful game sound effect", 3, 1.6),
     "janken_lose": ("comical womp womp short lose sound, muted trumpet, playful game sound effect", 3, 1.6),
+    "chime": ("school chime bell ding dong ding dong, japanese school kin-kon-kan-kon chime, warm bell tones, short", 4, 3.0),
     "engine_start": ("car engine ignition and start, starter motor cranking then engine settles into gentle idle, short, realistic sound effect", 3, 2.0),
     "winker": ("car turn signal indicator clicking, two clean relay clicks tick tock, quiet interior, sound effect", 2, 1.0),
     "win": ("grand victory fanfare, celebratory brass and glockenspiel, short and joyful, game jingle", 5, 3.5),

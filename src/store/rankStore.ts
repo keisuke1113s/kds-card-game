@@ -12,6 +12,12 @@ interface RankState {
   setPlayerName: (n: string) => void;
   /** 初回起動日（免許証の交付日として表示する） */
   since: string;
+  /** 運転適性診断の結果タイプ（例 "ALS"） */
+  shindanType: string;
+  setShindanType: (t: string) => void;
+  /** 入校式（初回ガイド）を見たか */
+  entranceDone: boolean;
+  setEntranceDone: () => void;
 }
 
 export const useRankStore = create<RankState>()(
@@ -22,6 +28,10 @@ export const useRankStore = create<RankState>()(
       playerName: "",
       setPlayerName: (playerName) => set({ playerName: playerName.slice(0, 10) }),
       since: new Date().toISOString().slice(0, 10),
+      shindanType: "",
+      setShindanType: (shindanType) => set({ shindanType }),
+      entranceDone: false,
+      setEntranceDone: () => set({ entranceDone: true }),
     }),
     { name: "kds-rank", storage: createJSONStorage(() => AsyncStorage), version: 1 }
   )

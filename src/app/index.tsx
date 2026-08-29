@@ -300,6 +300,21 @@ export default function HomeScreen() {
   const activeDeck = resolveActiveDeck(deckState);
   const record = useRecordStore();
 
+  // 入校式（初回起動ガイド）。すでに遊んでいる人には出さない
+  const entranceDone = useRankStore((s) => s.entranceDone);
+  const setEntranceDone = useRankStore((s) => s.setEntranceDone);
+  const [entranceOpen, setEntranceOpen] = useState(false);
+  useEffect(() => {
+    if (entranceDone) return;
+    if (record.wins + record.losses > 0) {
+      setEntranceDone();
+      return;
+    }
+    const t = setTimeout(() => setEntranceOpen(true), 900);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 進級システム（通算勝利数で段階が上がる）
   const rankIdx = rankIndexFor(record.wins);
   const rank = RANKS[rankIdx];
@@ -583,12 +598,34 @@ export default function HomeScreen() {
               onPress={() => router.push("/kyt")}
             />
           </View>
-          <AppButton
-            label="🪪 教習生免許証（プロフィール）"
-            tone="ghost"
-            fullWidth
-            onPress={() => router.push("/license")}
-          />
+          <View style={styles.row}>
+            <AppButton
+              label="🧠 適性診断"
+              tone="ghost"
+              style={styles.halfTall}
+              onPress={() => router.push("/shindan")}
+            />
+            <AppButton
+              label="👁 動体視力"
+              tone="ghost"
+              style={styles.halfTall}
+              onPress={() => router.push("/eyecheck")}
+            />
+          </View>
+          <View style={styles.row}>
+            <AppButton
+              label="🚗 S字・クランク"
+              tone="ghost"
+              style={styles.halfTall}
+              onPress={() => router.push("/course")}
+            />
+            <AppButton
+              label="🪪 教習生免許証"
+              tone="ghost"
+              style={styles.halfTall}
+              onPress={() => router.push("/license")}
+            />
+          </View>
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
@@ -659,8 +696,59 @@ export default function HomeScreen() {
           <QueueCancelledOverlay onClose={clearQueueCancelledNotice} />
         )}
 
+        {/* 卒業式（最終段階「免許取得」への進級時だけの特別演出） */}
+        {rankUpShow && rankIdx >= RANKS.length - 1 && (
+          <Pressable
+            style={styles.rankUpLayer}
+            onPress={() => {
+              setSeenRankIndex(rankIdx);
+              setRankUpShow(false);
+            }}
+          >
+            {/* 紙吹雪（CSSアニメで降らせる） */}
+            {Array.from({ length: 14 }, (_, i) => (
+              <View
+                key={i}
+                {...({ dataSet: { kdsanim: "fall" } } as object)}
+                style={[
+                  { position: "absolute", left: `${(i * 71) % 100}%`, top: 0, opacity: 0 },
+                  {
+                    animationDuration: `${2600 + ((i * 977) % 2400)}ms`,
+                    animationTimingFunction: "linear",
+                    animationIterationCount: "infinite",
+                    animationDelay: `${(i * 431) % 2000}ms`,
+                  } as never,
+                ]}
+                pointerEvents="none"
+              >
+                <Text style={{ fontSize: 20 }}>{["🎉", "🎊", "🌸", "✨"][i % 4]}</Text>
+              </View>
+            ))}
+            <Animated.View entering={ZoomIn.springify().damping(12)} style={[styles.rankUpCard, { borderColor: "#c9a227" }]}>
+              <Text style={styles.rankUpSmall}>KDS釧路自動車学校</Text>
+              <Text style={styles.rankUpTitle}>🎓 卒業証書 🎓</Text>
+              <Text style={styles.gradName}>{useRankStore.getState().playerName || "教習生"} 殿</Text>
+              <Text style={styles.rankUpMessage}>
+                X
+              </Text>
+              <View style={styles.gradCards}>
+                {["i_kuji", "i_okumura", "i_tomino", "i_iida", "i_shigaya"].map((id) => (
+                  <View key={id} style={styles.gradCardThumb}>
+                    <CardFace cardId={id} size="sm" />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.rankUpMessage}>インストラクター一同、心よりお祝い申し上げます</Text>
+              <View style={styles.rankUpHanko}>
+                <Text style={styles.rankUpHankoText}>KDS</Text>
+              </View>
+              <Text style={styles.rankUpClose}>タップで閉じる（免許証が金色になりました）</Text>
+            </Animated.View>
+          </Pressable>
+        )}
+
         {/* 進級おめでとう（仮免交付などの認定書風） */}
-        {rankUpShow && (
+        {rankUpShow && rankIdx < RANKS.length - 1 && (
           <Pressable
             style={styles.rankUpLayer}
             onPress={() => {
@@ -679,6 +767,50 @@ export default function HomeScreen() {
                 <Text style={styles.rankUpHankoText}>認定</Text>
               </View>
               <Text style={styles.rankUpClose}>タップで閉じる</Text>
+            </Animated.View>
+          </Pressable>
+        )}
+
+        {/* 入校式（初回だけのごあいさつ） */}
+        {entranceOpen && (
+          <Pressable style={styles.rankUpLayer} onPress={() => {}}>
+            <Animated.View entering={ZoomIn.springify().damping(13)} style={styles.rankUpCard}>
+              <Text style={styles.rankUpSmall}>KDS釧路自動車学校</Text>
+              <Text style={styles.rankUpTitle}>🌸 入校式 🌸</Text>
+              <Text style={styles.rankUpMessage}>
+                KDSトレーディングカードゲームへようこそ！{"\n"}
+                あなたも今日から教習生。カード対戦で{"\n"}
+                学科と技能を進めて、卒業を目指しましょう！
+              </Text>
+              <AppButton
+                label="🧠 まずは運転適性診断を受ける"
+                tone="primary"
+                fullWidth
+                onPress={() => {
+                  setEntranceDone();
+                  setEntranceOpen(false);
+                  router.push("/shindan");
+                }}
+              />
+              <AppButton
+                label="📖 遊び方を見る"
+                tone="accent"
+                fullWidth
+                onPress={() => {
+                  setEntranceDone();
+                  setEntranceOpen(false);
+                  router.push("/tutorial");
+                }}
+              />
+              <Pressable
+                onPress={() => {
+                  setEntranceDone();
+                  setEntranceOpen(false);
+                }}
+                hitSlop={8}
+              >
+                <Text style={styles.rankUpClose}>あとで（そのまま遊ぶ）</Text>
+              </Pressable>
             </Animated.View>
           </Pressable>
         )}
@@ -1008,6 +1140,9 @@ const styles = StyleSheet.create({
   },
   rankUpHankoText: { color: "#d02020", fontSize: 16, fontWeight: "900", letterSpacing: 4 },
   rankUpClose: { fontSize: 11, color: "#8a7a30", marginTop: 6 },
+  gradName: { fontSize: 22, fontWeight: "900", color: "#1c3a5e" },
+  gradCards: { flexDirection: "row", gap: 4, marginVertical: 4 },
+  gradCardThumb: { transform: [{ scale: 0.8 }] },
   dailyQCard: {
     backgroundColor: colors.surface,
     borderRadius: 16,

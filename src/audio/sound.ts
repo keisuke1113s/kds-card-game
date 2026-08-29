@@ -120,6 +120,7 @@ export type SeKey =
   | "achievement"
   | "comeback"
   | "cymbal"
+  | "chime"
   | "engine_start"
   | "winker"
   | "tap";

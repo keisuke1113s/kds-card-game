@@ -1074,6 +1074,8 @@ export default function BattleScreen() {
       return;
     }
     if (finishedOutcome) {
+      // 教習終了のチャイム
+      playSe("chime");
       // 対戦が終わった瞬間にリーチ曲などを止めて勝敗の効果音を響かせ、
       // 鳴り終わるのを待ってからリザルト曲を流す
       pauseBgm();
@@ -2407,7 +2409,13 @@ export default function BattleScreen() {
           }
           entering="bounce"
         >
-          {/* 検定の判子（勝ち=合格 / 負け=再検定） */}
+          {/* 検定員の採点ボード → 判子 → 講評 */}
+          <KenteiBoard
+            won={view.phase.winner === ME}
+            turns={view.turnNumber}
+            oppOut={cpu.outOfPlay.length}
+            comeback={comebackWin}
+          />
           <KenteiHanko pass={view.phase.winner === ME} />
           <Text style={styles.resultText}>
             {view.phase.reason === "deckOut"
@@ -2433,6 +2441,15 @@ export default function BattleScreen() {
             opS={cpu.skill}
             oppLabelText={oppLabel}
           />
+          {/* インストラクターの講評（教習原簿の所見欄風・CPU戦のみ） */}
+          {!isOnline && (
+            <View style={styles.kouhyouBox}>
+              <Text style={styles.kouhyouLabel}>📔 {oppLabel}の所見</Text>
+              <Text style={styles.kouhyouText}>
+                {kouhyouFor(view.phase.winner === ME, view.turnNumber, comebackWin, cpu.outOfPlay.length)}
+              </Text>
+            </View>
+          )}
           {/* 連勝の勢いを見せる（3連勝で炎、5連勝で金） */}
           {view.phase.winner === ME && record.streak >= 3 && (
             <View
@@ -3037,6 +3054,13 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
             ? "あと少しで卒業！このまま勝ち切ろう！"
             : `${oppName}が卒業目前！追い上げよう！`}
         </Text>
+        {/* 教習所の「みきわめ 良好」印（自分のリーチのみ） */}
+        {mine && (
+          <View style={styles.mikiwameStamp}>
+            <Text style={styles.mikiwameText} allowFontScaling={false}>みきわめ</Text>
+            <Text style={styles.mikiwameGood} allowFontScaling={false}>良 好</Text>
+          </View>
+        )}
       </Animated.View>
     </View>
   );
@@ -3079,11 +3103,29 @@ function DeckCount({
     opacity: blink.value,
     transform: [{ translateX: tremble.value }],
   }));
+  // 山札残量をガソリンメーター風に（16枚=満タン。山札切れ=ガス欠負け）
+  const segs = 8;
+  const filled = Math.max(0, Math.min(segs, Math.ceil((count / 16) * segs)));
   return (
-    <Animated.Text style={[baseStyle, style, low && { color: colors.danger, fontWeight: "900" }]}>
-      {low ? "⚠️ " : ""}山札 {count}
-      {suffix}
-    </Animated.Text>
+    <Animated.View style={[style, styles.fuelWrap]}>
+      <Text style={[baseStyle, low && { color: colors.danger, fontWeight: "900" }]}>
+        {low ? "⚠️ " : ""}山札 {count}
+        {suffix}
+      </Text>
+      <View style={styles.fuelGauge}>
+        <Text style={styles.fuelLabel} allowFontScaling={false}>E</Text>
+        {Array.from({ length: segs }, (_, i) => (
+          <View
+            key={i}
+            style={[
+              styles.fuelSeg,
+              i < filled && { backgroundColor: low ? colors.danger : i < 2 ? "#e8a03a" : "#57b060" },
+            ]}
+          />
+        ))}
+        <Text style={styles.fuelLabel} allowFontScaling={false}>F⛽</Text>
+      </View>
+    </Animated.View>
   );
 }
 
@@ -4669,19 +4711,86 @@ function SignalLight({ state }: { state: "green" | "yellow" | "red" }) {
   );
 }
 
+/** 対戦内容からインストラクターの所見コメントを選ぶ */
+function kouhyouFor(won: boolean, turns: number, comeback: boolean, oppOut: number): string {
+  if (won && comeback) return "劣勢からの立て直しが見事でした。あきらめない姿勢は路上でも大切です。";
+  if (won && turns <= 8) return "思い切りの良い運転（プレイ）でした。判断の速さは大きな武器です。";
+  if (won && oppOut >= 3) return "攻めのメリハリが効いていました。安全確認を忘れずにこの調子で！";
+  if (won) return "落ち着いた良い教習態度でした。基本に忠実な進め方に好感が持てます。";
+  if (!won && turns >= 14) return "粘り強く最後まで走り切りました。次はリーチのかけ方を意識してみましょう。";
+  if (!won && oppOut === 0) return "少し受け身だったかも。バトルで相手を場外に送る積極性も試してみましょう。";
+  return "今日の敗因を思い出すのが上達への近道。次の教習も待っています！";
+}
+
+/** 検定員の採点ボード。項目に順番に✓が入っていく */
+function KenteiBoard({
+  won,
+  turns,
+  oppOut,
+  comeback,
+}: {
+  won: boolean;
+  turns: number;
+  oppOut: number;
+  comeback: boolean;
+}) {
+  const items: { label: string; grade: string }[] = [
+    { label: "安全確認", grade: "よし！" },
+    { label: "メリハリ", grade: turns <= 12 ? "◎" : "よし！" },
+    { label: "積極性", grade: oppOut >= 2 ? "◎" : comeback ? "◎" : "よし！" },
+  ];
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const ts: ReturnType<typeof setTimeout>[] = [];
+    items.forEach((_, i) => {
+      ts.push(
+        setTimeout(() => {
+          playSe("tap");
+          setShown(i + 1);
+        }, 250 + i * 320)
+      );
+    });
+    return () => ts.forEach(clearTimeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <View style={styles.kenteiBoard}>
+      <Text style={styles.kenteiBoardTitle}>検定員チェック</Text>
+      <View style={styles.kenteiBoardRow}>
+        {items.map((it, i) => (
+          <View key={it.label} style={styles.kenteiBoardItem}>
+            <Text style={styles.kenteiBoardLabel}>{it.label}</Text>
+            {shown > i && (
+              <Animated.Text
+                entering={ZoomIn.springify().damping(11)}
+                style={[styles.kenteiBoardGrade, !won && i === items.length - 1 && { color: "#b04030" }]}
+              >
+                ✓{it.grade}
+              </Animated.Text>
+            )}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 /** 検定の判子。「合格」は朱色、「再検定」は少し落ち着いた赤で、バンッと押される */
 function KenteiHanko({ pass }: { pass: boolean }) {
   const t = useSharedValue(0);
   useEffect(() => {
-    playSe("hit");
-    haptic(pass ? "success" : "medium");
+    const se = setTimeout(() => {
+      playSe("hit");
+      haptic(pass ? "success" : "medium");
+    }, 1250);
     t.value = withDelay(
-      350,
+      1250,
       withSequence(
         withTiming(1.06, { duration: 190, easing: Easing.in(Easing.cubic) }),
         withTiming(1, { duration: 120 })
       )
     );
+    return () => clearTimeout(se);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const st = useAnimatedStyle(() => ({
@@ -5536,6 +5645,53 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
   },
   signalLamp: { width: 9, height: 9, borderRadius: 5 },
+  mikiwameStamp: {
+    marginTop: 8,
+    borderWidth: 2.5,
+    borderColor: "#1a5fb4",
+    borderRadius: 8,
+    paddingVertical: 4,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    transform: [{ rotate: "-6deg" }],
+    backgroundColor: "#1a5fb40d",
+  },
+  mikiwameText: { color: "#1a5fb4", fontSize: 10, fontWeight: "800", letterSpacing: 2 },
+  mikiwameGood: { color: "#1a5fb4", fontSize: 20, fontWeight: "900", letterSpacing: 4 },
+  fuelWrap: { gap: 1 },
+  fuelGauge: { flexDirection: "row", alignItems: "center", gap: 2 },
+  fuelSeg: {
+    width: 7,
+    height: 7,
+    borderRadius: 2,
+    backgroundColor: "#00000022",
+  },
+  fuelLabel: { fontSize: 8, fontWeight: "900", color: colors.textMuted },
+  kenteiBoard: {
+    alignSelf: "stretch",
+    backgroundColor: "#fffdf4",
+    borderWidth: 1.5,
+    borderColor: "#c9b98a",
+    borderRadius: 10,
+    padding: 8,
+    gap: 4,
+  },
+  kenteiBoardTitle: { fontSize: 10, fontWeight: "800", color: "#8a7a30", letterSpacing: 1 },
+  kenteiBoardRow: { flexDirection: "row", justifyContent: "space-around" },
+  kenteiBoardItem: { alignItems: "center", minHeight: 34 },
+  kenteiBoardLabel: { fontSize: 11, fontWeight: "700", color: "#5a4a10" },
+  kenteiBoardGrade: { fontSize: 14, fontWeight: "900", color: "#2f9e44" },
+  kouhyouBox: {
+    alignSelf: "stretch",
+    backgroundColor: "#f6f2e8",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#d8cba8",
+    padding: 10,
+    gap: 3,
+  },
+  kouhyouLabel: { fontSize: 11, fontWeight: "800", color: "#8a7a30" },
+  kouhyouText: { fontSize: 12, lineHeight: 19, color: "#4a3d10" },
   hankoWrap: { alignItems: "center", marginTop: 2, marginBottom: -2 },
   hanko: {
     borderWidth: 3,

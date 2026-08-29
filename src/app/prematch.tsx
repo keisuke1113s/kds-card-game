@@ -217,6 +217,7 @@ export default function PrematchScreen() {
             ...opponentDeck.list.main,
             opponentDeck.list.tantou,
           ]}
+          ticket={{ course: playerDeck.name, opponent: "CPU" }}
           onDecided={begin}
           onCancel={() => {
             stopBgm();

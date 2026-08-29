@@ -2,6 +2,7 @@ import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import Animated, {
+  SlideInDown,
   Easing,
   FadeIn,
   FadeOut,
@@ -58,12 +59,15 @@ export function MatchPrep({
   cardIds,
   onDecided,
   onCancel,
+  ticket,
 }: {
   /** この対戦で使うカード。準備の裏で絵を読み込んでおく */
   cardIds: string[];
   /** じゃんけんの決着。true なら自分が先攻 */
   onDecided: (firstPlayerIsMe: boolean) => void;
   onCancel: () => void;
+  /** 教習所の配車券風の券面（渡すと発券演出が出る） */
+  ticket?: { course: string; opponent: string };
 }) {
   const [phase, setPhase] = useState<Phase>("shuffle");
   const [round, setRound] = useState(1);
@@ -72,6 +76,8 @@ export function MatchPrep({
   const [draw, setDraw] = useState(false);
 
   useEffect(() => {
+    // 配車券の発券音（券が滑り出てくるイメージ）
+    if (ticket) setTimeout(() => playSe("draw"), 350);
     // シャッフル中はBGMなし（シャッフルの効果音だけを聞かせる）。
     // メインBGMは対戦画面の「この手札で始めますか？」表示から始まる
     const t = setTimeout(() => setPhase("choose"), SHUFFLE_MS);
@@ -136,6 +142,22 @@ export function MatchPrep({
         style={[StyleSheet.absoluteFill, { opacity: 0.7 }]}
         contentFit="cover"
       />
+      {/* 教習所の配車券。上からピッと発券される */}
+      {ticket && (
+        <Animated.View entering={SlideInDown.duration(420)} style={styles.ticket}>
+          <View style={styles.ticketHeader}>
+            <Text style={styles.ticketHeaderText}>KDS釧路自動車学校　配車券</Text>
+          </View>
+          <View style={styles.ticketBody}>
+            <Text style={styles.ticketLine}>
+              第{new Date().getHours()}時限　{new Date().getMonth() + 1}/{new Date().getDate()}
+            </Text>
+            <Text style={styles.ticketLine}>コース：{ticket.course}</Text>
+            <Text style={styles.ticketLine}>相手：{ticket.opponent}</Text>
+          </View>
+          <View style={styles.ticketPunch} />
+        </Animated.View>
+      )}
       <Animated.View key={stepNumber} entering={FadeIn.duration(260)} style={styles.caption}>
         <View style={styles.stepBadge}>
           <Text style={styles.stepBadgeText}>{stepNumber}</Text>
@@ -367,6 +389,32 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
+  },
+  ticket: {
+    backgroundColor: "#fffdf2",
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: "#c9b98a",
+    overflow: "hidden",
+    width: 230,
+    alignSelf: "center",
+    marginBottom: 10,
+    transform: [{ rotate: "-1.5deg" }],
+  },
+  ticketHeader: { backgroundColor: "#1a5fb4", paddingVertical: 3, alignItems: "center" },
+  ticketHeaderText: { color: "#fff", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  ticketBody: { paddingVertical: 6, paddingHorizontal: 12, gap: 2 },
+  ticketLine: { fontSize: 11, fontWeight: "700", color: "#3a3320" },
+  ticketPunch: {
+    position: "absolute",
+    right: 10,
+    top: "55%",
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: "#c9b98a",
+    backgroundColor: "#fffdf2",
   },
   stepBadge: {
     width: 26,

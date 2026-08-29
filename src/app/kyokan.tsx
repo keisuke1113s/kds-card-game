@@ -134,6 +134,7 @@ export default function KyokanScreen() {
       {target && (
         <MatchPrep
           cardIds={[...playerDeck.list.main, playerDeck.list.tantou]}
+          ticket={{ course: "インストラクター戦", opponent: `${selected?.name ?? ""}インストラクター` }}
           onDecided={begin}
           onCancel={() => {
             stopBgm();

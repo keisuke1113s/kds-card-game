@@ -9,6 +9,7 @@ import { RANKS, rankIndexFor, totalDistanceKm, winsToNextRank } from "@/data/ran
 import { shareLicenseImage } from "@/data/shareImage";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useRankStore } from "@/store/rankStore";
+import { shindanTypeOf } from "@/data/shindan";
 import { useRecordStore } from "@/store/recordStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -29,6 +30,7 @@ export default function LicenseScreen() {
   const km = totalDistanceKm(record.wins + record.losses);
   const gold = rankIdx >= RANKS.length - 1;
 
+  const shindan = shindanTypeOf(rankStore.shindanType);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(rankStore.playerName);
 
@@ -106,6 +108,18 @@ export default function LicenseScreen() {
                 <Text style={styles.fieldLabel}>走行距離</Text>
                 <Text style={styles.fieldValue}>{km.toLocaleString()}km</Text>
               </View>
+              <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>適性</Text>
+                {shindan ? (
+                  <Text style={styles.fieldValue}>
+                    {shindan.emoji} {shindan.name}
+                  </Text>
+                ) : (
+                  <Pressable onPress={() => router.push("/shindan")}>
+                    <Text style={[styles.fieldValue, { color: "#1a5fb4" }]}>未診断（タップで診断）▸</Text>
+                  </Pressable>
+                )}
+              </View>
             </View>
             {/* 顔写真の枠には使用デッキの担当カード */}
             <View style={styles.photoBox}>
@@ -132,6 +146,7 @@ export default function LicenseScreen() {
           onPress={() =>
             shareLicenseImage({
               name,
+              typeName: shindan ? `${shindan.emoji} ${shindan.name}` : "",
               rankName: rank.name,
               rankEmoji: rank.emoji,
               since: rankStore.since,

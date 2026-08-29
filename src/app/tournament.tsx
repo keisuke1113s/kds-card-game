@@ -117,23 +117,41 @@ export default function TournamentScreen() {
         <Text style={styles.progress}>
           🏆 {STAGES[t.stage]?.label ?? ""} 進出中（あと{4 - t.stage}勝で優勝！）
         </Text>
+        {/* 教習所のコース図風: 道でつながったチェックポイントを車が進んでいく */}
         {STAGES.map((s, i) => {
           const status = i < t.stage ? "done" : i === t.stage ? "now" : "locked";
+          const icons = ["🌀", "⚡", "⛰", "🏁"];
           return (
-            <View
-              key={s.label}
-              style={[styles.stageRow, status === "now" && styles.stageRowNow]}
-            >
-              <Text style={styles.stageMark}>
-                {status === "done" ? "✅" : status === "now" ? "⚔️" : "🔒"}
-              </Text>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.stageLabel}>{s.label}</Text>
-                <Text style={styles.stageDesc}>
-                  {i === 3 && finalKyokan ? `${finalKyokan.name}インストラクター` : s.desc}
-                </Text>
+            <View key={s.label}>
+              {i > 0 && (
+                <View style={styles.courseRoadWrap}>
+                  <View style={[styles.courseRoad, i <= t.stage && styles.courseRoadDone]}>
+                    <View style={styles.courseRoadLine} />
+                  </View>
+                </View>
+              )}
+              <View
+                style={[
+                  styles.stageRow,
+                  status === "now" && styles.stageRowNow,
+                  status === "done" && styles.stageRowDone,
+                ]}
+              >
+                <View style={[styles.courseNode, status === "done" && styles.courseNodeDone]}>
+                  <Text style={styles.courseNodeIcon}>
+                    {status === "now" ? "🚗" : status === "done" ? "✅" : icons[i]}
+                  </Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.stageLabel}>
+                    {icons[i]} {s.label}
+                  </Text>
+                  <Text style={styles.stageDesc}>
+                    {i === 3 && finalKyokan ? `${finalKyokan.name}インストラクター` : s.desc}
+                  </Text>
+                </View>
+                {i === 3 && finalKyokan && <CardFace cardId={finalKyokan.cardId} size="sm" />}
               </View>
-              {i === 3 && finalKyokan && <CardFace cardId={finalKyokan.cardId} size="sm" />}
             </View>
           );
         })}
@@ -156,6 +174,7 @@ export default function TournamentScreen() {
       {preparing && (
         <MatchPrep
           cardIds={[...playerDeck.list.main, playerDeck.list.tantou]}
+          ticket={{ course: "トーナメント", opponent: STAGES[t.stage]?.label ?? "" }}
           onDecided={begin}
           onCancel={() => {
             stopBgm();
@@ -177,6 +196,28 @@ const styles = StyleSheet.create({
   loseText: { fontSize: 14, fontWeight: "800", color: colors.danger },
   note: { fontSize: 14, lineHeight: 22, color: colors.text, textAlign: "center" },
   progress: { fontSize: 16, fontWeight: "900", color: colors.primaryDark },
+  courseRoadWrap: { alignItems: "flex-start", paddingLeft: 34 },
+  courseRoad: {
+    width: 16,
+    height: 22,
+    backgroundColor: "#9aa5b1",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  courseRoadDone: { backgroundColor: "#57b060" },
+  courseRoadLine: { width: 2, height: 12, backgroundColor: "#ffffffaa", borderRadius: 1 },
+  courseNode: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "#6b7280",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 3,
+    borderColor: "#ffffff",
+  },
+  courseNodeDone: { backgroundColor: "#57b060" },
+  courseNodeIcon: { fontSize: 18 },
   stageRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -186,6 +227,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   stageRowNow: { borderWidth: 2, borderColor: colors.accent },
+  stageRowDone: { opacity: 0.75 },
   stageMark: { fontSize: 22 },
   stageLabel: { fontSize: 16, fontWeight: "900", color: colors.text },
   stageDesc: { fontSize: 13, color: colors.textMuted },

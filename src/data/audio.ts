@@ -8,6 +8,7 @@ export const seAssets: Record<string, number> = {
   "battle_lose": require("@/assets/audio/battle_lose.wav"),
   "battle_tie": require("@/assets/audio/battle_tie.wav"),
   "battle_win": require("@/assets/audio/battle_win.wav"),
+  "chime": require("@/assets/audio/chime.wav"),
   "comeback": require("@/assets/audio/comeback.wav"),
   "cymbal": require("@/assets/audio/cymbal.wav"),
   "draw": require("@/assets/audio/draw.wav"),

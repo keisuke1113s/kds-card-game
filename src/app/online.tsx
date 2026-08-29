@@ -480,6 +480,7 @@ export default function OnlineScreen() {
             ...cpuPrep.cpuList.main,
             cpuPrep.cpuList.tantou,
           ]}
+          ticket={{ course: "オンライン対戦", opponent: "対戦相手" }}
           onDecided={beginCpuMatch}
           onCancel={() => {
             stopBgm();

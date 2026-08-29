@@ -182,6 +182,9 @@ export default function RootLayout() {
         <Stack.Screen name="tournament" options={{ title: "トーナメント" }} />
         <Stack.Screen name="kyt" options={{ title: "危険予測トレーニング" }} />
         <Stack.Screen name="license" options={{ title: "教習生免許証" }} />
+        <Stack.Screen name="shindan" options={{ title: "運転適性診断" }} />
+        <Stack.Screen name="eyecheck" options={{ title: "動体視力チェック" }} />
+        <Stack.Screen name="course" options={{ title: "S字・クランク" }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
           name="settings"

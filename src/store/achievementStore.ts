@@ -8,6 +8,8 @@ import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { useQuizStore } from "@/store/quizStore";
 import { useKytStore } from "@/store/kytStore";
 import { KYT_SCENES } from "@/data/kytScenes";
+import { useVisionStore } from "@/store/visionStore";
+import { useCourseStore } from "@/store/courseStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 
@@ -76,6 +78,9 @@ export function evaluateAchievements(): void {
     kytCleared: useKytStore.getState().cleared,
     kytMastered: useKytStore.getState().masteredIds.length,
     kytTotal: KYT_SCENES.length,
+    visionBest: useVisionStore.getState().best,
+    courseBoth:
+      useCourseStore.getState().bestS !== null && useCourseStore.getState().bestCrank !== null,
     totalInstructors: allCards.filter((c) => c.type === "instructor").length,
     dailyAllDone: useMissionStore.getState().everAllDone,
     tournamentWins: useTournamentStore.getState().champions,
