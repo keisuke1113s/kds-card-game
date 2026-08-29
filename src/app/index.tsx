@@ -478,7 +478,7 @@ export default function HomeScreen() {
                 <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
                   {lineLinked
                     ? "💚 LINE連携ずみ（すべての機能が使えます）"
-                    : "💚 LINE連携（無料）で 対戦・自動車学校メニューを解放！"}
+                    : "💚 LINE連携（無料）で 対戦・自動車学校メニューなど全てを解放！"}
                 </Text>
               </Pressable>
             )}
