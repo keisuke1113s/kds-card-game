@@ -455,12 +455,6 @@ export default function HomeScreen() {
             />
           </View>
           <AppButton
-            label="📝 学科クイズ"
-            tone="ghost"
-            fullWidth
-            onPress={() => router.push("/quiz")}
-          />
-          <AppButton
             label="オンライン対戦"
             icon="🌐"
             tone="primary"
@@ -468,6 +462,12 @@ export default function HomeScreen() {
             feel="medium"
             fullWidth
             onPress={() => router.push("/online")}
+          />
+          <AppButton
+            label="📝 学科クイズ"
+            tone="ghost"
+            fullWidth
+            onPress={() => router.push("/quiz")}
           />
           <View style={styles.row}>
             <AppButton
@@ -914,7 +914,7 @@ const styles = StyleSheet.create({
   cpuGroup: {
     borderWidth: 1.5,
     borderColor: colors.primaryLight,
-    backgroundColor: colors.primary + "14",
+    backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
     padding: spacing.sm,
     gap: spacing.sm,
