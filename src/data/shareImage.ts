@@ -139,7 +139,7 @@ export interface LicenseShareData {
 export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
   if (Platform.OS !== "web") return false;
   const W = 1080;
-  const H = 680;
+  const H = 740;
   const canvas = document.createElement("canvas");
   canvas.width = W;
   canvas.height = H;
@@ -170,35 +170,39 @@ export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
   ctx.textAlign = "left";
   const L = 80;
   ctx.fillStyle = "#1c2a1a";
-  ctx.font = "900 64px 'Hiragino Sans', sans-serif";
-  ctx.fillText(`氏名　${d.name || "教習生"}`, L, 230);
-  ctx.font = "700 40px 'Hiragino Sans', sans-serif";
-  ctx.fillText(`段階　${d.rankEmoji} ${d.rankName}`, L, 310);
-  ctx.fillText(`交付日　${d.since}`, L, 375);
-  ctx.fillText(`通算成績　${d.wins}勝 ${d.losses}敗`, L, 440);
-  ctx.fillText(`総走行距離　${d.km.toLocaleString()}km`, L, 505);
-  if (d.typeName) ctx.fillText(`適性タイプ　${d.typeName}`, L, 570);
-  if (d.title) {
-    ctx.fillStyle = "#7a5a00";
-    ctx.fillText(`称号　🎖 ${d.title}`, L, d.typeName ? 635 : 570);
-    ctx.fillStyle = "#1c2a1a";
-  }
+  ctx.font = "900 60px 'Hiragino Sans', sans-serif";
+  ctx.fillText(`氏名　${d.name || "教習生"}`, L, 225);
+  // 各行は等間隔（55px）。称号・適性が無ければ行が詰まらないよう順に積む
+  ctx.font = "700 38px 'Hiragino Sans', sans-serif";
+  let y = 295;
+  const line = (text: string, color = "#1c2a1a") => {
+    ctx.fillStyle = color;
+    ctx.fillText(text, L, y);
+    y += 55;
+  };
+  line(`段階　${d.rankEmoji} ${d.rankName}`);
+  line(`交付日　${d.since}`);
+  line(`通算成績　${d.wins}勝 ${d.losses}敗`);
+  line(`総走行距離　${d.km.toLocaleString()}km`);
+  if (d.typeName) line(`適性タイプ　${d.typeName}`);
+  if (d.title) line(`称号　🎖 ${d.title}`, "#7a5a00");
 
-  // 判子
+  // 判子（文字が枠に収まる大きさに）
   ctx.strokeStyle = "#d02020";
   ctx.lineWidth = 6;
-  roundRect(ctx, W - 250, 400, 170, 110, 12);
+  roundRect(ctx, W - 280, 420, 200, 116, 12);
   ctx.stroke();
   ctx.fillStyle = "#d02020";
   ctx.textAlign = "center";
-  ctx.font = "900 56px 'Hiragino Sans', sans-serif";
-  ctx.fillText("KDS", W - 165, 448);
-  ctx.font = "900 30px 'Hiragino Sans', sans-serif";
-  ctx.fillText("釧路自動車学校", W - 165, 490);
+  ctx.font = "900 46px 'Hiragino Sans', sans-serif";
+  ctx.fillText("KDS", W - 180, 470);
+  ctx.font = "900 26px 'Hiragino Sans', sans-serif";
+  ctx.fillText("釧路自動車学校", W - 180, 510);
 
+  // フッターは最下段に固定（本文と重ならない）
   ctx.fillStyle = "#5a6b50";
-  ctx.font = "800 32px 'Hiragino Sans', sans-serif";
-  ctx.fillText("運転が楽しくなる!! KDS a GO! GO!", W / 2, 610);
+  ctx.font = "800 30px 'Hiragino Sans', sans-serif";
+  ctx.fillText("運転が楽しくなる!! KDS a GO! GO!", W / 2, H - 45);
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) return false;
