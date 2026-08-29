@@ -73,6 +73,7 @@ import {
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { startFrameWatch, usePerfStore } from "@/perf";
 import { colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
@@ -436,7 +437,20 @@ export default function BattleScreen() {
   const seEnabled = useSettingsStore((s) => s.seEnabled);
   // 演出の量（light はカットイン短縮・飛翔系の演出を省略）
   const fxLevel = useSettingsStore((s) => s.fxLevel);
-  const fxScale = fxLevel === "light" ? 0.6 : fxLevel === "normal" ? 0.85 : 1;
+  // カクつき検知でこの対戦の間だけ「ひかえめ」相当に自動で落とす
+  const autoLight = usePerfStore((s) => s.autoLight);
+  const effFxLevel = autoLight ? "light" : fxLevel;
+  const fxScale = effFxLevel === "light" ? 0.6 : effFxLevel === "normal" ? 0.85 : 1;
+  // 自動軽量化のお知らせ（1回だけ数秒表示）
+  const [autoLightNote, setAutoLightNote] = useState(false);
+  useEffect(() => {
+    if (!autoLight || fxLevel === "light") return;
+    setAutoLightNote(true);
+    const t = setTimeout(() => setAutoLightNote(false), 4000);
+    return () => clearTimeout(t);
+  }, [autoLight, fxLevel]);
+  // フレーム監視（対戦ごとにリセットして開始）
+  useEffect(() => startFrameWatch(), []);
 
   // 画面シェイク（退場・バトル解決時）＋ヒットストップの押し込み
   const shakeX = useSharedValue(0);
@@ -1499,6 +1513,12 @@ export default function BattleScreen() {
         {queueActive && !isOnline && (
           <View style={styles.queueBadge} pointerEvents="none">
             <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
+          </View>
+        )}
+        {/* カクつき検知で演出を軽くしたお知らせ */}
+        {autoLightNote && (
+          <View style={styles.autoLightNote} pointerEvents="none">
+            <Text style={styles.autoLightNoteText}>⚡ 動きが重いため、演出を自動で軽くしました</Text>
           </View>
         )}
         {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ。オンラインでは出さない */}
@@ -5373,6 +5393,17 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 1,
   },
+  autoLightNote: {
+    position: "absolute",
+    top: 52,
+    alignSelf: "center",
+    backgroundColor: "#000000b0",
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    zIndex: 60,
+  },
+  autoLightNoteText: { color: "#fff", fontSize: 12, fontWeight: "700" },
   queueBadge: {
     position: "absolute",
     top: 4,
