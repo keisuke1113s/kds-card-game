@@ -24,7 +24,8 @@ export default function ShindanScreen() {
   const [axes, setAxes] = useState<Axis[]>([]);
 
   const q = SHINDAN_QUESTIONS[index];
-  const result = phase === "result" ? computeShindanType(axes) : null;
+  // 結果画面に出すタイプ（診断直後 or 保存済みの前回結果）
+  const [result, setResult] = useState<ReturnType<typeof computeShindanType> | null>(null);
 
   const start = () => {
     setIndex(0);
@@ -40,6 +41,7 @@ export default function ShindanScreen() {
       setAxes(nextAxes);
       const t = computeShindanType(nextAxes);
       setShindanType(t.key);
+      setResult(t);
       playSe("achievement");
       setPhase("result");
       return;
@@ -64,6 +66,17 @@ export default function ShindanScreen() {
               </Text>
             )}
             <AppButton label="診断をはじめる" custom={{ bg: "#e2604a" }} fullWidth onPress={start} />
+            {saved && (
+              <AppButton
+                label={`${saved.emoji} 前回の結果をもう一度見る`}
+                custom={{ bg: "#ffffff", fg: "#c4432e", border: "#e2604a" }}
+                fullWidth
+                onPress={() => {
+                  setResult(saved);
+                  setPhase("result");
+                }}
+              />
+            )}
             <AppButton label="ホームへ戻る" tone="ghost" fullWidth onPress={() => router.back()} />
           </View>
         )}
@@ -108,6 +121,12 @@ export default function ShindanScreen() {
               </View>
             </View>
             <AppButton label="もう一度診断する" tone="ghost" fullWidth onPress={start} />
+            <AppButton
+              label="診断トップへ戻る"
+              tone="ghost"
+              fullWidth
+              onPress={() => setPhase("start")}
+            />
             <AppButton
               label="🪪 免許証で確認する"
               tone="primary"
