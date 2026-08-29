@@ -123,17 +123,30 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
     : { style: [styles.container, styles.plain] };
   return (
     <Container {...containerProps}>
-      {/* 手に持っているように、後ろから裏面が1枚のぞく。表のカードは真っ直ぐ */}
-      <View style={styles.cardWrap}>
-        <Image
-          source={cardThumbs["cardback"]}
-          style={[styles.backCard, styles.backRight]}
-          contentFit="cover"
-        />
-        <View style={styles.frontCard}>
-          <TiltCard>
-            <CardFace cardId={cardId} size="lg" />
-          </TiltCard>
+      {/* 手に持っているように、後ろから裏面が1枚のぞく。表のカードは真っ直ぐ。
+          背の低い画面では効果文まで見えるようにカードを縮小する */}
+      <View
+        style={[
+          styles.cardWrap,
+          COMPACT && {
+            width: (cardSize.lg.width + 78) * COMPACT_SCALE,
+            height: (cardSize.lg.height + 16) * COMPACT_SCALE,
+          },
+        ]}
+      >
+        <View style={COMPACT ? { transform: [{ scale: COMPACT_SCALE }] } : null}>
+          <View style={styles.cardWrap}>
+            <Image
+              source={cardThumbs["cardback"]}
+              style={[styles.backCard, styles.backRight]}
+              contentFit="cover"
+            />
+            <View style={styles.frontCard}>
+              <TiltCard>
+                <CardFace cardId={cardId} size="lg" />
+              </TiltCard>
+            </View>
+          </View>
         </View>
       </View>
       <View style={styles.headerRow}>
@@ -176,6 +189,10 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
     </Container>
   );
 }
+
+// 画面が低い端末（iPhone縦持ちなど）ではカードを縮めて効果文が隠れないようにする
+const COMPACT = Dimensions.get("window").height < 900;
+const COMPACT_SCALE = 0.74;
 
 const styles = StyleSheet.create({
   termLink: {
