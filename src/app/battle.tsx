@@ -2157,8 +2157,9 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {/* 実況・ドロー演出が残っている間は出さない（カード記載の順どおりに見せる） */}
-      {humanChoice && !busy && !drawFx && !autoPlay && (
+      {/* 実況・ドロー・カード移動・場外送りの演出が残っている間は出さない
+          （「手札に戻すカードを選んでください」等が演出と重ならないように） */}
+      {humanChoice && !busy && !drawFx && flyFx.length === 0 && !outFx && !autoPlay && (
         <Overlay title={humanChoice.prompt}>
           {humanChoice.purpose === "janken" ? (
             <View style={styles.jankenRow}>
@@ -2226,7 +2227,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {revealedHand && !busy && !drawFx && (
+      {revealedHand && !busy && !drawFx && flyFx.length === 0 && (
         <Overlay title="相手の手札" onClose={() => setRevealedHand(null)}>
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
