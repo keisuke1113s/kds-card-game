@@ -59,12 +59,14 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: "kds-settings",
       storage: createJSONStorage(() => AsyncStorage),
-      version: 2,
+      version: 3,
       migrate: (persisted) => {
         // v1→v2: 実況表示に合わせてCPUの手の間隔の既定値を引き上げ
         const s = persisted as Partial<SettingsState>;
         if (!s.aiSpeedMs || s.aiSpeedMs < 700) s.aiSpeedMs = 1000;
         if (s.hapticsEnabled === undefined) s.hapticsEnabled = true;
+        // v2→v3: 演出の量が3択→ひかえめON/OFFになったため「標準」は「たっぷり」へ
+        if (s.fxLevel === "normal") s.fxLevel = "full";
         return s as SettingsState;
       },
     }

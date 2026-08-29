@@ -136,14 +136,17 @@ export default function SettingsScreen() {
         <Choice label="🌙 ダーク" active={DARK_MODE} onPress={() => switchDarkMode(true)} />
       </View>
 
-      <Text style={styles.sectionTitle}>演出の量</Text>
-      <View style={styles.choiceRow}>
-        <Choice label="たっぷり" active={fxLevel === "full"} onPress={() => setFxLevel("full")} />
-        <Choice label="標準" active={fxLevel === "normal"} onPress={() => setFxLevel("normal")} />
-        <Choice label="ひかえめ" active={fxLevel === "light"} onPress={() => setFxLevel("light")} />
+      <Text style={styles.sectionTitle}>演出</Text>
+      <View style={styles.row}>
+        <Choice
+          label={`ひかえめモード ${fxLevel === "light" ? "ON" : "OFF"}`}
+          active={fxLevel === "light"}
+          onPress={() => setFxLevel(fxLevel === "light" ? "full" : "light")}
+        />
       </View>
       <Text style={styles.note}>
-        「ひかえめ」はカットインを短くし、カードが飛ぶ演出を省いてテンポ重視になります。
+        ONにするとカットインを短くし、カードが飛ぶ演出を省いてテンポ重視になります。
+        動きが重い端末では、対戦中に自動でひかえめ相当に切り替わります。
       </Text>
 
       <Text style={styles.note}>
