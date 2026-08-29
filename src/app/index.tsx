@@ -384,6 +384,25 @@ export default function HomeScreen() {
             />
           )}
 
+          {/* 通算成績（1戦でもしたら出す） */}
+          {record.wins + record.losses > 0 && (
+            <Text style={styles.recordLine}>
+              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
+              <Text style={styles.recordLose}>{record.losses}敗</Text>
+              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
+            </Text>
+          )}
+          {/* コレクション達成の記章（22/44/64枚の節目でランクアップ） */}
+          {collectionRank && (
+            <Pressable
+              style={[styles.collectionRibbon, { backgroundColor: collectionRank.bg, borderColor: collectionRank.border }]}
+              onPress={() => router.push("/library")}
+            >
+              <Text style={[styles.collectionRibbonText, { color: collectionRank.fg }]}>
+                {collectionRank.label}（{unlockedCount}/{allCards.length}枚）
+              </Text>
+            </Pressable>
+          )}
           <AppButton
             label="はじめての方へ（遊び方）"
             icon="📖"
@@ -432,25 +451,6 @@ export default function HomeScreen() {
               onPress={() => router.push("/quiz")}
             />
           </View>
-          {/* 通算成績（1戦でもしたら出す） */}
-          {record.wins + record.losses > 0 && (
-            <Text style={styles.recordLine}>
-              通算 <Text style={styles.recordWin}>{record.wins}勝</Text>{" "}
-              <Text style={styles.recordLose}>{record.losses}敗</Text>
-              {record.streak >= 2 ? `　🔥${record.streak}連勝中` : ""}
-            </Text>
-          )}
-          {/* コレクション達成の記章（22/44/64枚の節目でランクアップ） */}
-          {collectionRank && (
-            <Pressable
-              style={[styles.collectionRibbon, { backgroundColor: collectionRank.bg, borderColor: collectionRank.border }]}
-              onPress={() => router.push("/library")}
-            >
-              <Text style={[styles.collectionRibbonText, { color: collectionRank.fg }]}>
-                {collectionRank.label}（{unlockedCount}/{allCards.length}枚）
-              </Text>
-            </Pressable>
-          )}
           <AppButton
             label="🏆 トーナメント（4連戦を勝ち抜け！）"
             tone="ghost"
