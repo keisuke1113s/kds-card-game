@@ -157,13 +157,45 @@ export function playSe(key: SeKey, rate = 1): void {
   }
 }
 
+/** 実況ボイスの種類（assets/audio/voice_*.wav） */
+export type VoiceKey =
+  | "voice_reach"
+  | "voice_reach_opp"
+  | "voice_double"
+  | "voice_lastbattle"
+  | "voice_kessyaku"
+  | "voice_comeback"
+  | "voice_fullline"
+  | "voice_start";
+
+/** 実況ボイスを1つ鳴らす。効果音設定と実況ボイス設定の両方がONのときだけ */
+export function playVoice(key: VoiceKey): void {
+  if (!unlocked) return;
+  const s = useSettingsStore.getState();
+  if (!s.seEnabled || !s.voiceEnabled) return;
+  const asset = seAssets[key];
+  if (asset === undefined) return;
+  try {
+    void ensureAudioMode();
+    let p = sePlayers[key];
+    if (!p) {
+      p = createAudioPlayer(asset);
+      sePlayers[key] = p;
+    }
+    safeSeek(p, 0);
+    safePlay(p);
+  } catch (e) {
+    console.warn("実況ボイスを再生できませんでした:", e);
+  }
+}
+
 /**
  * BGMをループ再生する。key は "bgm_main" など bgmAssets のキー。
  * 同じ曲が再生中なら何もしない。アセットが無ければ静かに何もしない。
  * Web で音声がまだ解禁されていない場合は、最初のタップ後に自動で開始する。
  */
 /** 「効果音」設定に連動する戦闘系BGM。それ以外の曲は「BGM」設定に連動する */
-const SE_LINKED_BGM = new Set(["bgm_battle", "bgm_reach"]);
+const SE_LINKED_BGM = new Set(["bgm_battle", "bgm_reach", "bgm_reach2"]);
 
 function bgmAllowed(key: string): boolean {
   const settings = useSettingsStore.getState();

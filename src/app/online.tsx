@@ -15,6 +15,7 @@ import { allDecks, cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/d
 import { useSettingsStore } from "@/store/settingsStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRankStore } from "@/store/rankStore";
+import { getDeviceId } from "@/data/telemetry";
 import { DeckList } from "@/engine/deckRules";
 import { MatchPrep } from "@/components/MatchPrep";
 import { OnlineJanken } from "@/components/OnlineJanken";
@@ -68,6 +69,18 @@ export default function OnlineScreen() {
   const router = useRouter();
   const prefs = useOnlinePrefs();
   const [lobbyWaiting, setLobbyWaiting] = React.useState<number | null>(null);
+  // 観戦できる進行中の対戦
+  const [watchable, setWatchable] = React.useState<
+    { code: string; names: string[]; turnNumber: number; spectators: number }[]
+  >([]);
+  // 挑戦状（届いたもの／送ったものの返事）
+  const [myDevice, setMyDevice] = React.useState("");
+  const [challengeList, setChallengeList] = React.useState<{
+    incoming: { id: string; fromName: string }[];
+    sent: { id: string; toName: string; status: string; code?: string }[];
+  }>({ incoming: [], sent: [] });
+  // 挑戦状を「受ける」途中（部屋を作ってコードを返事する）
+  const acceptingRef = React.useRef<string | null>(null);
   const deckState = useDeckStore();
   const connectOnline = useGameStore((s) => s.connectOnline);
   const onlineStatus = useGameStore((s) => s.onlineStatus);
@@ -125,6 +138,95 @@ export default function OnlineScreen() {
       clearInterval(timer);
     };
   }, [serverUrl]);
+
+  // 観戦できる対戦と、挑戦状の状況を定期的に確認する
+  React.useEffect(() => {
+    let alive = true;
+    void getDeviceId().then((d) => {
+      if (alive) setMyDevice(d);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  React.useEffect(() => {
+    let alive = true;
+    const httpUrl = serverUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+    const check = async () => {
+      try {
+        const res = await fetch(`${httpUrl}/matches`, { cache: "no-store" });
+        const data = (await res.json()) as { matches: typeof watchable };
+        if (alive) setWatchable(data.matches ?? []);
+      } catch {
+        if (alive) setWatchable([]);
+      }
+      if (myDevice) {
+        try {
+          const res = await fetch(`${httpUrl}/challenges?device=${myDevice}`, { cache: "no-store" });
+          const data = (await res.json()) as typeof challengeList;
+          if (alive) setChallengeList({ incoming: data.incoming ?? [], sent: data.sent ?? [] });
+        } catch {
+          // 取れないときは前の表示のまま
+        }
+      }
+    };
+    void check();
+    const timer = setInterval(check, 10000);
+    return () => {
+      alive = false;
+      clearInterval(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverUrl, myDevice]);
+
+  // 挑戦状を「受ける」: 部屋を作り、コードができたらサーバーへ返事する
+  const acceptChallenge = (id: string) => {
+    haptic("medium");
+    acceptingRef.current = id;
+    const name = prefs.name.trim();
+    if (!name) {
+      setNameDraft("");
+      setNamePrompt("create");
+      acceptingRef.current = null;
+      return;
+    }
+    connectOnline({ serverUrl, mode: "create", name, deck: deck.list, revenge: true });
+  };
+  React.useEffect(() => {
+    const id = acceptingRef.current;
+    if (!id || !roomCode || !myDevice) return;
+    acceptingRef.current = null;
+    const httpUrl = serverUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+    void fetch(`${httpUrl}/challenge/respond`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, device: myDevice, accept: true, code: roomCode }),
+    }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomCode]);
+
+  const declineChallenge = (id: string) => {
+    haptic("light");
+    const httpUrl = serverUrl.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+    void fetch(`${httpUrl}/challenge/respond`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id, device: myDevice, accept: false }),
+    }).catch(() => {});
+    setChallengeList((c) => ({ ...c, incoming: c.incoming.filter((x) => x.id !== id) }));
+  };
+
+  /** 送った挑戦状が受けられた → その部屋へ入って因縁の再戦 */
+  const joinAcceptedChallenge = (code: string) => {
+    haptic("medium");
+    const name = prefs.name.trim();
+    if (!name) {
+      setNameDraft("");
+      setNamePrompt("join");
+      return;
+    }
+    connectOnline({ serverUrl, mode: "join", code, name, deck: deck.list, revenge: true });
+  };
 
   const start = (mode: "create" | "join" | "queue") => {
     haptic("medium");
@@ -446,6 +548,90 @@ export default function OnlineScreen() {
                 </Text>
               </Pressable>
             </View>
+
+            {/* 届いた挑戦状 */}
+            {challengeList.incoming.length > 0 && (
+              <View style={styles.challengeBox}>
+                <Text style={styles.challengeTitle}>🔥 挑戦状が届いています！</Text>
+                {challengeList.incoming.map((c) => (
+                  <View key={c.id} style={styles.challengeRow}>
+                    <Text style={styles.challengeText} numberOfLines={1}>
+                      {c.fromName} さんから「もう一度勝負！」
+                    </Text>
+                    <Pressable style={styles.challengeAccept} onPress={() => acceptChallenge(c.id)}>
+                      <Text style={styles.challengeAcceptText}>受けて立つ！</Text>
+                    </Pressable>
+                    <Pressable style={styles.challengeDecline} onPress={() => declineChallenge(c.id)}>
+                      <Text style={styles.challengeDeclineText}>断る</Text>
+                    </Pressable>
+                  </View>
+                ))}
+              </View>
+            )}
+
+            {/* 送った挑戦状の返事 */}
+            {challengeList.sent.some((c) => c.status === "accepted" && c.code) && (
+              <View style={styles.challengeBox}>
+                <Text style={styles.challengeTitle}>⚡ 挑戦が受けられました！</Text>
+                {challengeList.sent
+                  .filter((c) => c.status === "accepted" && c.code)
+                  .map((c) => (
+                    <View key={c.id} style={styles.challengeRow}>
+                      <Text style={styles.challengeText} numberOfLines={1}>
+                        {c.toName} さんが待っています
+                      </Text>
+                      <Pressable
+                        style={styles.challengeAccept}
+                        onPress={() => joinAcceptedChallenge(c.code!)}
+                      >
+                        <Text style={styles.challengeAcceptText}>因縁の再戦へ！</Text>
+                      </Pressable>
+                    </View>
+                  ))}
+              </View>
+            )}
+
+            {/* ライブ観戦 */}
+            <View style={styles.watchCard}>
+              <Text style={styles.watchTitle}>👀 ライブ観戦</Text>
+              <Text style={styles.watchDesc}>
+                いま行われているオンライン対戦を見られます。応援スタンプを送ると対戦中のふたりに届きます。
+              </Text>
+              {watchable.length === 0 ? (
+                <Text style={styles.watchEmpty}>いま観戦できる対戦はありません</Text>
+              ) : (
+                watchable.map((m) => (
+                  <Pressable
+                    key={m.code}
+                    style={styles.watchRow}
+                    onPress={() => {
+                      haptic("light");
+                      router.push({ pathname: "/spectate", params: { code: m.code } });
+                    }}
+                  >
+                    <Text style={styles.watchNames} numberOfLines={1}>
+                      ⚔️ {m.names[0]} vs {m.names[1]}
+                    </Text>
+                    <Text style={styles.watchMeta}>
+                      ターン{m.turnNumber}
+                      {m.spectators > 0 ? `・👀${m.spectators}` : ""}｜観戦する ▸
+                    </Text>
+                  </Pressable>
+                ))
+              )}
+            </View>
+
+            {/* 週間ランキング */}
+            <Pressable
+              style={[styles.bigButton, { backgroundColor: "#c9971b" }]}
+              onPress={() => {
+                haptic("light");
+                router.push("/ranking");
+              }}
+            >
+              <Text style={styles.bigButtonText}>🏆 週間ランキングを見る</Text>
+              <Text style={styles.bigButtonSub}>今週いちばん勝っているのは誰だ！？</Text>
+            </Pressable>
           </>
         )}
 
@@ -665,6 +851,49 @@ const styles = StyleSheet.create({
     paddingVertical: 13,
     alignItems: "center",
   },
+  challengeBox: {
+    backgroundColor: "#2a1010",
+    borderWidth: 2,
+    borderColor: "#ff6b6b",
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  challengeTitle: { color: "#ffd54d", fontSize: 15, fontWeight: "900" },
+  challengeRow: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" },
+  challengeText: { color: "#fff", fontSize: 13, fontWeight: "700", flex: 1, minWidth: 120 },
+  challengeAccept: {
+    backgroundColor: "#d83030",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+  },
+  challengeAcceptText: { color: "#fff", fontSize: 13, fontWeight: "900" },
+  challengeDecline: {
+    backgroundColor: "#4a5568",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  challengeDeclineText: { color: "#fff", fontSize: 12, fontWeight: "700" },
+  watchCard: {
+    backgroundColor: "#16283c",
+    borderRadius: 14,
+    padding: 12,
+    gap: 8,
+  },
+  watchTitle: { fontSize: 17, fontWeight: "900", color: "#fff" },
+  watchDesc: { fontSize: 12, color: "#8fa8c8", lineHeight: 18 },
+  watchEmpty: { color: "#8fa8c8", fontSize: 12 },
+  watchRow: {
+    backgroundColor: "#0e1b33",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 2,
+  },
+  watchNames: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  watchMeta: { color: "#8fd3ee", fontSize: 11, fontWeight: "700" },
   methodCard: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,

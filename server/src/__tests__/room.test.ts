@@ -381,3 +381,54 @@ describe("Matchmaker（部屋の管理）", () => {
     expect(mm.findRoom(code)).toBeNull();
   });
 });
+
+
+describe("観戦（スペクテイター）", () => {
+  it("観戦者に盤面が届き、手札・山札の中身は決して含まれない", () => {
+    const { room, a } = setupMatch();
+    const seen: ServerMessage[] = [];
+    room.addSpectator((m) => seen.push(m));
+    // 参加直後に現在の盤面が届く
+    const first = seen.find((m) => m.type === "spectateState");
+    expect(first).toBeTruthy();
+    // 対戦者には観戦者数の通知が届く
+    expect(a.received.some((m) => m.type === "spectators" && m.count === 1)).toBe(true);
+    // 何手か進めて、観戦者への送信に非公開カードIDが漏れないことを確かめる
+    const clients = [a];
+    for (let i = 0; i < 40; i++) {
+      const actor = [a][0].isMyTurn() ? a : null;
+      void clients;
+      if (!actor) break;
+      const act = actor.pickAction();
+      if (!act) break;
+      room.handleAction(actor.seat!, act);
+    }
+    for (const m of seen) {
+      if (m.type !== "spectateState") continue;
+      const json = JSON.stringify(m);
+      // 手札や山札の中身を運ぶプロパティ自体が存在しない
+      expect(json.includes('"hand"')).toBe(false);
+      expect(json.includes('"deck"')).toBe(false);
+      expect(json.includes('"deckContents"')).toBe(false);
+      // 観戦者向けイベントの cardDrawn はIDを持たない
+      for (const e of m.events) {
+        if (e.type === "cardDrawn") expect(e.cardId).toBeUndefined();
+        if (e.type === "handRevealed") expect(e.cardIds.length).toBe(0);
+      }
+    }
+  });
+
+  it("観戦者の応援は対戦者に届き、種類の検証と連打制限がかかる", () => {
+    const { room, a, b } = setupMatch();
+    const id = room.addSpectator(() => {});
+    room.handleCheer(id, "🔥");
+    expect(a.received.some((m) => m.type === "cheer" && m.emoji === "🔥")).toBe(true);
+    expect(b.received.some((m) => m.type === "cheer" && m.emoji === "🔥")).toBe(true);
+    // でたらめな絵文字は中継しない
+    room.handleCheer(id, "<script>");
+    expect(a.received.filter((m) => m.type === "cheer").length).toBe(1);
+    // 連打は無視される（1.5秒に1回まで）
+    room.handleCheer(id, "👏");
+    expect(a.received.filter((m) => m.type === "cheer").length).toBe(1);
+  });
+});

@@ -25,6 +25,14 @@ export const seAssets: Record<string, number> = {
   "play": require("@/assets/audio/play.wav"),
   "support": require("@/assets/audio/support.wav"),
   "tap": require("@/assets/audio/tap.wav"),
+  "voice_comeback": require("@/assets/audio/voice_comeback.wav"),
+  "voice_double": require("@/assets/audio/voice_double.wav"),
+  "voice_fullline": require("@/assets/audio/voice_fullline.wav"),
+  "voice_kessyaku": require("@/assets/audio/voice_kessyaku.wav"),
+  "voice_lastbattle": require("@/assets/audio/voice_lastbattle.wav"),
+  "voice_reach": require("@/assets/audio/voice_reach.wav"),
+  "voice_reach_opp": require("@/assets/audio/voice_reach_opp.wav"),
+  "voice_start": require("@/assets/audio/voice_start.wav"),
   "win": require("@/assets/audio/win.wav"),
   "winker": require("@/assets/audio/winker.wav"),
 };
@@ -34,6 +42,7 @@ export const bgmAssets: Record<string, number> = {
   "bgm_janken": require("@/assets/audio/bgm_janken.mp3"),
   "bgm_main": require("@/assets/audio/bgm_main.mp3"),
   "bgm_reach": require("@/assets/audio/bgm_reach.mp3"),
+  "bgm_reach2": require("@/assets/audio/bgm_reach2.mp3"),
   "bgm_result_lose": require("@/assets/audio/bgm_result_lose.mp3"),
   "bgm_result_win": require("@/assets/audio/bgm_result_win.mp3"),
 };

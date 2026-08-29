@@ -32,6 +32,7 @@ import { tipOfToday } from "@/data/tips";
 import { todayMissions, useMissionStore } from "@/store/missionStore";
 import { RANKS, lastMilestone, nextMilestone, rankIndexFor, totalDistanceKm, winsToNextRank } from "@/data/rank";
 import { useRankStore } from "@/store/rankStore";
+import { danNameOf, useDanStore } from "@/store/danStore";
 import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
 import { useQuizStore } from "@/store/quizStore";
 import { useLineStore } from "@/store/lineStore";
@@ -328,6 +329,7 @@ export default function HomeScreen() {
   const rankIdx = rankIndexFor(record.wins);
   const rank = RANKS[rankIdx];
   const nextRank = winsToNextRank(record.wins);
+  const danPts = useDanStore((s) => s.pts);
   const seenRankIndex = useRankStore((s) => s.seenRankIndex);
   const setSeenRankIndex = useRankStore((s) => s.setSeenRankIndex);
   const [rankUpShow, setRankUpShow] = useState(false);
@@ -536,6 +538,9 @@ export default function HomeScreen() {
                     {rank.emoji} {rank.name}
                   </Text>
                 </View>
+                <View style={styles.danChip}>
+                  <Text style={styles.danChipText}>🥋 {danNameOf(danPts)}</Text>
+                </View>
                 {nextRank && (
                   <Text style={styles.rankNext}>
                     あと{nextRank.remain}勝で「{nextRank.next.name}」
@@ -640,6 +645,12 @@ export default function HomeScreen() {
             feel="medium"
             fullWidth
             onPress={() => router.push(lineLock ? "/line" : "/online")}
+          />
+          <AppButton
+            label={lineLock ? "🔒 週間ランキング" : "🏆 週間ランキング"}
+            custom={{ bg: PALE_BG, fg: "#8a5a00", border: "#c9971b" }}
+            fullWidth
+            onPress={() => router.push(lineLock ? "/line" : "/ranking")}
           />
           {/* 自動車学校メニュー（学び系をひとつの枠にまとめる） */}
           <View style={styles.schoolGroup}>
@@ -1155,6 +1166,13 @@ const styles = StyleSheet.create({
   halfTall: { flex: 1, height: 74, justifyContent: "center", paddingVertical: 0 },
   recordBlock: { alignItems: "center", gap: 4 },
   rankRow: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "center" },
+  danChip: {
+    backgroundColor: "#2d3a52",
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+  },
+  danChipText: { color: "#ffd54d", fontSize: 12, fontWeight: "900" },
   rankChip: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,

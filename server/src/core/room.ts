@@ -34,7 +34,7 @@ export type JankenHand = "rock" | "scissors" | "paper";
 /** サーバー→クライアントのメッセージ */
 export type ServerMessage =
   | { type: "joined"; seat: PlayerId; sessionToken: string }
-  | { type: "opponentJoined"; name: string; title?: string }
+  | { type: "opponentJoined"; name: string; title?: string; device?: string }
   | { type: "jankenStart" }
   | { type: "jankenResult"; hands: [JankenHand, JankenHand]; winner: PlayerId | null }
   | { type: "matchStart"; seat: PlayerId }
@@ -45,7 +45,32 @@ export type ServerMessage =
   | { type: "rematchOffered" }
   /** 相手からの定型スタンプ */
   | { type: "stamp"; id: string }
+  /** 観戦者向けの盤面（手札の中身は含まない） */
+  | { type: "spectateState"; seq: number; board: SpectatorBoard; events: GameEvent[] }
+  /** 観戦者からの応援（対戦者と他の観戦者に届く） */
+  | { type: "cheer"; emoji: string }
+  /** いまの観戦者数（対戦者へ） */
+  | { type: "spectators"; count: number }
   | { type: "error"; message: string };
+
+/** 観戦者に見せる盤面。手札・山札の中身は決して含めない */
+export interface SpectatorBoard {
+  names: [string, string];
+  titles: [string | undefined, string | undefined];
+  tracks: [{ academic: number; skill: number }, { academic: number; skill: number }];
+  fields: [{ cardId: string; rested: boolean }[], { cardId: string; rested: boolean }[]];
+  tantou: [string, string];
+  handCounts: [number, number];
+  deckCounts: [number, number];
+  outs: [string[], string[]];
+  turnPlayer: PlayerId;
+  turnNumber: number;
+  phaseType: string;
+  winner: PlayerId | null;
+}
+
+/** 観戦者が送れる応援の種類 */
+export const CHEER_EMOJI = ["👏", "🔥", "😆", "😱", "💪"] as const;
 
 /** 送り合える定型スタンプ（自由入力は無し＝モデレーション不要） */
 export const STAMP_IDS = [
@@ -67,6 +92,8 @@ export interface Seat {
   name: string;
   /** 実績で獲得した称号（表示用） */
   title?: string;
+  /** 挑戦状の宛先に使う端末ID（任意。個人特定には使わない） */
+  device?: string;
   deck: DeckList;
   sessionToken: string;
   ready: boolean;
@@ -148,6 +175,11 @@ export class RoomCore {
   private rematchWants: [boolean, boolean] = [false, false];
   /** スタンプの連打防止（席ごとの最終送信時刻） */
   private lastStampAt: [number, number] = [0, 0];
+  /** 観戦者（id → 送信コールバック） */
+  private spectators = new Map<number, (msg: ServerMessage) => void>();
+  private spectatorSeq = 0;
+  /** 観戦者の応援の連打防止 */
+  private lastCheerAt = new Map<number, number>();
   private readonly setTimer: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
   private readonly clearTimer: (t: ReturnType<typeof setTimeout>) => void;
 
@@ -187,7 +219,8 @@ export class RoomCore {
     name: string,
     deck: DeckList,
     send: (msg: ServerMessage) => void,
-    title?: string
+    title?: string,
+    device?: string
   ): { seat: PlayerId; sessionToken: string } | { error: string } {
     const errors = validateDeck(this.ctx.defs, deck);
     if (errors.length > 0) {
@@ -199,6 +232,7 @@ export class RoomCore {
     const seat: Seat = {
       name,
       title,
+      device,
       deck,
       sessionToken: randomToken(),
       ready: false,
@@ -209,9 +243,9 @@ export class RoomCore {
     seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken: seat.sessionToken });
     const other = this.seats[1 - seatIndex];
     if (other) {
-      other.send({ type: "opponentJoined", name, title });
+      other.send({ type: "opponentJoined", name, title, device });
       // 後から入った側にも、すでにいる相手の名前を教える
-      seat.send({ type: "opponentJoined", name: other.name, title: other.title });
+      seat.send({ type: "opponentJoined", name: other.name, title: other.title, device: other.device });
     }
     return { seat: seatIndex as PlayerId, sessionToken: seat.sessionToken };
   }
@@ -433,6 +467,92 @@ export class RoomCore {
     }
   }
 
+  /** 観戦一覧に出す公開情報 */
+  publicInfo(): { names: string[]; turnNumber: number; finished: boolean } | null {
+    if (!this.state) return null;
+    return {
+      names: this.seats.map((s) => s?.name ?? "?"),
+      turnNumber: this.state.turnNumber,
+      finished: this.state.phase.type === "finished",
+    };
+  }
+
+  get spectatorCount(): number {
+    return this.spectators.size;
+  }
+
+  /** 観戦者に見せる盤面（手札・山札の中身は含めない） */
+  private buildBoard(): SpectatorBoard | null {
+    const st = this.state;
+    const [a, b] = this.seats;
+    if (!st) return null;
+    const side = (i: 0 | 1) => st.players[i];
+    return {
+      names: [a?.name ?? "?", b?.name ?? "?"],
+      titles: [a?.title, b?.title],
+      tracks: [
+        { academic: side(0).academic, skill: side(0).skill },
+        { academic: side(1).academic, skill: side(1).skill },
+      ],
+      fields: [
+        side(0).field.map((f) => ({ cardId: f.cardId, rested: f.rested })),
+        side(1).field.map((f) => ({ cardId: f.cardId, rested: f.rested })),
+      ],
+      tantou: [side(0).tantou, side(1).tantou],
+      handCounts: [side(0).hand.length, side(1).hand.length],
+      deckCounts: [side(0).deck.length, side(1).deck.length],
+      outs: [side(0).outOfPlay.slice(), side(1).outOfPlay.slice()],
+      turnPlayer: st.turnPlayer,
+      turnNumber: st.turnNumber,
+      phaseType: st.phase.type,
+      winner: st.phase.type === "finished" ? st.phase.winner : null,
+    };
+  }
+
+  /** 観戦者向けにイベントを秘匿する（両者の非公開カードIDを落とす） */
+  private redactForSpectator(events: GameEvent[]): GameEvent[] {
+    return events.map((e) => {
+      if (e.type === "cardDrawn") return { ...e, cardId: undefined };
+      if (e.type === "cardsRevealed") return { ...e, cardIds: undefined };
+      if (e.type === "handRevealed") return { ...e, cardIds: [] } as unknown as GameEvent;
+      return e;
+    });
+  }
+
+  /** 観戦を始める。今の盤面をすぐ送り、対戦者に観戦者数を知らせる */
+  addSpectator(send: (msg: ServerMessage) => void): number {
+    const id = ++this.spectatorSeq;
+    this.spectators.set(id, send);
+    const board = this.buildBoard();
+    if (board) send({ type: "spectateState", seq: this.seq, board, events: [] });
+    this.notifySpectatorCount();
+    return id;
+  }
+
+  removeSpectator(id: number): void {
+    if (!this.spectators.delete(id)) return;
+    this.lastCheerAt.delete(id);
+    this.notifySpectatorCount();
+  }
+
+  private notifySpectatorCount(): void {
+    const msg: ServerMessage = { type: "spectators", count: this.spectators.size };
+    this.seats.forEach((s) => s?.send(msg));
+  }
+
+  /** 観戦者からの応援。連打は1.5秒に1回まで */
+  handleCheer(spectatorId: number, emoji: string): void {
+    if (!(CHEER_EMOJI as readonly string[]).includes(emoji)) return;
+    const now = Date.now();
+    if (now - (this.lastCheerAt.get(spectatorId) ?? 0) < 1500) return;
+    this.lastCheerAt.set(spectatorId, now);
+    const msg: ServerMessage = { type: "cheer", emoji };
+    this.seats.forEach((s) => s?.send(msg));
+    this.spectators.forEach((send, id) => {
+      if (id !== spectatorId) send(msg);
+    });
+  }
+
   /** 全席に、それぞれの視点の盤面と秘匿済みイベントを配る */
   private broadcast(events: GameEvent[]): void {
     if (!this.state) return;
@@ -446,5 +566,19 @@ export class RoomCore {
         events: redactEventsFor(events, i as PlayerId),
       });
     });
+    // 観戦者にも同じタイミングで盤面を配る
+    if (this.spectators.size > 0) {
+      const board = this.buildBoard();
+      if (board) {
+        const specEvents = this.redactForSpectator(events);
+        const msg: ServerMessage = {
+          type: "spectateState",
+          seq: this.seq,
+          board,
+          events: specEvents,
+        };
+        this.spectators.forEach((send) => send(msg));
+      }
+    }
   }
 }

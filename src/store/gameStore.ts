@@ -14,7 +14,9 @@ import { evaluateAchievements, useAchievementStore } from "@/store/achievementSt
 import { ReplayData, useRecordStore } from "@/store/recordStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
-import { trackEvent } from "@/data/telemetry";
+import { getDeviceId, trackEvent } from "@/data/telemetry";
+import { useDanStore } from "@/store/danStore";
+import { useRankStore } from "@/store/rankStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import {
   GameAction,
@@ -71,6 +73,16 @@ interface GameStore {
   opponentName: string | null;
   /** 相手が名乗っている称号（実績で獲得したもの） */
   opponentTitle: string | null;
+  /** 相手の端末ID（挑戦状の宛先に使う。個人特定には使わない） */
+  opponentDevice: string | null;
+  /** 挑戦状から始まった「因縁の再戦」か */
+  revengeMatch: boolean;
+  /** 観戦者からの応援（battle 画面が拾って流す） */
+  cheers: { key: number; emoji: string }[];
+  /** いまの観戦者数 */
+  spectatorCount: number;
+  /** この対戦での段位の変化（結果画面の昇段・降段表示用） */
+  danResult: { before: number; after: number } | null;
   /** オンライン対戦を開始する（部屋を作る／合言葉で入る／ランダム） */
   connectOnline: (opts: {
     serverUrl: string;
@@ -78,6 +90,8 @@ interface GameStore {
     code?: string;
     name: string;
     deck: DeckList;
+    /** 挑戦状から始まる対戦（「因縁の再戦」演出になる） */
+    revenge?: boolean;
   }) => void;
   /** オンライン対戦の投了 */
   resignOnline: () => void;
@@ -286,9 +300,16 @@ function trackMatchEvents(
               }
             : undefined,
       });
+      // 段位: 勝ち+1／負け-1。結果画面で昇段・降段を見せる
+      const danBefore = useDanStore.getState().pts;
+      useDanStore.getState().addResult(e.winner === myId);
+      useGameStore.setState({
+        danResult: { before: danBefore, after: useDanStore.getState().pts },
+      });
       // 新しく達成した実績があればお知らせを出す
       evaluateAchievements();
-      // 利用状況の匿名集計（名前は送らない）
+      // 利用状況の集計。名前は本人が免許証に付けた表示名だけを
+      // 週間ランキングの掲示に使う（未設定ならランキングに載らない）
       trackEvent("match", {
         mode: meta.mode,
         result: e.winner === myId ? "win" : "lose",
@@ -296,13 +317,22 @@ function trackMatchEvents(
         turns: meta.turns,
         durationSec: Math.max(0, Math.round((Date.now() - meta.startedAt) / 1000)),
         first: meta.firstIsMe ?? undefined,
-        // メタ分析用（カード別の使用率・勝率）。カードIDのみで個人情報は含まない
+        // メタ分析用（カード別の使用率・勝率）
         cards: meta.myCards,
+        name: useRankStore.getState().playerName.trim() || undefined,
+        streak: useRecordStore.getState().streak,
+        dan: useDanStore.getState().pts,
       });
       return;
     }
   }
 }
+/** 挑戦状の宛先交換用に、端末IDを先読みしておく */
+let cachedDevice = "";
+void getDeviceId().then((d) => {
+  cachedDevice = d;
+});
+
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectAttempt = 0;
 /** オンラインの受信バッファ（演出中に届いた更新をため、順に流す） */
@@ -514,6 +544,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
     roomCode: null,
     opponentName: null,
     opponentTitle: null,
+    opponentDevice: null,
+    revengeMatch: false,
+    cheers: [],
+    spectatorCount: 0,
+    danResult: null,
     queueActive: false,
     matchFound: null,
     clearMatchFound: () => set({ matchFound: null }),
@@ -718,7 +753,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       scheduleAI();
     },
 
-    connectOnline: ({ serverUrl, mode, code, name, deck }) => {
+    connectOnline: ({ serverUrl, mode, code, name, deck, revenge }) => {
       // 新しいオンライン対戦の始まり＝「今回の連戦」をここから数え直す
       // （再戦は接続を張り直さないので連戦カウントは続く）
       useRecordStore.getState().resetSession();
@@ -736,6 +771,11 @@ export const useGameStore = create<GameStore>()((set, get) => {
         onlineError: null,
         roomCode: null,
         opponentName: null,
+        opponentDevice: null,
+        revengeMatch: revenge ?? false,
+        cheers: [],
+        spectatorCount: 0,
+        danResult: null,
         state: null,
         view: null,
         eventLog: [],
@@ -799,12 +839,13 @@ export const useGameStore = create<GameStore>()((set, get) => {
           }
           // 実績で選んだ称号があれば一緒に名乗る
           const title = useAchievementStore.getState().selectedTitle ?? undefined;
+          const device = cachedDevice || undefined;
           if (mode === "create") {
-            ws.send(JSON.stringify({ type: "createRoom", name, title, deck }));
+            ws.send(JSON.stringify({ type: "createRoom", name, title, deck, device }));
           } else if (mode === "join") {
-            ws.send(JSON.stringify({ type: "joinRoom", code, name, title, deck }));
+            ws.send(JSON.stringify({ type: "joinRoom", code, name, title, deck, device }));
           } else {
-            ws.send(JSON.stringify({ type: "joinQueue", name, title, deck }));
+            ws.send(JSON.stringify({ type: "joinQueue", name, title, deck, device }));
           }
           set({ onlineStatus: "waitingOpponent" });
         };
@@ -824,6 +865,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
             events?: GameEvent[];
             hands?: [JankenHand, JankenHand];
             winner?: number | null;
+            device?: string;
+            emoji?: string;
+            count?: number;
           };
           try {
             msg = JSON.parse(String(ev.data));
@@ -848,7 +892,25 @@ export const useGameStore = create<GameStore>()((set, get) => {
               if (onlineSession) onlineSession.code = msg.code ?? "";
               break;
             case "opponentJoined":
-              set({ opponentName: msg.name ?? null, opponentTitle: msg.title ?? null });
+              set({
+                opponentName: msg.name ?? null,
+                opponentTitle: msg.title ?? null,
+                opponentDevice: msg.device ?? null,
+              });
+              break;
+            case "cheer":
+              // 観戦者からの応援。直近5件だけ持ち、battle 画面が流す
+              if (msg.emoji) {
+                set({
+                  cheers: [
+                    ...get().cheers.slice(-4),
+                    { key: Date.now() + Math.random(), emoji: msg.emoji },
+                  ],
+                });
+              }
+              break;
+            case "spectators":
+              set({ spectatorCount: msg.count ?? 0 });
               break;
             case "jankenStart":
               // 先攻を決めるじゃんけん。CPU対戦中でも全画面で選択画面をかぶせる

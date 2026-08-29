@@ -41,7 +41,15 @@ import { HeuristicAI } from "@/ai/heuristic";
 import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { shareResultImage } from "@/data/shareImage";
 import { useAchievementStore } from "@/store/achievementStore";
-import { pauseBgm, playBgm, playSe, stopBgm } from "@/audio/sound";
+import { pauseBgm, playBgm, playSe, playVoice, stopBgm } from "@/audio/sound";
+import {
+  danIndexOf,
+  danNameOf,
+  DAN_STEPS,
+  isDemotionMatch,
+  isPromotionMatch,
+  useDanStore,
+} from "@/store/danStore";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -73,6 +81,9 @@ import {
 } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
+import { getDeviceId } from "@/data/telemetry";
+import { useRankStore } from "@/store/rankStore";
+import { DEFAULT_SERVER_URL } from "@/app/online";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 import { startFrameWatch, usePerfStore } from "@/perf";
@@ -439,6 +450,35 @@ export default function BattleScreen() {
   const myStamp = useGameStore((s) => s.myStamp);
   const sendStamp = useGameStore((s) => s.sendStamp);
   const replayActive = useGameStore((s) => s.replayActive);
+  const cheers = useGameStore((s) => s.cheers);
+  const spectatorCount = useGameStore((s) => s.spectatorCount);
+  const danResult = useGameStore((s) => s.danResult);
+  const revengeMatch = useGameStore((s) => s.revengeMatch);
+  const opponentDevice = useGameStore((s) => s.opponentDevice);
+  // 挑戦状（リベンジ予約）を送ったか
+  const [challengeSent, setChallengeSent] = useState(false);
+  const sendChallenge = async () => {
+    if (!opponentDevice) return;
+    haptic("medium");
+    try {
+      const device = await getDeviceId();
+      const httpUrl = DEFAULT_SERVER_URL.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+      const res = await fetch(`${httpUrl}/challenge`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          fromDevice: device,
+          fromName: useRankStore.getState().playerName.trim() || "教習生",
+          toDevice: opponentDevice,
+          toName: oppLabel,
+        }),
+      });
+      const data = (await res.json()) as { id?: string; error?: string };
+      if (data.id) setChallengeSent(true);
+    } catch {
+      // 送れなくても結果画面はそのまま
+    }
+  };
   const jankenActive = useGameStore((s) => s.jankenActive);
   const kyokanId = useGameStore((s) => s.kyokanId);
   const tournamentMatch = useGameStore((s) => s.tournamentMatch);
@@ -643,6 +683,7 @@ export default function BattleScreen() {
   const showVsIntro = useCallback(() => {
     if (vsShownRef.current || replayActive) return;
     vsShownRef.current = true;
+    playVoice("voice_start");
     setVsIntro(true);
   }, [replayActive]);
   useEffect(() => {
@@ -957,6 +998,7 @@ export default function BattleScreen() {
     if (view && view.phase.type !== "finished" && n >= 5 && !fullLineShown.current) {
       fullLineShown.current = true;
       playSe("cheer");
+      playVoice("voice_fullline");
       setAnnQueue((q) => [
         ...q,
         {
@@ -970,6 +1012,104 @@ export default function BattleScreen() {
     if (n < 5) fullLineShown.current = false;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.field.length, view?.phase.type]);
+
+  // 🔥 名勝負メーターの材料（逆転・チェイン・接戦・両者リーチ）を数える
+  const heatRef = useRef({ flips: 0, maxChain: 0, closeBattles: 0, doubleReach: false, prevSign: 0 });
+
+  // 🎙️ 煽り実況: 状況を読んで盛り上げのひとことを差し込む
+  const hypeShown = useRef({ lastLap: false, oppLastLap: false, flip: false });
+  const prevLeadRef = useRef(0);
+  useEffect(() => {
+    if (!view || view.phase.type === "finished" || replayActive) return;
+    const remainOf = (p: { academic: number; skill: number }) =>
+      Math.max(0, ACADEMIC_GOAL - p.academic) + Math.max(0, SKILL_GOAL - p.skill);
+    const meR = remainOf(view.self);
+    const opR = remainOf(view.opponent);
+    const pushHype = (text: string) =>
+      setAnnQueue((q) => [...q, { key: ++annSeq, kind: "text" as const, text, emph: true }]);
+    if (meR === 1 && !hypeShown.current.lastLap) {
+      hypeShown.current.lastLap = true;
+      pushHype("🎙️ あと1時限で卒業だーー！！");
+    }
+    if (meR > 1) hypeShown.current.lastLap = false;
+    if (opR === 1 && !hypeShown.current.oppLastLap) {
+      hypeShown.current.oppLastLap = true;
+      pushHype(`🎙️ ${oppLabel}、卒業まであと1時限…！`);
+    }
+    if (opR > 1) hypeShown.current.oppLastLap = false;
+    // 形勢逆転: 3以上のビハインドからリードを奪った瞬間
+    const lead = opR - meR; // 正の値=自分がリード
+    if (prevLeadRef.current <= -3 && lead >= 1 && !hypeShown.current.flip) {
+      hypeShown.current.flip = true;
+      playSe("cheer");
+      pushHype("🎙️ 形勢逆転！！ 会場がどよめいている！");
+    }
+    if (lead <= -1) hypeShown.current.flip = false;
+    // 名勝負メーター: リードの入れ替わりを数える
+    const sign = Math.sign(lead);
+    if (sign !== 0 && heatRef.current.prevSign !== 0 && sign !== heatRef.current.prevSign) {
+      heatRef.current.flips++;
+    }
+    if (sign !== 0) heatRef.current.prevSign = sign;
+    prevLeadRef.current = lead;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
+
+  // 名勝負メーター: チェイン最大値・接戦バトル・両者リーチを数える
+  useEffect(() => {
+    if (currentAnn?.chain) {
+      heatRef.current.maxChain = Math.max(heatRef.current.maxChain, currentAnn.chain);
+    }
+  }, [currentAnn]);
+  useEffect(() => {
+    for (const e of lastEvents) {
+      if (e.type === "battleResolved" && Math.abs(e.attackerTotal - e.defenderTotal) <= 1) {
+        heatRef.current.closeBattles++;
+      }
+    }
+  }, [lastEvents]);
+  useEffect(() => {
+    if (doubleReachOn) heatRef.current.doubleReach = true;
+  }, [doubleReachOn]);
+
+  // 🥋 昇段・降段のかかった一戦と、挑戦状の「因縁の再戦」は開始時に知らせる
+  useEffect(() => {
+    if (!lastEvents.some((e) => e.type === "gameStarted")) return;
+    heatRef.current = { flips: 0, maxChain: 0, closeBattles: 0, doubleReach: false, prevSign: 0 };
+    if (replayActive || autoPlay || tutorial) return;
+    const adds: Announcement[] = [];
+    if (isOnline && revengeMatch) {
+      adds.push({
+        key: ++annSeq,
+        kind: "text",
+        text: "⚡ 因縁の再戦！！\n挑戦状の決着をつけろ！",
+        emph: true,
+      });
+    }
+    const pts = useDanStore.getState().pts;
+    if (isPromotionMatch(pts)) {
+      adds.push({
+        key: ++annSeq,
+        kind: "text",
+        text: `🥋 昇段戦！！\n勝てば「${DAN_STEPS[danIndexOf(pts) + 1].name}」に昇段！`,
+        emph: true,
+      });
+    } else if (isDemotionMatch(pts)) {
+      adds.push({
+        key: ++annSeq,
+        kind: "text",
+        text: "🥋 降段のかかった一戦…！\n負けられない勝負だ！",
+        emph: true,
+      });
+    }
+    if (adds.length > 0) setAnnQueue((q) => [...q, ...adds]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+
+  // 観戦者の応援が届いたら小さく音を鳴らす
+  useEffect(() => {
+    if (cheers.length > 0) playSe("tap", 1.5);
+  }, [cheers.length]);
 
   // オンライン対戦: 相手の手番の経過時間を数える
   useEffect(() => {
@@ -1167,6 +1307,10 @@ export default function BattleScreen() {
         ? "win"
         : "lose"
       : null;
+  // 新しい対局では挑戦状の送信済み表示をリセットする
+  useEffect(() => {
+    if (!finishedOutcome) setChallengeSent(false);
+  }, [finishedOutcome]);
   // 決着していても、最後の実況（決着ゲージ等）が流れ終わるまで結果は出さない
   useEffect(() => {
     if (!finishedOutcome) {
@@ -1212,7 +1356,8 @@ export default function BattleScreen() {
       return;
     }
     if (reachOn) {
-      // リーチBGMも効果音設定に連動
+      // リーチBGMも効果音設定に連動。両者リーチはさらに激しい曲へ
+      if (doubleReachOn && playBgm("bgm_reach2")) return;
       if (!playBgm("bgm_reach") && !playBgm("bgm_main")) pauseBgm();
       return;
     }
@@ -1222,7 +1367,7 @@ export default function BattleScreen() {
       if (!playBgm("bgm_main")) pauseBgm();
     }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, resultShown, reachOn, jankenActive]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, resultShown, reachOn, doubleReachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
 
   // 大逆転判定: 相手がリーチ状態のまま自分が勝ったか
@@ -1238,12 +1383,30 @@ export default function BattleScreen() {
     const t1 = setTimeout(() => setComebackFx(true), 400);
     const t2 = setTimeout(() => setComebackFx(false), 2600);
     playSe("comeback");
+    playVoice("voice_comeback");
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comebackWin]);
+
+  // 🔥 名勝負度: 逆転・チェイン・接戦・両者リーチ・大逆転・決着の一手から採点
+  const heat = useMemo(() => {
+    if (!finishedOutcome || !view) return null;
+    const h = heatRef.current;
+    const score =
+      h.flips * 2 +
+      Math.max(0, h.maxChain - 1) +
+      h.closeBattles * 2 +
+      (h.doubleReach ? 3 : 0) +
+      (comebackWin ? 3 : 0) +
+      (finalBlowAnnRef.current ? 2 : 0) +
+      (view.turnNumber >= 12 ? 1 : 0);
+    const rank = score >= 9 ? "S" : score >= 6 ? "A" : score >= 3 ? "B" : "C";
+    return { score, rank } as { score: number; rank: "S" | "A" | "B" | "C" };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedOutcome]);
 
   // 自己ベスト更新の判定（最少ターン／最速勝利）
   const bestBadge = useMemo(() => {
@@ -1944,6 +2107,16 @@ export default function BattleScreen() {
           }}
         />
       )}
+
+      {/* 観戦者数と応援（オンライン対戦） */}
+      {isOnline && spectatorCount > 0 && view.phase.type !== "finished" && (
+        <View style={styles.specChip} pointerEvents="none">
+          <Text style={styles.specChipText} allowFontScaling={false}>
+            👀 {spectatorCount}人が観戦中
+          </Text>
+        </View>
+      )}
+      {isOnline && cheers.map((c) => <CheerFloat key={c.key} emoji={c.emoji} />)}
 
       {/* 日替わりの天気（雨・雪）。軽量モード中は出さない */}
       {weather !== "sunny" && effFxLevel !== "light" && view.phase.type !== "finished" && (
@@ -2665,6 +2838,12 @@ export default function BattleScreen() {
             opS={cpu.skill}
             oppLabelText={oppLabel}
           />
+          {/* 名勝負度（逆転・接戦・チェインなどの白熱度） */}
+          {heat && <NetsuMeter rank={heat.rank} score={heat.score} />}
+          {/* 段位の変化（昇段・降段） */}
+          {danResult && !replayActive && (
+            <DanBanner before={danResult.before} after={danResult.after} />
+          )}
           {/* インストラクターの講評（教習原簿の所見欄風・CPU戦のみ） */}
           {!isOnline && (
             <View style={styles.kouhyouBox}>
@@ -2731,6 +2910,20 @@ export default function BattleScreen() {
                   }}
                 />
               )}
+              {/* 負けたら挑戦状（後日のリベンジ予約）を送れる */}
+              {view.phase.winner === OPP &&
+                opponentDevice &&
+                (challengeSent ? (
+                  <Text style={styles.challengeSentText}>
+                    🔥 挑戦状を送りました！相手が受けると「オンライン対戦」画面に現れます
+                  </Text>
+                ) : (
+                  <ActionButton
+                    label="📮 挑戦状を送る（後日リベンジ！）"
+                    color={colors.danger}
+                    onPress={() => void sendChallenge()}
+                  />
+                ))}
             </View>
           )}
           <View style={styles.overlayButtons}>
@@ -3053,6 +3246,7 @@ export function BattleResultCutIn({
     // ラストバトル: ドラムロールとともに両者の戦闘力がゆっくりカウントアップし、
     // 出そろってから一呼吸ためて決着を見せる
     playSe("battle");
+    playVoice("voice_lastbattle");
     haptic("heavy");
     scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
     const steps = 14;
@@ -3296,6 +3490,7 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
   const glow = useSharedValue(0);
   useEffect(() => {
     playSe(mine ? "janken_win" : "battle");
+    playVoice(mine ? "voice_reach" : "voice_reach_opp");
     scale.value = withSequence(
       withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
       withTiming(1, { duration: 150 })
@@ -3758,6 +3953,110 @@ function PulseRing({
  * 左右から飛び込んでぶつかり、「いざ、勝負！」が飛び出す。
  */
 
+/** 🔥 名勝負度。白熱した対局ほどランクが上がる（Sは虹色でお祝い） */
+function NetsuMeter({ rank, score }: { rank: "S" | "A" | "B" | "C"; score: number }) {
+  useEffect(() => {
+    if (rank === "S") {
+      playSe("cheer");
+      haptic("success");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const color =
+    rank === "S" ? "#c9971b" : rank === "A" ? "#d84315" : rank === "B" ? "#1c5fb0" : "#78909c";
+  const label =
+    rank === "S"
+      ? "歴史に残る名勝負！！"
+      : rank === "A"
+        ? "白熱の好勝負！"
+        : rank === "B"
+          ? "見ごたえある勝負"
+          : "静かな決着";
+  return (
+    <View style={[styles.netsuBox, { borderColor: color }]}>
+      <Text style={styles.netsuTitle} allowFontScaling={false}>
+        🔥 名勝負度{" "}
+        {rank === "S" ? (
+          <Text style={{ color, fontSize: 24 }}>S</Text>
+        ) : (
+          <Text style={{ color, fontSize: 22 }}>{rank}</Text>
+        )}
+      </Text>
+      <View style={styles.netsuBarBg}>
+        <View
+          style={[
+            styles.netsuBarFill,
+            { width: `${Math.min(100, (score / 12) * 100)}%` as DimensionValue, backgroundColor: color },
+          ]}
+        />
+      </View>
+      <Text style={styles.netsuLabel}>{label}</Text>
+    </View>
+  );
+}
+
+/** 🥋 段位の表示と昇段・降段のお知らせ */
+function DanBanner({ before, after }: { before: number; after: number }) {
+  const fromIdx = danIndexOf(before);
+  const toIdx = danIndexOf(after);
+  const promoted = toIdx > fromIdx;
+  const demoted = toIdx < fromIdx;
+  useEffect(() => {
+    if (promoted) {
+      playSe("achievement");
+      const t = setTimeout(() => playSe("cheer"), 300);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const next = DAN_STEPS[toIdx + 1];
+  return (
+    <View
+      style={[
+        styles.danBox,
+        promoted && styles.danBoxUp,
+        demoted && styles.danBoxDown,
+      ]}
+    >
+      {promoted ? (
+        <Text style={styles.danUpText} allowFontScaling={false}>
+          🎉 昇段！！「{DAN_STEPS[toIdx].name}」に到達！
+        </Text>
+      ) : demoted ? (
+        <Text style={styles.danDownText} allowFontScaling={false}>
+          🥋 降段…「{DAN_STEPS[toIdx].name}」に。巻き返そう！
+        </Text>
+      ) : (
+        <Text style={styles.danKeepText} allowFontScaling={false}>
+          🥋 段位: {danNameOf(after)}
+          {next ? `（「${next.name}」まであと${next.at - after}勝）` : "（最高位！）"}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+/** 観戦者の応援。画面の下から絵文字がふわっと上っていく */
+function CheerFloat({ emoji }: { emoji: string }) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withTiming(1, { duration: 2200, easing: Easing.out(Easing.quad) });
+  }, [p]);
+  const st = useAnimatedStyle(() => ({
+    opacity: p.value < 0.7 ? 1 : (1 - p.value) / 0.3,
+    transform: [
+      { translateY: -p.value * 260 },
+      { translateX: Math.sin(p.value * 6) * 18 },
+      { scale: 1 + p.value * 0.4 },
+    ],
+  }));
+  return (
+    <Animated.View style={[styles.cheerFloat, st]} pointerEvents="none">
+      <Text style={{ fontSize: 34 }}>{emoji}</Text>
+    </Animated.View>
+  );
+}
+
 /** 両者リーチ。「運命の最終局面」の紫カットイン。追いついた側で文言が変わる */
 function DoubleReachCutIn({ mineCaught, oppName }: { mineCaught: boolean; oppName: string }) {
   const scale = useSharedValue(0.5);
@@ -3766,6 +4065,7 @@ function DoubleReachCutIn({ mineCaught, oppName }: { mineCaught: boolean; oppNam
   useEffect(() => {
     playSe("battle");
     playSe("heartbeat");
+    playVoice("voice_double");
     haptic("heavy");
     const t = mineCaught ? setTimeout(() => playSe("cheer"), 450) : null;
     scale.value = withSequence(
@@ -4152,6 +4452,7 @@ function LessonCutIn({
       const t1 = setTimeout(() => {
         playSe(mine ? "battle_win" : "battle_lose");
         if (mine) playSe("cheer");
+        playVoice("voice_kessyaku");
         haptic("heavy");
         flash.value = withSequence(
           withTiming(1, { duration: 90 }),
@@ -5666,6 +5967,62 @@ const styles = StyleSheet.create({
   targetCompareText: { color: "#3a3a3a", fontSize: 13, fontWeight: "800", textAlign: "center" },
   targetCompareNum: { color: "#c22525", fontSize: 17, fontWeight: "900" },
   targetCompareHint: { color: "#7a6a4a", fontSize: 11, fontWeight: "700", textAlign: "center" },
+  challengeSentText: {
+    color: "#ffd54d",
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+  },
+  netsuBox: {
+    alignSelf: "stretch",
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#fffdf5",
+  },
+  netsuTitle: { fontSize: 16, fontWeight: "900", color: "#3a3a3a" },
+  netsuBarBg: {
+    alignSelf: "stretch",
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: "#e8e4d8",
+    overflow: "hidden",
+  },
+  netsuBarFill: { height: 8, borderRadius: 999 },
+  netsuLabel: { fontSize: 12, fontWeight: "700", color: "#7a6a4a" },
+  danBox: {
+    alignSelf: "stretch",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    backgroundColor: "#eef2f8",
+  },
+  danBoxUp: { backgroundColor: "#c9971b" },
+  danBoxDown: { backgroundColor: "#4a5568" },
+  danUpText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  danDownText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  danKeepText: { color: "#44586c", fontSize: 13, fontWeight: "800" },
+  specChip: {
+    position: "absolute",
+    top: 40,
+    right: 8,
+    backgroundColor: "#12308acc",
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 10,
+    zIndex: 30,
+  },
+  specChipText: { color: "#cfe4ff", fontSize: 11, fontWeight: "800" },
+  cheerFloat: {
+    position: "absolute",
+    bottom: 130,
+    right: 30,
+    zIndex: 60,
+  },
   chainBadge: {
     position: "absolute",
     top: "16%",
