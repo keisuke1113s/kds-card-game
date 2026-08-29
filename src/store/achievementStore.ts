@@ -6,6 +6,8 @@ import { allCards } from "@/data/cards";
 import { useRecordStore } from "@/store/recordStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { useQuizStore } from "@/store/quizStore";
+import { useMissionStore } from "@/store/missionStore";
+import { useTournamentStore } from "@/store/tournamentStore";
 
 /**
  * 実績の達成状況と称号。
@@ -69,6 +71,8 @@ export function evaluateAchievements(): void {
     quizPlays: useQuizStore.getState().plays,
     quizPerfects: useQuizStore.getState().perfects,
     totalInstructors: allCards.filter((c) => c.type === "instructor").length,
+    dailyAllDone: useMissionStore.getState().everAllDone,
+    tournamentWins: useTournamentStore.getState().champions,
   };
   const got: string[] = [];
   for (const a of ACHIEVEMENTS) {

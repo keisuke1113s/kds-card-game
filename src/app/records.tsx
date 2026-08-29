@@ -1,15 +1,20 @@
 import { useRouter } from "expo-router";
-import React from "react";
-import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { FlatList, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
 import { Difficulty } from "@/ai/types";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { useGameStore } from "@/store/gameStore";
+import { decodeReplay, encodeReplay } from "@/data/replayCode";
 import { MatchRecord, useRecordStore } from "@/store/recordStore";
 import { colors, radius, spacing } from "@/theme";
 
 /** 対戦記録の一覧（新しい順）。練習対戦は記録されない */
 export default function RecordsScreen() {
+  const [replayCode, setReplayCode] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
+  const startReplayTop = useGameStore((st) => st.startReplay);
+  const router = useRouter();
   const history = useRecordStore((s) => s.history);
   const [tab, setTab] = React.useState<"list" | "stats">("list");
 
@@ -43,10 +48,40 @@ export default function RecordsScreen() {
         keyExtractor={(h) => h.at}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
-          <View style={styles.summaryBox}>
-            <SummaryItem label="ぜんぶ" wins={winsOf(history)} total={history.length} />
-            <SummaryItem label="CPU対戦" wins={winsOf(cpu)} total={cpu.length} />
-            <SummaryItem label="オンライン" wins={winsOf(online)} total={online.length} />
+          <View style={{ gap: 8 }}>
+            <View style={styles.summaryBox}>
+              <SummaryItem label="ぜんぶ" wins={winsOf(history)} total={history.length} />
+              <SummaryItem label="CPU対戦" wins={winsOf(cpu)} total={cpu.length} />
+              <SummaryItem label="オンライン" wins={winsOf(online)} total={online.length} />
+            </View>
+            {/* 友達からもらったリプレイコードの再生 */}
+            <View style={styles.importRow}>
+              <TextInput
+                style={styles.importInput}
+                value={replayCode}
+                onChangeText={setReplayCode}
+                placeholder="🔗 リプレイコード（KR1.〜）を貼り付けて再生"
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              <Pressable
+                style={[styles.importButton, !replayCode.trim() && { opacity: 0.4 }]}
+                onPress={() => {
+                  const replay = decodeReplay(replayCode);
+                  if (!replay) {
+                    setImportError("コードを読み取れませんでした");
+                    setTimeout(() => setImportError(null), 3000);
+                    return;
+                  }
+                  setReplayCode("");
+                  startReplayTop(replay);
+                  router.push("/battle");
+                }}
+              >
+                <Text style={styles.importButtonText}>再生</Text>
+              </Pressable>
+            </View>
+            {importError && <Text style={styles.importError}>{importError}</Text>}
           </View>
         }
         ListEmptyComponent={
@@ -60,6 +95,30 @@ export default function RecordsScreen() {
       />
       )}
     </ScreenEnter>
+  );
+}
+
+/** 自己ベスト（最少ターン勝利・最速勝利） */
+function PersonalBests({ history }: { history: MatchRecord[] }) {
+  const wins = history.filter((r) => r.result === "win");
+  const turnsWins = wins.filter((r) => r.turns > 0);
+  const durWins = wins.filter((r) => r.durationSec > 0);
+  if (wins.length === 0) {
+    return <Text style={styles.bestLine}>勝利するとここに自己ベストが表示されます</Text>;
+  }
+  const minTurns = turnsWins.length > 0 ? Math.min(...turnsWins.map((r) => r.turns)) : null;
+  const minDur = durWins.length > 0 ? Math.min(...durWins.map((r) => r.durationSec)) : null;
+  return (
+    <View style={{ gap: 2 }}>
+      {minTurns !== null && (
+        <Text style={styles.bestLine}>🏎️ 最少ターン勝利: {minTurns}ターン</Text>
+      )}
+      {minDur !== null && (
+        <Text style={styles.bestLine}>
+          ⏱️ 最速勝利: {Math.floor(minDur / 60)}分{minDur % 60}秒
+        </Text>
+      )}
+    </View>
   );
 }
 
@@ -117,6 +176,9 @@ function StatsView({ history }: { history: MatchRecord[] }) {
       contentContainerStyle={styles.list}
       renderItem={() => (
         <View style={{ gap: 6 }}>
+          <Text style={styles.statsSection}>自己ベスト</Text>
+          <PersonalBests history={history} />
+
           <Text style={styles.statsSection}>先攻・後攻</Text>
           <StatRow label="先攻のとき" list={history.filter((r) => r.first)} />
           <StatRow label="後攻のとき" list={history.filter((r) => !r.first)} />
@@ -176,6 +238,7 @@ function formatDuration(sec: number): string {
 function RecordRow({ record }: { record: MatchRecord }) {
   const router = useRouter();
   const startReplay = useGameStore((s) => s.startReplay);
+  const [copied, setCopied] = useState(false);
   const win = record.result === "win";
   const opponent =
     record.mode === "online"
@@ -202,21 +265,60 @@ function RecordRow({ record }: { record: MatchRecord }) {
         {record.oppSkill}
       </Text>
       {record.replay && (
-        <Pressable
-          style={styles.replayButton}
-          onPress={() => {
-            startReplay(record.replay!);
-            router.push("/battle");
-          }}
-        >
-          <Text style={styles.replayButtonText}>▶ この対戦をリプレイで見る</Text>
-        </Pressable>
+        <View style={styles.replayRow}>
+          <Pressable
+            style={styles.replayButton}
+            onPress={() => {
+              startReplay(record.replay!);
+              router.push("/battle");
+            }}
+          >
+            <Text style={styles.replayButtonText}>▶ この対戦をリプレイで見る</Text>
+          </Pressable>
+          <Pressable
+            style={[styles.replayButton, { backgroundColor: colors.support }]}
+            onPress={async () => {
+              const code = encodeReplay(record.replay!);
+              try {
+                await navigator.clipboard.writeText(code);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2500);
+              } catch {
+                // コピーできない環境は諦める
+              }
+            }}
+          >
+            <Text style={styles.replayButtonText}>{copied ? "✅ コピーしました" : "🔗 共有"}</Text>
+          </Pressable>
+        </View>
       )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  replayRow: { flexDirection: "row", gap: 8 },
+  importRow: { flexDirection: "row", gap: 8, alignItems: "center" },
+  importInput: {
+    flex: 1,
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 12,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  importButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+  },
+  importButtonText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  importError: { fontSize: 12, color: colors.danger, fontWeight: "700" },
+  bestLine: { fontSize: 14, fontWeight: "800", color: colors.text, paddingVertical: 2 },
   root: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 },
   tabRow: { flexDirection: "row", gap: spacing.sm, padding: spacing.md, paddingBottom: 0 },

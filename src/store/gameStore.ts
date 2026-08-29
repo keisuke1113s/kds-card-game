@@ -12,6 +12,8 @@ import { redactEventsFor, viewFor } from "@/engine/view";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { evaluateAchievements, useAchievementStore } from "@/store/achievementStore";
 import { ReplayData, useRecordStore } from "@/store/recordStore";
+import { useMissionStore } from "@/store/missionStore";
+import { useTournamentStore } from "@/store/tournamentStore";
 import { trackEvent } from "@/data/telemetry";
 import { useSettingsStore } from "@/store/settingsStore";
 import {
@@ -114,7 +116,11 @@ interface GameStore {
     firstPlayer?: PlayerId;
     /** 「インストラクターに挑戦」の相手のカードID */
     kyokan?: string;
+    /** トーナメントの1戦かどうか */
+    tournament?: boolean;
   }) => void;
+  /** トーナメントの1戦の最中か（結果画面の導線に使う） */
+  tournamentMatch: boolean;
   /** 「インストラクターに挑戦」中の相手のカードID（通常対戦は null） */
   kyokanId: string | null;
   /** 人間のアクションを適用する。不正な手は無視（UIは合法手のみ出す前提の保険） */
@@ -180,6 +186,8 @@ let matchMeta: {
   myCards: string[];
   /** 「インストラクターに挑戦」の相手のカードID */
   kyokan: string | null;
+  /** トーナメントの1戦か */
+  tournament: boolean;
   /** リプレイ用（CPU対戦のみ）: 種・デッキ・全アクション */
   replaySeed: number | null;
   replayDecks: [DeckList, DeckList] | null;
@@ -212,6 +220,15 @@ function trackMatchEvents(
       matchMeta.replayFirst = e.firstPlayer;
     }
     if (e.type === "turnStarted") matchMeta.turns = e.turnNumber;
+    if (e.type === "battleResolved" && !matchMeta.tutorial) {
+      const won =
+        e.attackerTotal > e.defenderTotal
+          ? e.attackerPlayer === myId
+          : e.defenderTotal > e.attackerTotal
+            ? e.attackerPlayer !== myId
+            : false;
+      if (won) useMissionStore.getState().report("battleWin");
+    }
     if (e.type === "gameEnded") {
       const meta = matchMeta;
       matchMeta = null; // 二重記録を防ぐ
@@ -220,6 +237,16 @@ function trackMatchEvents(
       // 通算・連戦の勝敗カウント（CPU・オンライン共通。練習対戦は上で除外済み）
       if (e.winner === myId) useRecordStore.getState().addWin();
       else useRecordStore.getState().addLoss();
+      // トーナメントの進行
+      if (meta.tournament) {
+        useTournamentStore.getState().reportResult(e.winner === myId);
+      }
+      // デイリーミッションへ報告
+      useMissionStore.getState().report("match");
+      if (e.winner === myId) {
+        useMissionStore.getState().report("win");
+        if (meta.kyokan) useMissionStore.getState().report("kyokanWin");
+      }
       useRecordStore.getState().addMatch({
         at: new Date().toISOString(),
         mode: meta.mode,
@@ -573,6 +600,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
     },
 
     kyokanId: null,
+    tournamentMatch: false,
     startGame: ({
       playerDeck,
       cpuDeck,
@@ -582,6 +610,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       tutorial = false,
       firstPlayer,
       kyokan,
+      tournament = false,
     }) => {
       gameToken++;
       clearAiTimer();
@@ -593,7 +622,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         closeSocket();
         set({ mode: "local", onlineStatus: "idle", onlineError: null, roomCode: null, opponentName: null });
       }
-      set({ kyokanId: kyokan ?? null });
+      set({ kyokanId: kyokan ?? null, tournamentMatch: tournament });
       const realSeed = seed ?? randomSeed();
       // 設定されたCPUの個性（こうげき型／まもり型）を反映する。練習対戦は素のまま
       const persona = tutorial ? "balanced" : useSettingsStore.getState().cpuPersona;
@@ -633,6 +662,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         firstIsMe: null,
         myCards: [...playerDeck.main, playerDeck.tantou],
         kyokan: kyokan ?? null,
+        tournament,
         replaySeed: realSeed,
         replayDecks: [playerDeck, cpuDeck],
         replayFirst: firstPlayer ?? null,
@@ -834,6 +864,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
                   return [...d.main, d.tantou];
                 })(),
                 kyokan: null,
+                tournament: false,
                 replaySeed: null,
                 replayDecks: null,
                 replayFirst: null,

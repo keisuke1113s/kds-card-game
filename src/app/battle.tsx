@@ -35,6 +35,8 @@ import Animated, {
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { KYOKAN_LIST, KyokanDef } from "@/data/kyokan";
+import { HeuristicAI } from "@/ai/heuristic";
+import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { shareResultImage } from "@/data/shareImage";
 import { useAchievementStore } from "@/store/achievementStore";
 import { pauseBgm, playBgm, playSe, stopBgm } from "@/audio/sound";
@@ -386,6 +388,7 @@ export default function BattleScreen() {
   const replayActive = useGameStore((s) => s.replayActive);
   const jankenActive = useGameStore((s) => s.jankenActive);
   const kyokanId = useGameStore((s) => s.kyokanId);
+  const tournamentMatch = useGameStore((s) => s.tournamentMatch);
   const kyokanDef = kyokanId ? KYOKAN_LIST.find((k) => k.cardId === kyokanId) : undefined;
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
@@ -485,6 +488,32 @@ export default function BattleScreen() {
     view?.phase.type === "battleSupport" ? view.phase.battle.defenderUid : null;
   const scaredPlayer =
     view?.phase.type === "battleSupport" ? ((1 - view.phase.battle.attackerPlayer) as 0 | 1) : null;
+
+  // 121: ヒント（AIのおすすめ手を1つだけ教える）
+  const [hintText, setHintText] = useState<string | null>(null);
+  const hintAiRef = useRef<HeuristicAI | null>(null);
+  const hintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showHint = () => {
+    if (!view || legal.length === 0) return;
+    if (!hintAiRef.current) {
+      hintAiRef.current = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS.hard, 20260830);
+    }
+    try {
+      const action = hintAiRef.current.chooseAction(view, legal);
+      setHintText(describeAction(view, action));
+    } catch {
+      setHintText("いまは様子を見るのも手です");
+    }
+    haptic("light");
+    if (hintTimer.current) clearTimeout(hintTimer.current);
+    hintTimer.current = setTimeout(() => setHintText(null), 5000);
+  };
+  useEffect(
+    () => () => {
+      if (hintTimer.current) clearTimeout(hintTimer.current);
+    },
+    []
+  );
 
   // 101: 場外送りなどの浮き上がりテキスト
   const [floatTexts, setFloatTexts] = useState<{ key: number; text: string; mine: boolean }[]>([]);
@@ -1019,6 +1048,26 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comebackWin]);
 
+  // 自己ベスト更新の判定（最少ターン／最速勝利）
+  const bestBadge = useMemo(() => {
+    if (finishedOutcome !== "win" || replayActive) return null;
+    const hist = record.history;
+    const cur = hist[0];
+    if (!cur || cur.result !== "win") return null;
+    const prevWins = hist.slice(1).filter((r) => r.result === "win");
+    if (prevWins.length === 0) return null;
+    const bestTurns = Math.min(...prevWins.map((r) => (r.turns > 0 ? r.turns : 99)));
+    const bestDur = Math.min(...prevWins.map((r) => (r.durationSec > 0 ? r.durationSec : 99999)));
+    if (cur.turns > 0 && cur.turns < bestTurns) {
+      return `🏅 自己ベスト更新！ 最少${cur.turns}ターン勝利`;
+    }
+    if (cur.durationSec > 0 && cur.durationSec < bestDur) {
+      return `🏅 自己ベスト更新！ 最速 ${Math.floor(cur.durationSec / 60)}分${cur.durationSec % 60}秒`;
+    }
+    return null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [finishedOutcome]);
+
   // インストラクター撃破の認定証（勝利の少し後に出す）
   const [certShown, setCertShown] = useState(false);
   useEffect(() => {
@@ -1348,21 +1397,38 @@ export default function BattleScreen() {
         >
           <Text style={styles.settingsText}>⚙️ 設定</Text>
         </Pressable>
+        {/* AIのおすすめ手を1つだけ教えるヒント（自分の手番のみ） */}
+        {!isOnline && !replayActive && !autoPlay && view.turnPlayer === ME && view.phase.type !== "finished" && (
+          <Pressable onPress={showHint} hitSlop={8} style={styles.hintButton}>
+            <Text style={styles.settingsText}>💡 ヒント</Text>
+          </Pressable>
+        )}
+        {hintText && (
+          <View style={styles.hintBubble} pointerEvents="none">
+            <Text style={styles.hintBubbleText}>💡 {hintText}</Text>
+          </View>
+        )}
         {/* オンライン: 定型スタンプの送信ボタンと吹き出し */}
         {isOnline && (
           <View style={styles.stampRow}>
-            {STAMPS.map((s) => (
-              <Pressable
-                key={s.id}
-                style={styles.stampButton}
-                onPress={() => {
-                  haptic("light");
-                  sendStamp(s.id);
-                }}
-              >
-                <Text style={styles.stampButtonEmoji}>{s.emoji}</Text>
-              </Pressable>
-            ))}
+            {STAMPS.map((s) => {
+              // 実績で解禁されるスタンプ（未解禁は薄く表示して押せない）
+              const locked =
+                "unlock" in s && !!s.unlock && !useAchievementStore.getState().earned[s.unlock];
+              return (
+                <Pressable
+                  key={s.id}
+                  style={[styles.stampButton, locked && { opacity: 0.25 }]}
+                  disabled={locked}
+                  onPress={() => {
+                    haptic("light");
+                    sendStamp(s.id);
+                  }}
+                >
+                  <Text style={styles.stampButtonEmoji}>{locked ? "🔒" : s.emoji}</Text>
+                </Pressable>
+              );
+            })}
           </View>
         )}
         {incomingStamp && stampOf(incomingStamp) && (
@@ -2239,6 +2305,11 @@ export default function BattleScreen() {
                   : "学科10時限・技能19時限を達成！卒業おめでとう！"
                 : `${oppLabel}が先に教習を修了しました`}
           </Text>
+          {bestBadge && (
+            <View style={styles.bestBadge}>
+              <Text style={styles.bestBadgeText}>{bestBadge}</Text>
+            </View>
+          )}
           {/* 学科・技能の到達度をカウントアップで見せる */}
           <ResultScores
             meA={me.academic}
@@ -2312,8 +2383,20 @@ export default function BattleScreen() {
                 }}
               />
             )}
-            {!isOnline && !replayActive && (
-              <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
+            {tournamentMatch ? (
+              <ActionButton
+                label="🏆 トーナメントへ戻る"
+                color={colors.accent}
+                onPress={() => {
+                  quitGame();
+                  router.replace("/tournament");
+                }}
+              />
+            ) : (
+              !isOnline &&
+              !replayActive && (
+                <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
+              )
             )}
             {Platform.OS === "web" && !replayActive && (
               <ActionButton
@@ -2351,6 +2434,40 @@ export default function BattleScreen() {
 }
 
 // ---------------------------------------------------------------- 部品
+
+/** ヒント用: AIが選んだ手を日本語のひとことにする */
+function describeAction(view: PlayerView, a: GameAction): string {
+  const my = view.playerId as 0 | 1;
+  switch (a.type) {
+    case "mulligan":
+      return a.redraw ? "手札を引き直すのがおすすめ" : "この手札のまま始めてOK";
+    case "playInstructor": {
+      const id = view.self.hand[a.handIndex];
+      return id ? `「${getCard(id).name}」を場に出してみよう` : "インストラクターを場に出そう";
+    }
+    case "instructorAction": {
+      const name = nameOf(view, my, a.uid);
+      if (a.action === "academic") return `「${name}」で学科を進めよう`;
+      if (a.action === "skill") return `「${name}」で技能を進めよう`;
+      return `「${name}」は温存（なにもしない）が良さそう`;
+    }
+    case "declareBattle": {
+      const atk = nameOf(view, my, a.attackerUid);
+      const def = nameOf(view, (1 - my) as 0 | 1, a.defenderUid);
+      return `「${atk}」で「${def}」にバトルを仕掛けよう！`;
+    }
+    case "playSupport": {
+      const id = view.self.hand[a.handIndex];
+      return id ? `サポート「${getCard(id).name}」を使おう` : "サポートを使おう";
+    }
+    case "passSupport":
+      return "ここはパスでOK";
+    case "activateAbility":
+      return "特技を使うのがおすすめ";
+    default:
+      return "先頭の選択肢を選んでみよう";
+  }
+}
 
 function nameOf(view: PlayerView, player: 0 | 1, uid: string): string {
   const inst = fieldOf(view, player).find((f) => f.uid === uid);
@@ -4794,6 +4911,29 @@ const styles = StyleSheet.create({
   thinkingWrap: { flexDirection: "row", alignItems: "center", gap: 2 },
   thinkingLabel: { fontSize: 11, fontWeight: "800", color: colors.textMuted },
   thinkingDot: { fontSize: 8, color: colors.textMuted },
+  hintButton: {
+    position: "absolute",
+    top: 6,
+    left: 8,
+    zIndex: 20,
+    backgroundColor: "#00000033",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  hintBubble: {
+    position: "absolute",
+    top: 40,
+    left: 8,
+    right: 8,
+    zIndex: 21,
+    backgroundColor: "#fffbe8f2",
+    borderWidth: 1.5,
+    borderColor: "#e4a018",
+    borderRadius: 10,
+    padding: 10,
+  },
+  hintBubbleText: { fontSize: 14, fontWeight: "800", color: "#5a4a1a" },
   reconnectBand: {
     backgroundColor: "#d83030",
     paddingVertical: 6,
@@ -4832,6 +4972,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffd54d33",
     zIndex: 3,
   },
+  bestBadge: {
+    backgroundColor: "#fff7e0",
+    borderWidth: 1.5,
+    borderColor: "#e4a018",
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+  },
+  bestBadgeText: { fontSize: 13, fontWeight: "900", color: "#8a5a00" },
   resultScores: { alignSelf: "stretch", gap: 6 },
   resultScoreRow: {
     flexDirection: "row",

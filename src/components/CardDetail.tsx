@@ -62,6 +62,47 @@ function TiltCard({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** 効果文に出てくる用語の解説（タップでポップ表示） */
+const GLOSSARY: Record<string, string> = {
+  "休憩": "カードを横向きにした状態。休憩中は行動できず、バトルの標的にされやすくなります。次の自分のターンの始めに元気に戻ります。",
+  "元気": "カードが縦向きの状態。行動（学科・技能・バトルなど）を選べます。",
+  "場外": "退場したカードの置き場。場外のカードは基本的に対戦中は戻ってきません（効果で戻ることがあります）。",
+  "山札": "自分のデッキの束。ここからカードを引きます。山札が無くなると敗北です。",
+  "手札": "手に持っているカード。インストラクターやサポートをここから出します。",
+  "担当": "担当カードのこと。対戦中ずっと場にいて、常に効果を発揮します。",
+  "サポート": "サポートカード。メインのターンやバトル中に使える助っ人カードです。",
+  "教習力": "学科・技能を進めるときに進むマスの数です。",
+  "戦闘力": "バトルの強さ。サポートなどで一時的に増えることがあります。",
+  "リーチ": "卒業（学科10・技能19の達成）まで残りわずかの状態。",
+};
+const TERM_RE = new RegExp(`(${Object.keys(GLOSSARY).join("|")})`, "g");
+
+/** 効果文を、用語だけタップできるテキストとして描画する */
+function EffectTextWithGlossary({
+  text,
+  onTerm,
+  style,
+}: {
+  text: string;
+  onTerm: (term: string) => void;
+  style?: object;
+}) {
+  const parts = text.split(TERM_RE);
+  return (
+    <Text style={style}>
+      {parts.map((part, i) =>
+        GLOSSARY[part] ? (
+          <Text key={i} style={styles.termLink} onPress={() => onTerm(part)}>
+            {part}
+          </Text>
+        ) : (
+          <Text key={i}>{part}</Text>
+        )
+      )}
+    </Text>
+  );
+}
+
 const typeLabel: Record<string, string> = {
   instructor: "インストラクター",
   support: "サポート",
@@ -75,6 +116,7 @@ const typeLabel: Record<string, string> = {
  */
 export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?: boolean }) {
   const def = getCard(cardId);
+  const [term, setTerm] = React.useState<string | null>(null);
   const Container = scroll ? ScrollView : View;
   const containerProps = scroll
     ? { style: styles.scroll, contentContainerStyle: styles.container }
@@ -110,8 +152,21 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
       )}
       {!!def.effectText && (
         <View style={styles.effectBox}>
-          <Text style={styles.effectLabel}>効果</Text>
-          <Text style={styles.effectText}>{def.effectText}</Text>
+          <Text style={styles.effectLabel}>効果（下線の言葉はタップで説明）</Text>
+          <EffectTextWithGlossary
+            text={def.effectText}
+            style={styles.effectText}
+            onTerm={setTerm}
+          />
+        </View>
+      )}
+      {term && (
+        <View style={styles.termBox}>
+          <Text style={styles.termTitle}>「{term}」とは</Text>
+          <Text style={styles.termBody}>{GLOSSARY[term]}</Text>
+          <Text style={styles.termClose} onPress={() => setTerm(null)}>
+            閉じる
+          </Text>
         </View>
       )}
       {!def.effectText && (
@@ -123,6 +178,23 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
 }
 
 const styles = StyleSheet.create({
+  termLink: {
+    textDecorationLine: "underline",
+    color: colors.primary,
+    fontWeight: "800",
+  },
+  termBox: {
+    backgroundColor: "#eef4ff",
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 10,
+    padding: 12,
+    gap: 6,
+    alignSelf: "stretch",
+  },
+  termTitle: { fontSize: 14, fontWeight: "900", color: colors.primaryDark },
+  termBody: { fontSize: 13, lineHeight: 20, color: colors.text },
+  termClose: { fontSize: 12, fontWeight: "800", color: colors.primary, textAlign: "right" },
   gloss: {
     position: "absolute",
     top: -30,

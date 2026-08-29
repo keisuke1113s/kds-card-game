@@ -11,9 +11,10 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { QUIZ_QUESTIONS, QuizQuestion } from "@/data/quizQuestions";
+import { QUIZ_CATEGORIES, QUIZ_QUESTIONS, QuizCategory, QuizQuestion } from "@/data/quizQuestions";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { useQuizStore } from "@/store/quizStore";
+import { useMissionStore } from "@/store/missionStore";
 import { colors, radius, spacing } from "@/theme";
 
 const SET_SIZE = 10;
@@ -42,9 +43,9 @@ function JudgeStamp({ correct }: { correct: boolean }) {
   );
 }
 
-/** 出題順をランダムに（同じ問題は1セットに1回だけ） */
-function pickQuestions(): QuizQuestion[] {
-  const pool = [...QUIZ_QUESTIONS];
+/** 出題順をランダムに（同じ問題は1セットに1回だけ）。分野を選ぶとその分野から出る */
+function pickQuestions(cat: QuizCategory | "all"): QuizQuestion[] {
+  const pool = QUIZ_QUESTIONS.filter((q) => cat === "all" || q.cat === cat);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -61,9 +62,10 @@ export default function QuizScreen() {
   const [score, setScore] = useState(0);
   const [picked, setPicked] = useState<boolean | null>(null); // 直前に選んだ答え
   const [comboStreak, setComboStreak] = useState(0); // 連続正解数
+  const [category, setCategory] = useState<QuizCategory | "all">("all");
 
   const start = () => {
-    setQuestions(pickQuestions());
+    setQuestions(pickQuestions(category));
     setIndex(0);
     setScore(0);
     setPicked(null);
@@ -93,7 +95,8 @@ export default function QuizScreen() {
   const next = () => {
     if (index + 1 >= questions.length) {
       const finalScore = score;
-      quiz.addResult(finalScore, questions.length);
+      quiz.addResult(finalScore, questions.length, category);
+      useMissionStore.getState().report("quizScore", finalScore);
       if (finalScore >= questions.length) playSe("win");
       setPhase("result");
       // クイズ系の実績を判定
@@ -114,6 +117,25 @@ export default function QuizScreen() {
               学科試験でよく問われる基本知識から、○×クイズを{SET_SIZE}問出題します。{"\n"}
               全問正解で称号がもらえます。運転の勉強にもなるよ！
             </Text>
+            <Text style={styles.catLabel}>出題する分野</Text>
+            <View style={styles.catRow}>
+              {(["all", ...QUIZ_CATEGORIES] as const).map((c) => (
+                <Pressable
+                  key={c}
+                  style={[styles.catChip, category === c && styles.catChipActive]}
+                  onPress={() => setCategory(c)}
+                >
+                  <Text style={[styles.catChipText, category === c && styles.catChipTextActive]}>
+                    {c === "all" ? "すべて" : c}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {quiz.bests[category] !== undefined && (
+              <Text style={styles.record}>
+                この分野の最高: {quiz.bests[category]}点
+              </Text>
+            )}
             {quiz.plays > 0 && (
               <Text style={styles.record}>
                 これまで {quiz.plays}回挑戦 ／ 最高 {quiz.bestScore}点 ／ 全問正解{" "}
@@ -207,6 +229,18 @@ const styles = StyleSheet.create({
   title: { fontSize: 22, fontWeight: "900", color: colors.text, textAlign: "center" },
   note: { fontSize: 14, lineHeight: 22, color: colors.text },
   record: { fontSize: 13, color: colors.textMuted, textAlign: "center" },
+  catLabel: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
+  catRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  catChip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+  },
+  catChipActive: { backgroundColor: colors.primary },
+  catChipText: { fontSize: 12, fontWeight: "800", color: colors.primary },
+  catChipTextActive: { color: "#fff" },
   progress: { fontSize: 13, fontWeight: "800", color: colors.textMuted },
   question: { fontSize: 17, lineHeight: 26, fontWeight: "700", color: colors.text },
   answerRow: { flexDirection: "row", gap: 12 },

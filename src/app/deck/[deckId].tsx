@@ -11,6 +11,7 @@ import {
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { allCards, cardRegistry } from "@/data/cards";
+import { encodeDeck } from "@/data/deckCode";
 import { registryForUnlocked } from "@/data/unlock";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { randomDeckList, validateDeck } from "@/engine/deckRules";
@@ -40,6 +41,7 @@ export default function DeckEditScreen() {
   );
   const [sortKey, setSortKey] = useState<"default" | "name" | "combat" | "lesson">("default");
   const [query, setQuery] = useState("");
+  const [shareMsg, setShareMsg] = useState<string | null>(null);
 
   const errors = useMemo(
     () => validateDeck(cardRegistry, { main, tantou }),
@@ -158,6 +160,27 @@ export default function DeckEditScreen() {
             </View>
           ))}
         </View>
+
+        {/* 共有コード（このデッキを友達に渡せる） */}
+        <Pressable
+          style={styles.shareButton}
+          onPress={async () => {
+            const code = encodeDeck(name, { main, tantou });
+            try {
+              await navigator.clipboard.writeText(code);
+              setShareMsg("共有コードをコピーしました！LINEなどで送ってください。");
+            } catch {
+              setShareMsg(code);
+            }
+          }}
+        >
+          <Text style={styles.shareButtonText}>🔗 共有コードをコピー</Text>
+        </Pressable>
+        {shareMsg && (
+          <Text style={styles.shareMsg} selectable>
+            {shareMsg}
+          </Text>
+        )}
 
         <Text style={styles.sectionTitle}>メインデッキ（タップで詳細・追加/除外）</Text>
         {/* 一覧の絞り込み */}
@@ -300,6 +323,15 @@ export default function DeckEditScreen() {
 }
 
 const styles = StyleSheet.create({
+  shareButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    marginTop: 6,
+  },
+  shareButtonText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  shareMsg: { fontSize: 12, color: colors.textMuted },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, paddingBottom: 20 },
   nameInput: {

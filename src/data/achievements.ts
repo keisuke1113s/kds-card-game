@@ -21,6 +21,10 @@ export interface AchievementInput {
   quizPerfects: number;
   /** 「インストラクターに挑戦」の対象人数 */
   totalInstructors: number;
+  /** デイリーミッションを全達成したことがあるか */
+  dailyAllDone: boolean;
+  /** トーナメント優勝回数 */
+  tournamentWins: number;
 }
 
 export interface AchievementDef {
@@ -30,6 +34,8 @@ export interface AchievementDef {
   desc: string;
   /** 達成すると名乗れる称号（オンライン対戦の名前の横に表示） */
   title?: string;
+  /** 達成するまで内容が「？？？」で隠されるシークレット実績 */
+  secret?: boolean;
   check: (s: AchievementInput) => boolean;
 }
 
@@ -82,6 +88,14 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "kyokan5", emoji: "🎖️", name: "5人撃破", desc: "「インストラクターに挑戦」で5人に勝つ", title: "道場破り", check: (s) => kyokanBeaten(s.history) >= 5 },
   { id: "kyokan15", emoji: "🏵️", name: "15人撃破", desc: "「インストラクターに挑戦」で15人に勝つ", title: "常勝の教習生", check: (s) => kyokanBeaten(s.history) >= 15 },
   { id: "kyokanAll", emoji: "🏆", name: "全インストラクター制覇", desc: "「インストラクターに挑戦」で全員に勝つ", title: "頂点の教習生", check: (s) => kyokanBeaten(s.history) >= s.totalInstructors },
+  { id: "champion", emoji: "🏆", name: "グランドチャンピオン", desc: "トーナメントで優勝する", title: "グランドチャンピオン", check: (s) => s.tournamentWins >= 1 },
+  { id: "dailyAll", emoji: "🎯", name: "今日の優等生", desc: "デイリーミッションを全て達成する", title: "今日の優等生", check: (s) => s.dailyAllDone },
+  // ---- シークレット（達成するまで内容が隠される） ----
+  { id: "sMidnight", emoji: "🌌", name: "真夜中の教習", desc: "深夜0時〜3時に対戦する", title: "真夜中の教習生", secret: true, check: (s) => s.history.some((r) => { const h = new Date(r.at).getHours(); return h >= 0 && h < 3; }) },
+  { id: "sEarly", emoji: "🌅", name: "早朝教習", desc: "朝5時〜7時に対戦する", secret: true, check: (s) => s.history.some((r) => { const h = new Date(r.at).getHours(); return h >= 5 && h < 7; }) },
+  { id: "sComeback", emoji: "🔄", name: "どんでん返し", desc: "相手がリーチの状態から大逆転勝利する", title: "どんでん返し", secret: true, check: (s) => winsOf(s.history).some((r) => 10 - r.oppAcademic + 19 - r.oppSkill <= 2) },
+  { id: "sMarathon", emoji: "🏃", name: "教習漬け", desc: "1日に10回対戦する", title: "教習漬け", secret: true, check: (s) => { const byDay = new Map<string, number>(); for (const r of s.history) { const d = r.at.slice(0, 10); byDay.set(d, (byDay.get(d) ?? 0) + 1); } return [...byDay.values()].some((n) => n >= 10); } },
+  { id: "sQuizOni", emoji: "👹", name: "学科の鬼", desc: "学科クイズで全問正解を3回達成する", title: "学科の鬼", secret: true, check: (s) => s.quizPerfects >= 3 },
   // ---- 対戦数・その他 ----
   { id: "play10", emoji: "🎮", name: "対戦10回", desc: "10回対戦する", check: (s) => s.history.length >= 10 },
   { id: "play50", emoji: "🕹️", name: "対戦50回", desc: "50回対戦する", check: (s) => s.history.length >= 50 },

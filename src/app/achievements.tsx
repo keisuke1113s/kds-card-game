@@ -66,6 +66,7 @@ export default function AchievementsScreen() {
         }
         renderItem={({ item }) => {
           const got = !!earned[item.id];
+          const hidden = !!item.secret && !got;
           return (
             <View style={[styles.badge, !got && styles.badgeLocked, got && styles.badgeGot]}>
               {got && (
@@ -74,13 +75,15 @@ export default function AchievementsScreen() {
                 </Text>
               )}
               <Text style={[styles.badgeEmoji, !got && { opacity: 0.35 }]}>
-                {got ? item.emoji : "🔒"}
+                {got ? item.emoji : hidden ? "❓" : "🔒"}
               </Text>
               <Text style={[styles.badgeName, !got && { color: colors.textMuted }]}>
-                {item.name}
+                {hidden ? "？？？" : item.name}
               </Text>
-              <Text style={styles.badgeDesc}>{item.desc}</Text>
-              {item.title && (
+              <Text style={styles.badgeDesc}>
+                {hidden ? "シークレット実績（達成すると内容が分かります）" : item.desc}
+              </Text>
+              {item.title && !hidden && (
                 <Text style={[styles.badgeTitle, !got && { color: colors.textMuted }]}>
                   称号「{item.title}」
                 </Text>

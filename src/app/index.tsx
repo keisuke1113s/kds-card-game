@@ -28,6 +28,9 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
 import { tipOfToday } from "@/data/tips";
+import { todayMissions, useMissionStore } from "@/store/missionStore";
+import { playSe } from "@/audio/sound";
+import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 
 /** 開発版デモ（GitHub Pages の /dev/ 配下）で開いているか */
@@ -103,6 +106,42 @@ function seasonalEvent(): string | null {
   if (m === 10 && d >= 25) return "🎃 ハッピーハロウィン！";
   if (m === 12 && d >= 20 && d <= 25) return "🎄 メリークリスマス！";
   return null;
+}
+
+/** 今日のデイリーミッションのカード。全部達成すると金色になってお祝い */
+function MissionCard() {
+  // counters の変化で再描画されるように購読する
+  useMissionStore((s) => s.counters);
+  const celebrated = useMissionStore((s) => s.celebrated);
+  const setCelebrated = useMissionStore((s) => s.setCelebrated);
+  const missions = todayMissions();
+  const allDone = missions.every((m) => m.done);
+  useEffect(() => {
+    if (allDone && !celebrated) {
+      playSe("achievement");
+      haptic("success");
+      setCelebrated();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allDone]);
+  return (
+    <View style={[styles.missionCard, allDone && styles.missionCardDone]}>
+      <Text style={styles.missionTitle}>
+        {allDone ? "🎉 今日のミッション 全達成！" : "🎯 今日のミッション"}
+      </Text>
+      {missions.map((m) => (
+        <View key={m.def.id} style={styles.missionRow}>
+          <Text style={styles.missionCheck}>{m.done ? "✅" : "⬜"}</Text>
+          <Text style={[styles.missionLabel, m.done && styles.missionLabelDone]}>
+            {m.def.label}
+          </Text>
+          <Text style={styles.missionProgress}>
+            {m.progress[0]}/{m.progress[1]}
+          </Text>
+        </View>
+      ))}
+    </View>
+  );
 }
 
 /** 夕方〜夜（17時〜翌6時）かどうか。ホームの校舎イラストを夜版に切り替える */
@@ -412,6 +451,14 @@ export default function HomeScreen() {
               </Text>
             </Pressable>
           )}
+          <AppButton
+            label="🏆 トーナメント（4連戦を勝ち抜け！）"
+            tone="ghost"
+            fullWidth
+            onPress={() => router.push("/tournament")}
+          />
+          {/* 今日のデイリーミッション */}
+          <MissionCard />
           {/* 今日の安全運転豆知識（日替わり） */}
           <View style={styles.tipCard}>
             <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
@@ -709,6 +756,21 @@ const styles = StyleSheet.create({
   },
   // 2つ並べたボタンの高さを揃える（折り返しの有無に関係なく同じ固定高さにする）
   halfTall: { flex: 1, height: 74, justifyContent: "center", paddingVertical: 0 },
+  missionCard: {
+    backgroundColor: colors.surface,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 6,
+  },
+  missionCardDone: { backgroundColor: "#fff7e0", borderColor: "#e4a018" },
+  missionTitle: { fontSize: 13, fontWeight: "900", color: colors.text },
+  missionRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  missionCheck: { fontSize: 14 },
+  missionLabel: { flex: 1, fontSize: 13, color: colors.text, fontWeight: "700" },
+  missionLabelDone: { color: colors.textMuted, textDecorationLine: "line-through" },
+  missionProgress: { fontSize: 12, fontWeight: "800", color: colors.textMuted },
   tipCard: {
     backgroundColor: "#fffbe8",
     borderWidth: 1.5,

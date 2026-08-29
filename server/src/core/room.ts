@@ -48,7 +48,20 @@ export type ServerMessage =
   | { type: "error"; message: string };
 
 /** 送り合える定型スタンプ（自由入力は無し＝モデレーション不要） */
-export const STAMP_IDS = ["yoroshiku", "nice", "yaruna", "arigatou"] as const;
+export const STAMP_IDS = [
+  "yoroshiku",
+  "nice",
+  "yaruna",
+  "arigatou",
+  "gg",
+  "tsuyoi",
+  "makenai",
+  "yarune",
+  "benkyou",
+  "safety",
+  "mouikkai",
+  "gaman",
+] as const;
 
 export interface Seat {
   name: string;

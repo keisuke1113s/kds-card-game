@@ -1,11 +1,12 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View, TextInput } from "react-native";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { cardRegistry, getCard } from "@/data/cards";
 import { registryForUnlocked } from "@/data/unlock";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
+import { decodeDeck } from "@/data/deckCode";
 import { randomDeckList, validateDeck } from "@/engine/deckRules";
 import {
   allDecks,
@@ -24,6 +25,8 @@ export default function DeckListScreen() {
   const [viewing, setViewing] = useState<SavedDeck | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SavedDeck | null>(null);
+  const [importCode, setImportCode] = useState("");
+  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   const newDeck = () => {
     const id = `deck-${Date.now()}`;
@@ -106,6 +109,36 @@ export default function DeckListScreen() {
         <Pressable onPress={newDeck} style={styles.newButton}>
           <Text style={styles.newButtonText}>＋ 新しいデッキを作る</Text>
         </Pressable>
+        {/* 共有コードからの取り込み */}
+        <View style={styles.importBox}>
+          <Text style={styles.importTitle}>🔗 共有コードから取り込む</Text>
+          <TextInput
+            style={styles.importInput}
+            value={importCode}
+            onChangeText={setImportCode}
+            placeholder="KD1. から始まるコードを貼り付け"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          <Pressable
+            style={[styles.newButton, { marginTop: 0 }, !importCode.trim() && { opacity: 0.4 }]}
+            onPress={() => {
+              const parsed = decodeDeck(importCode);
+              if (!parsed) {
+                setImportMsg("コードを読み取れませんでした。コピーし直してみてください。");
+                return;
+              }
+              const id = `deck-${Date.now()}`;
+              saveDeck({ id, name: parsed.name, list: parsed.deck });
+              setActiveDeck(id);
+              setImportCode("");
+              setImportMsg(`「${parsed.name}」を取り込みました！`);
+            }}
+          >
+            <Text style={styles.newButtonText}>取り込む</Text>
+          </Pressable>
+          {importMsg && <Text style={styles.importMsg}>{importMsg}</Text>}
+        </View>
         <Pressable onPress={newRandomDeck} style={styles.newButton}>
           <Text style={styles.newButtonText}>🎲 ランダムでデッキを作る</Text>
         </Pressable>
@@ -214,6 +247,19 @@ function SmallButton({
 }
 
 const styles = StyleSheet.create({
+  importBox: { gap: 8, marginTop: 6 },
+  importTitle: { fontSize: 14, fontWeight: "900", color: colors.text },
+  importInput: {
+    borderWidth: 1.5,
+    borderColor: colors.textMuted,
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  importMsg: { fontSize: 13, fontWeight: "700", color: colors.primaryDark },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
   hint: { color: colors.textMuted, fontSize: 12 },
