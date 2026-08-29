@@ -119,6 +119,7 @@ export type SeKey =
   | "pack_open"
   | "achievement"
   | "comeback"
+  | "cymbal"
   | "tap";
 
 /**

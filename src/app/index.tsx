@@ -23,7 +23,7 @@ import { cardSmalls } from "@/data/images";
 import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
-import { colors, radius, shadow, spacing } from "@/theme";
+import { colors, DARK_MODE, radius, shadow, spacing } from "@/theme";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
@@ -79,6 +79,30 @@ function OutlinedText({
       <Text style={style}>{children}</Text>
     </View>
   );
+}
+
+/**
+ * 時間帯に合わせたホームの空の色（ライトモードのみ）。
+ * 朝焼け→昼→夕焼け→夜で、背景のグラデーションがさりげなく変わる
+ */
+function skyColors(): [string, string] {
+  if (DARK_MODE) return [colors.background, colors.backgroundDeep];
+  const h = new Date().getHours();
+  if (h >= 5 && h < 9) return ["#fdf3e7", "#e8e9f5"]; // 朝焼け
+  if (h >= 16 && h < 19) return ["#fdeede", "#e3e2f2"]; // 夕焼け
+  if (h >= 19 || h < 5) return ["#dfe5f2", "#c9d2e8"]; // 夜
+  return [colors.background, colors.backgroundDeep]; // 昼
+}
+
+/** 季節イベントの装飾（日付で自動） */
+function seasonalEvent(): string | null {
+  const now = new Date();
+  const m = now.getMonth() + 1;
+  const d = now.getDate();
+  if (m === 1 && d <= 7) return "🎍 あけましておめでとうございます！今年も安全運転で！";
+  if (m === 10 && d >= 25) return "🎃 ハッピーハロウィン！";
+  if (m === 12 && d >= 20 && d <= 25) return "🎄 メリークリスマス！";
+  return null;
 }
 
 /** 夕方〜夜（17時〜翌6時）かどうか。ホームの校舎イラストを夜版に切り替える */
@@ -209,7 +233,7 @@ export default function HomeScreen() {
           : null;
 
   return (
-    <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
+    <LinearGradient colors={skyColors()} style={styles.root}>
       {/* KDS校舎のイラストをタイトルの後ろにうっすら敷く。
           夕方〜夜（17時〜6時）は窓に明かりの灯った夜バージョンになり、
           スクロールでわずかに視差で動く */}
@@ -235,6 +259,11 @@ export default function HomeScreen() {
         <View style={styles.warning}>
           <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
         </View>
+        {seasonalEvent() && (
+          <View style={styles.seasonEventBadge}>
+            <Text style={styles.seasonEventText}>{seasonalEvent()}</Text>
+          </View>
+        )}
 
 
         {/* 開発版デモ（/dev/）のときだけ目印を出す。本番デモとネイティブでは出さない */}
@@ -697,6 +726,16 @@ const styles = StyleSheet.create({
     top: -6,
     zIndex: 5,
   },
+  seasonEventBadge: {
+    alignSelf: "center",
+    backgroundColor: "#fff3f3",
+    borderWidth: 1.5,
+    borderColor: "#e4a0a0",
+    borderRadius: radius.pill,
+    paddingVertical: 6,
+    paddingHorizontal: 16,
+  },
+  seasonEventText: { fontSize: 13, fontWeight: "800", color: "#a03030" },
   collectionRibbon: {
     alignSelf: "center",
     paddingVertical: 6,

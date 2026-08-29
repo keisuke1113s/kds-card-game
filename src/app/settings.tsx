@@ -79,6 +79,8 @@ export default function SettingsScreen() {
     setBgmEnabled,
     hapticsEnabled,
     setHapticsEnabled,
+    fxLevel,
+    setFxLevel,
   } = useSettingsStore();
 
   const record = useRecordStore();
@@ -133,6 +135,16 @@ export default function SettingsScreen() {
         />
         <Choice label="🌙 ダーク" active={DARK_MODE} onPress={() => switchDarkMode(true)} />
       </View>
+
+      <Text style={styles.sectionTitle}>演出の量</Text>
+      <View style={styles.choiceRow}>
+        <Choice label="たっぷり" active={fxLevel === "full"} onPress={() => setFxLevel("full")} />
+        <Choice label="標準" active={fxLevel === "normal"} onPress={() => setFxLevel("normal")} />
+        <Choice label="ひかえめ" active={fxLevel === "light"} onPress={() => setFxLevel("light")} />
+      </View>
+      <Text style={styles.note}>
+        「ひかえめ」はカットインを短くし、カードが飛ぶ演出を省いてテンポ重視になります。
+      </Text>
 
       <Text style={styles.note}>
         CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
@@ -374,6 +386,7 @@ function DevCardReset() {
 }
 
 const styles = StyleSheet.create({
+  choiceRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   recordBox: {
     flexDirection: "row",
     alignItems: "center",

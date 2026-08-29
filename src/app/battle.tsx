@@ -413,6 +413,9 @@ export default function BattleScreen() {
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
   const seEnabled = useSettingsStore((s) => s.seEnabled);
+  // 演出の量（light はカットイン短縮・飛翔系の演出を省略）
+  const fxLevel = useSettingsStore((s) => s.fxLevel);
+  const fxScale = fxLevel === "light" ? 0.6 : fxLevel === "normal" ? 0.85 : 1;
 
   // 画面シェイク（退場・バトル解決時）＋ヒットストップの押し込み
   const shakeX = useSharedValue(0);
@@ -427,6 +430,8 @@ export default function BattleScreen() {
   // 実況の表示時間の計算から参照する（effectの再実行を増やさないためref越し）
   const reachOnRef = useRef(false);
   reachOnRef.current = reachOn;
+  const fxScaleRef = useRef(1);
+  fxScaleRef.current = fxScale;
 
   // 入場バナー（リベンジマッチ／連勝の勢い）。ワイプが開いた直後に出す
   const [entryBanner, setEntryBanner] = useState<string | null>(null);
@@ -481,13 +486,35 @@ export default function BattleScreen() {
   const scaredPlayer =
     view?.phase.type === "battleSupport" ? ((1 - view.phase.battle.attackerPlayer) as 0 | 1) : null;
 
+  // 101: 場外送りなどの浮き上がりテキスト
+  const [floatTexts, setFloatTexts] = useState<{ key: number; text: string; mine: boolean }[]>([]);
+  const floatSeq = useRef(0);
+  useEffect(() => {
+    const adds = lastEvents
+      .filter((e) => e.type === "instructorRemoved")
+      .map((e) => ({
+        key: ++floatSeq.current,
+        text: "場外へ！",
+        mine: (e as { player: number }).player === ME,
+      }));
+    if (adds.length === 0) return;
+    setFloatTexts((q) => [...q.slice(-3), ...adds]);
+    const t = setTimeout(
+      () => setFloatTexts((q) => q.filter((f) => !adds.some((a) => a.key === f.key))),
+      1400
+    );
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+
   // カードの移動演出（出す・引く・退場・サポート叩きつけ）
   const [flyFx, setFlyFx] = useState<FlyItem[]>([]);
   const flySeq = useRef(0);
   // 効果を発動したカードの金フラッシュ（cardId単位）
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
-  // 対戦入場の暗転ワイプ
+  // 対戦入場の暗転ワイプ → 顔合わせ「VS」画面
   const [enterWipe, setEnterWipe] = useState(true);
+  const [vsIntro, setVsIntro] = useState(false);
   useEffect(() => {
     const adds: FlyItem[] = [];
     for (const e of lastEvents) {
@@ -507,15 +534,18 @@ export default function BattleScreen() {
         adds.push({ key: ++flySeq.current, kind: "remove", cardId: e.cardId, mine: e.player === ME });
       }
     }
-    if (adds.length > 0) setFlyFx((q) => [...q.slice(-4), ...adds]);
-    // 効果発動カードの金フラッシュ
+    if (adds.length > 0 && fxScaleRef.current > 0.6) setFlyFx((q) => [...q.slice(-4), ...adds]);
+    // 効果発動カードの金フラッシュ。連鎖したときは順番に1枚ずつ光らせる
     const flashed = lastEvents
-      .filter((e) => e.type === "abilityActivated")
+      .filter((e) => e.type === "abilityActivated" || e.type === "supportPlayed")
       .map((e) => (e as { cardId: string }).cardId);
     if (flashed.length > 0) {
-      setFlashIds(new Set(flashed));
-      const t = setTimeout(() => setFlashIds(new Set()), 800);
-      return () => clearTimeout(t);
+      const ts: ReturnType<typeof setTimeout>[] = [];
+      flashed.forEach((cardId, i) => {
+        ts.push(setTimeout(() => setFlashIds(new Set([cardId])), i * 300));
+      });
+      ts.push(setTimeout(() => setFlashIds(new Set()), flashed.length * 300 + 600));
+      return () => ts.forEach(clearTimeout);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
@@ -814,21 +844,23 @@ export default function BattleScreen() {
           annTimer.current = null;
           setCurrentAnn(null);
         },
-        next.kind === "turn"
-          ? 900
-          : next.kind === "battleResult" && reachOnRef.current
-            ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
-            : next.kind === "battle" || next.kind === "battleResult"
-            ? 3200 // いざ勝負！と勝敗はしっかり見せる
-            : next.kind === "trackComplete"
-            ? 2600 // 全課程修了のお祝い
-            : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
-              ? 2000
-              : next.cardId
-                ? 1600
-                : next.emph
-                  ? 1300
-                  : 850
+        Math.round(
+          (next.kind === "turn"
+            ? 900
+            : next.kind === "battleResult" && reachOnRef.current
+              ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
+              : next.kind === "battle" || next.kind === "battleResult"
+              ? 3200 // いざ勝負！と勝敗はしっかり見せる
+              : next.kind === "trackComplete"
+              ? 2600 // 全課程修了のお祝い
+              : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
+                ? 2000
+                : next.cardId
+                  ? 1600
+                  : next.emph
+                    ? 1300
+                    : 850) * fxScaleRef.current
+        )
       );
     }
   }, [currentAnn, annQueue, autoPlay, isOnline]);
@@ -1238,8 +1270,9 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>
-            {isOnline ? (opponentName ?? "相手") : `${kyokanDef ? `${kyokanDef.name}インストラクター` : "CPU"} ${aiThinking ? "🤔" : ""}`}
+            {isOnline ? (opponentName ?? "相手") : kyokanDef ? `${kyokanDef.name}インストラクター` : "CPU"}
           </Text>
+          {!isOnline && aiThinking && <ThinkingDots />}
           {/* 相手の称号（実績で獲得したもの） */}
           {isOnline && opponentTitle && (
             <View style={styles.titleBadge}>
@@ -1785,8 +1818,28 @@ export default function BattleScreen() {
       {flyFx.map((f) => (
         <FlyCard key={f.key} item={f} onDone={removeFly} />
       ))}
-      {/* 対戦入場の暗転ワイプ */}
-      {enterWipe && <BattleEnterWipe onDone={() => setEnterWipe(false)} />}
+      {/* 場外送りなどの浮き上がりテキスト */}
+      {floatTexts.map((f) => (
+        <FloatTextFx key={f.key} text={f.text} mine={f.mine} />
+      ))}
+      {/* ターンカウンタ（常駐） */}
+      {view.turnNumber > 0 && view.phase.type !== "finished" && <TurnCounter n={view.turnNumber} />}
+      {/* 対戦入場の暗転ワイプ → 顔合わせ */}
+      {enterWipe && (
+        <BattleEnterWipe
+          onDone={() => {
+            setEnterWipe(false);
+            if (!replayActive) setVsIntro(true);
+          }}
+        />
+      )}
+      {vsIntro && (
+        <VsIntro
+          oppName={oppLabel}
+          kyokanCardId={kyokanDef?.cardId}
+          onDone={() => setVsIntro(false)}
+        />
+      )}
       {/* 入場バナー（リベンジ／連勝） */}
       {entryBanner && <EntryBanner text={entryBanner} />}
       {/* 大逆転勝利の特別カットイン */}
@@ -3936,7 +3989,13 @@ function ResultScores({
     const timer = setInterval(() => {
       i++;
       setP(Math.min(1, i / 22));
-      if (i >= 22) clearInterval(timer);
+      // ドラムロールの刻み（少しずつ音程が上がる）→ 伸び切った瞬間にシンバル
+      if (i % 4 === 0 && i < 22) playSe("tap", 1 + i * 0.02);
+      if (i >= 22) {
+        clearInterval(timer);
+        playSe("cymbal");
+        haptic("success");
+      }
     }, 40);
     return () => clearInterval(timer);
   }, []);
@@ -4147,6 +4206,93 @@ function GoldPulseBorder() {
   }, [glow]);
   const style = useAnimatedStyle(() => ({ opacity: glow.value }));
   return <Animated.View style={[styles.goldPulseBorder, style]} pointerEvents="none" />;
+}
+
+/** 画面上部に常駐するターンカウンタ。増えるとクルッと回る */
+function TurnCounter({ n }: { n: number }) {
+  const flip = useSharedValue(0);
+  const prev = useRef(n);
+  useEffect(() => {
+    if (prev.current === n) return;
+    prev.current = n;
+    flip.value = 0;
+    flip.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+  }, [n, flip]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ perspective: 500 }, { rotateX: `${(1 - flip.value) * -90}deg` }],
+  }));
+  return (
+    <View style={styles.turnCounter} pointerEvents="none">
+      <Animated.Text style={[styles.turnCounterText, style]} allowFontScaling={false}>
+        TURN {n}
+      </Animated.Text>
+    </View>
+  );
+}
+
+/** 対戦開始の顔合わせ「あなた VS ◯◯」 */
+function VsIntro({
+  oppName,
+  kyokanCardId,
+  onDone,
+}: {
+  oppName: string;
+  kyokanCardId?: string;
+  onDone: () => void;
+}) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    playSe("battle");
+    haptic("medium");
+    t.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+    const timer = setTimeout(onDone, 1800);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const w = Dimensions.get("window").width;
+  const leftS = useAnimatedStyle(() => ({ transform: [{ translateX: -w * (1 - t.value) }] }));
+  const rightS = useAnimatedStyle(() => ({ transform: [{ translateX: w * (1 - t.value) }] }));
+  const vsS = useAnimatedStyle(() => ({
+    opacity: t.value,
+    transform: [{ scale: 0.3 + t.value * 0.7 }, { rotate: "-8deg" }],
+  }));
+  return (
+    <View style={styles.vsLayer} pointerEvents="none">
+      <Animated.View style={[styles.vsSide, styles.vsSideMe, leftS]}>
+        <Text style={styles.vsName} allowFontScaling={false}>
+          あなた
+        </Text>
+      </Animated.View>
+      <Animated.View style={[styles.vsSide, styles.vsSideOpp, rightS]}>
+        {kyokanCardId && <CardFace cardId={kyokanCardId} size="sm" />}
+        <Text style={styles.vsName} allowFontScaling={false} numberOfLines={1}>
+          {oppName}
+        </Text>
+      </Animated.View>
+      <Animated.Text style={[styles.vsMark, vsS]} allowFontScaling={false}>
+        VS
+      </Animated.Text>
+    </View>
+  );
+}
+
+/** 場外送りなどの浮き上がりテキスト */
+function FloatTextFx({ text, mine }: { text: string; mine: boolean }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 1200, easing: Easing.out(Easing.quad) });
+  }, [t]);
+  const style = useAnimatedStyle(() => ({
+    opacity: t.value < 0.15 ? t.value * 7 : 1 - t.value * 0.9,
+    transform: [{ translateY: (mine ? 120 : -160) - t.value * 44 }],
+  }));
+  return (
+    <View style={styles.flyLayer} pointerEvents="none">
+      <Animated.Text style={[styles.floatText, style]} allowFontScaling={false}>
+        {text}
+      </Animated.Text>
+    </View>
+  );
 }
 
 /** 拡大表示の上部に出す「あなた」「CPU」バッジ */
@@ -4597,6 +4743,57 @@ const styles = StyleSheet.create({
   },
   certStampText: { fontSize: 30, fontWeight: "900", color: "#d83030" },
   certClose: { fontSize: 11, color: "#999", marginTop: 4 },
+  turnCounter: {
+    position: "absolute",
+    top: 2,
+    alignSelf: "center",
+    zIndex: 6,
+  },
+  turnCounterText: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#ffffffcc",
+    backgroundColor: "#00000055",
+    paddingHorizontal: 10,
+    paddingVertical: 2,
+    borderRadius: 999,
+    overflow: "hidden",
+    letterSpacing: 1,
+  },
+  vsLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 85,
+    backgroundColor: "#0b1226cc",
+  },
+  vsSide: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    alignItems: "center",
+    gap: 6,
+  },
+  vsSideMe: { top: "18%" },
+  vsSideOpp: { bottom: "18%" },
+  vsName: { fontSize: 30, fontWeight: "900", color: "#fff", maxWidth: "86%" },
+  vsMark: {
+    fontSize: 74,
+    fontWeight: "900",
+    color: "#ffd54d",
+    textShadowColor: "#000",
+    textShadowRadius: 12,
+  },
+  floatText: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#ff8a80",
+    textShadowColor: "#000",
+    textShadowRadius: 8,
+  },
+  thinkingWrap: { flexDirection: "row", alignItems: "center", gap: 2 },
+  thinkingLabel: { fontSize: 11, fontWeight: "800", color: colors.textMuted },
+  thinkingDot: { fontSize: 8, color: colors.textMuted },
   reconnectBand: {
     backgroundColor: "#d83030",
     paddingVertical: 6,

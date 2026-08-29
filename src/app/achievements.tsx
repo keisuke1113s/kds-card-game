@@ -67,7 +67,12 @@ export default function AchievementsScreen() {
         renderItem={({ item }) => {
           const got = !!earned[item.id];
           return (
-            <View style={[styles.badge, !got && styles.badgeLocked]}>
+            <View style={[styles.badge, !got && styles.badgeLocked, got && styles.badgeGot]}>
+              {got && (
+                <Text style={styles.badgeSparkle} pointerEvents="none">
+                  ✨
+                </Text>
+              )}
               <Text style={[styles.badgeEmoji, !got && { opacity: 0.35 }]}>
                 {got ? item.emoji : "🔒"}
               </Text>
@@ -90,6 +95,8 @@ export default function AchievementsScreen() {
 }
 
 const styles = StyleSheet.create({
+  badgeGot: { borderWidth: 2, borderColor: "#e4a018" },
+  badgeSparkle: { position: "absolute", top: 4, right: 6, fontSize: 14 },
   root: { flex: 1, backgroundColor: colors.background },
   list: { padding: spacing.lg, gap: spacing.sm, paddingBottom: 40 },
   progress: { fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center" },

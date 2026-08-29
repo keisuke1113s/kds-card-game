@@ -18,6 +18,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 
 # 名前: (プロンプト, 生成秒数, 最終的な最大秒数)
 SES = {
+    "cymbal": ("single bright crash cymbal hit with quick decay, celebratory finish accent, game sound effect", 2, 1.4),
     "comeback": ("dramatic comeback victory sting, tension riser resolving into triumphant heroic brass hit, epic reversal moment, game sound effect", 4, 2.6),
     "achievement": ("bright achievement unlock jingle, two ascending sparkling chime notes with a soft bell tail, rewarding, game sound effect", 3, 1.8),
     "tap": ("subtle short UI tap click, soft wooden tick, video game interface sound effect, single hit", 2, 0.5),

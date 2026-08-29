@@ -109,12 +109,21 @@ window.addEventListener('appinstalled', function () {
   to   { transform: scale(1);   opacity: 1; }
 }
 #kds-boot .kds-sub { font-size: 13px; font-weight: 700; color: #4a5b7a; }
+/* カード裏面がクルクル回るローディング */
 #kds-boot .kds-spinner {
-  width: 30px; height: 30px; border-radius: 50%;
-  border: 3px solid #c3d0e6; border-top-color: #1565c0;
-  animation: kds-spin .8s linear infinite;
+  width: 44px; height: 62px; border-radius: 6px;
+  background: linear-gradient(150deg, #1e5aa8 0%, #123c78 100%);
+  border: 2px solid #e4a018;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 1px;
+  animation: kds-cardflip 1.5s ease-in-out infinite;
 }
-@keyframes kds-spin { to { transform: rotate(360deg); } }
+#kds-boot .kds-spinner::after { content: "KDS"; }
+@keyframes kds-cardflip {
+  0%   { transform: perspective(400px) rotateY(0deg); }
+  50%  { transform: perspective(400px) rotateY(180deg); }
+  100% { transform: perspective(400px) rotateY(360deg); }
+}
 `,
           }}
         />

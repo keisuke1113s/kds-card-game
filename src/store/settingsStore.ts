@@ -18,6 +18,9 @@ interface SettingsState {
   randomizeChallenger: boolean;
   /** 初対戦のガイド（吹き出しナビ）を最後まで見たか */
   guideDone: boolean;
+  /** 演出の量（full=たっぷり / normal=標準 / light=ひかえめ） */
+  fxLevel: "full" | "normal" | "light";
+  setFxLevel: (v: "full" | "normal" | "light") => void;
   setDifficulty: (d: Difficulty) => void;
   setCpuPersona: (p: CpuPersona) => void;
   setAiSpeedMs: (ms: number) => void;
@@ -41,6 +44,8 @@ export const useSettingsStore = create<SettingsState>()(
       randomizeStandard: false,
       randomizeChallenger: false,
       guideDone: false,
+      fxLevel: "full",
+      setFxLevel: (fxLevel) => set({ fxLevel }),
       setDifficulty: (difficulty) => set({ difficulty }),
       setCpuPersona: (cpuPersona) => set({ cpuPersona }),
       setAiSpeedMs: (aiSpeedMs) => set({ aiSpeedMs }),

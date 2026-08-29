@@ -7,11 +7,16 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
+import { playSe } from "@/audio/sound";
 import { colors, radius, shadow, spacing } from "@/theme";
 
 // アプリ共通のボタン。
 // 押すと沈み込み、影が浅くなり、触覚フィードバックが返る。
 // この「手応え」の有無が、無料アプリと有料アプリの体感差になる。
+
+/** ド・レ・ミ・ソ・ラの5音（ペンタトニック＝どの順でも心地よい） */
+const NOTE_RATES = [1, 1.122, 1.26, 1.498, 1.682];
+let noteStep = 0;
 
 export type ButtonTone =
   | "primary"
@@ -106,6 +111,8 @@ export function AppButton({
         onPress={() => {
           if (disabled) return;
           haptic(feel);
+          // 押すたびにドレミの音階を進める（メニュー操作が音楽的につながる）
+          playSe("tap", NOTE_RATES[noteStep++ % NOTE_RATES.length]);
           onPress();
         }}
         disabled={disabled}
