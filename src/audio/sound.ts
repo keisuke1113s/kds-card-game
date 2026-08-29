@@ -189,6 +189,25 @@ export function playVoice(key: VoiceKey): void {
   }
 }
 
+/** 実況ボイスの試聴（設定画面用。ON/OFF設定に関係なく鳴らす） */
+export function playVoicePreview(key: VoiceKey): void {
+  if (!unlocked) return;
+  const asset = seAssets[key];
+  if (asset === undefined) return;
+  try {
+    void ensureAudioMode();
+    let p = sePlayers[key];
+    if (!p) {
+      p = createAudioPlayer(asset);
+      sePlayers[key] = p;
+    }
+    safeSeek(p, 0);
+    safePlay(p);
+  } catch (e) {
+    console.warn("実況ボイスを再生できませんでした:", e);
+  }
+}
+
 /**
  * BGMをループ再生する。key は "bgm_main" など bgmAssets のキー。
  * 同じ曲が再生中なら何もしない。アセットが無ければ静かに何もしない。
