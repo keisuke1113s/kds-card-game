@@ -478,8 +478,17 @@ export default function BattleScreen() {
   const fxScaleRef = useRef(1);
   fxScaleRef.current = fxScale;
 
-  // 入場バナー（リベンジマッチ／連勝の勢い）。ワイプが開いた直後に出す
+  // 入場バナー（リベンジマッチ／連勝の勢い）。
+  // 開始演出（手札を配る→VS）が終わってから出す（配り中に被せない）
   const [entryBanner, setEntryBanner] = useState<string | null>(null);
+  const entryBannerTextRef = useRef<string | null>(null);
+  const fireEntryBanner = useCallback(() => {
+    const text = entryBannerTextRef.current;
+    if (!text) return;
+    entryBannerTextRef.current = null;
+    setEntryBanner(text);
+    setTimeout(() => setEntryBanner(null), 1800);
+  }, []);
   useEffect(() => {
     if (replayActive) return;
     const last = useRecordStore.getState().history[0];
@@ -493,12 +502,7 @@ export default function BattleScreen() {
     }
     if (!text && streak >= 3) text = `🔥 ${streak}連勝中の勢い！`;
     if (!text) return;
-    const t1 = setTimeout(() => setEntryBanner(text), 700);
-    const t2 = setTimeout(() => setEntryBanner(null), 2500);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
+    entryBannerTextRef.current = text;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -2003,7 +2007,10 @@ export default function BattleScreen() {
         <VsIntro
           oppName={oppLabel}
           kyokanCardId={kyokanDef?.cardId}
-          onDone={() => setVsIntro(false)}
+          onDone={() => {
+            setVsIntro(false);
+            fireEntryBanner();
+          }}
         />
       )}
       {/* 入場バナー（リベンジ／連勝） */}
