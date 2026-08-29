@@ -9,6 +9,7 @@ import { ScreenEnter } from "@/components/ScreenEnter";
 import { LINE_FRIEND_URL, LINE_LINK_CODES, isValidLinkCode } from "@/data/lineConfig";
 import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { evaluateAchievements } from "@/store/achievementStore";
+import { trackEvent } from "@/data/telemetry";
 import { useLineStore } from "@/store/lineStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -30,6 +31,7 @@ export default function LineScreen() {
     if (!code.trim()) return;
     if (isValidLinkCode(code)) {
       line.setLinked();
+      trackEvent("lineLink");
       setJustLinked(true);
       setError(null);
       playSe("achievement");

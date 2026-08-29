@@ -8,6 +8,7 @@ import { AchievementToast } from "@/components/AchievementToast";
 import { ImageWarmLayer } from "@/components/ImageWarmLayer";
 import { setupErrorReporting } from "@/data/errlog";
 import { trackEvent } from "@/data/telemetry";
+import { useLineStore } from "@/store/lineStore";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { ensureInitialSet } from "@/store/unlockStore";
@@ -89,7 +90,7 @@ export default function RootLayout() {
     ensureInitialSet();
     setupErrorReporting();
     if (isAdmin) return;
-    trackEvent("appOpen");
+    trackEvent("appOpen", { line: useLineStore.getState().linked });
     // 取りこぼした実績があれば起動時に拾う（お知らせは次の達成時のみ）
     const t = setTimeout(evaluateAchievements, 1500);
     return () => clearTimeout(t);
