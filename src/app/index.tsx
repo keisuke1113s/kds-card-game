@@ -564,13 +564,13 @@ export default function HomeScreen() {
             </View>
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
-              custom={{ bg: "transparent", fg: brand.blue, border: brand.blue }}
+              custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/kyokan")}
             />
             <AppButton
               label="🏆 トーナメント（4連戦）"
-              custom={{ bg: "transparent", fg: brand.blue, border: brand.blue }}
+              custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/tournament")}
             />
@@ -593,13 +593,13 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <AppButton
                 label="📝 学科クイズ"
-                custom={{ bg: brand.green }}
+                custom={{ bg: "#ffffff", fg: brand.green, border: brand.green }}
                 style={styles.halfTall}
                 onPress={() => router.push("/quiz")}
               />
               <AppButton
                 label="⚠️ 危険予測"
-                custom={{ bg: "#e8590c" }}
+                custom={{ bg: "#ffffff", fg: "#e8590c", border: "#e8590c" }}
                 style={styles.halfTall}
                 onPress={() => router.push("/kyt")}
               />
@@ -607,13 +607,13 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <AppButton
                 label="🧠 適性診断"
-                custom={{ bg: "transparent", fg: brand.green, border: brand.green }}
+                custom={{ bg: "#ffffff", fg: brand.coral, border: brand.coral }}
                 style={styles.halfTall}
                 onPress={() => router.push("/shindan")}
               />
               <AppButton
                 label="👁 動体視力"
-                custom={{ bg: "transparent", fg: brand.green, border: brand.green }}
+                custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
                 style={styles.halfTall}
                 onPress={() => router.push("/eyecheck")}
               />
@@ -621,20 +621,20 @@ export default function HomeScreen() {
           </View>
           <AppButton
             label="🪪 教習生免許証（プロフィール）"
-            tone="ghost"
+            custom={{ bg: brand.amber }}
             fullWidth
             onPress={() => router.push("/license")}
           />
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
-              tone="ghost"
+              custom={{ bg: brand.skyblue, fg: "#16283c" }}
               style={styles.flex}
               onPress={() => router.push("/records")}
             />
             <AppButton
               label="🏅 実績と称号"
-              tone="ghost"
+              custom={{ bg: brand.yellow }}
               style={styles.flex}
               onPress={() => router.push("/achievements")}
             />
@@ -671,14 +671,14 @@ export default function HomeScreen() {
           <AppButton
             label="ルール"
             icon="📋"
-            tone="ghost"
+            custom={{ bg: brand.green }}
             fullWidth
             onPress={() => router.push("/rules")}
           />
           <AppButton
             label="設定"
             icon="⚙️"
-            tone="ghost"
+            custom={{ bg: brand.blue }}
             fullWidth
             onPress={() => router.push("/settings")}
           />

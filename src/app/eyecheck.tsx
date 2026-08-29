@@ -58,6 +58,9 @@ export default function EyeCheckScreen() {
   const vision = useVisionStore();
   const [phase, setPhase] = useState<"start" | "play" | "result">("start");
   const [dir, setDir] = useState<Dir>("right");
+  const [ringKey, setRingKey] = useState(0);
+  // 瞬間視: 輪は一瞬しか見えない（正解が増えるほど短くなる）
+  const [ringVisible, setRingVisible] = useState(true);
   const [score, setScore] = useState(0);
   const [misses, setMisses] = useState(0);
   const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
@@ -68,6 +71,7 @@ export default function EyeCheckScreen() {
     let d = prev;
     while (d === prev) d = DIRS[Math.floor(Math.random() * DIRS.length)];
     setDir(d);
+    setRingKey((k) => k + 1);
   };
 
   const start = () => {
@@ -98,6 +102,16 @@ export default function EyeCheckScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
+  // 瞬間視: 新しい輪が出たら、一定時間後に隠す（スコアで短縮 1300→350ms）
+  useEffect(() => {
+    if (phase !== "play") return;
+    setRingVisible(true);
+    const visibleMs = Math.max(350, 1300 - score * 60);
+    const t = setTimeout(() => setRingVisible(false), visibleMs);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ringKey, phase]);
+
   // 結果の記録（result になった瞬間に1回だけ）
   useEffect(() => {
     if (phase !== "result") return;
@@ -123,8 +137,9 @@ export default function EyeCheckScreen() {
     nextRing(d === dir ? dir : d);
   };
 
-  // 正解数が増えるほど輪が小さくなる（動体視力っぽさ）
-  const ringSize = Math.max(46, 110 - score * 4);
+  // 正解数が増えるほど輪が小さく・動きが速くなる（動体視力！）
+  const ringSize = Math.max(30, 100 - score * 5);
+  const driftMs = Math.max(850, 2200 - score * 90);
 
   return (
     <ScreenEnter style={styles.root}>
@@ -134,7 +149,8 @@ export default function EyeCheckScreen() {
             <Text style={styles.title}>👁 動体視力チェック</Text>
             <Text style={styles.note}>
               適性検査でおなじみ「Cの輪（ランドルト環）」！{"\n"}
-              切れ目の向きを{TIME_LIMIT}秒間でどんどん答えよう。正解するほど輪が小さくなるよ。
+              切れ目の向きを{TIME_LIMIT}秒間でどんどん答えよう。{"\n"}
+              輪は動きながら一瞬で隠れる！正解するほど小さく・速くなるよ。
             </Text>
             {vision.plays > 0 && (
               <Text style={styles.record}>
@@ -161,7 +177,21 @@ export default function EyeCheckScreen() {
                 flash === "ng" && { backgroundColor: "#fdeaea" },
               ]}
             >
-              <LandoltC dir={dir} size={ringSize} />
+              {/* 輪は左右に流れながら一瞬で隠れる。見えている間に向きを覚えよう */}
+              <View
+                {...({ dataSet: { kdsanim: "drift" } } as object)}
+                style={{
+                  animationDuration: `${driftMs}ms`,
+                  animationTimingFunction: "ease-in-out",
+                  animationIterationCount: "infinite",
+                } as never}
+              >
+                {ringVisible ? (
+                  <LandoltC dir={dir} size={ringSize} />
+                ) : (
+                  <Text style={styles.hiddenRing} allowFontScaling={false}>❔</Text>
+                )}
+              </View>
             </View>
             <Text style={styles.hint}>切れ目はどっち向き？</Text>
             <View style={styles.arrowGrid}>
@@ -236,6 +266,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   hint: { fontSize: 13, fontWeight: "700", color: colors.textMuted, textAlign: "center" },
+  hiddenRing: { fontSize: 40, opacity: 0.35 },
   arrowGrid: { gap: 8 },
   arrowRow: { flexDirection: "row", justifyContent: "center", gap: 8 },
   arrowButton: {

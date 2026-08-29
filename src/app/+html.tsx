@@ -149,6 +149,8 @@ window.addEventListener('appinstalled', function () {
 @keyframes kds-wipeleft { from { transform: translateX(0); } to { transform: translateX(calc(-52vw - 12px)); } }
 @keyframes kds-wiperight { from { transform: translateX(0); } to { transform: translateX(calc(52vw + 12px)); } }
 @keyframes kds-wipebeam { 0% { opacity: 0; } 30% { opacity: 1; } 100% { opacity: 0; } }
+[data-kdsanim="drift"] { animation-name: kds-drift; }
+@keyframes kds-drift { 0%, 100% { transform: translateX(-30px); } 50% { transform: translateX(30px); } }
 @keyframes kds-sway { 0%, 100% { transform: translateX(-14px) rotate(-20deg); } 50% { transform: translateX(14px) rotate(20deg); } }
 @keyframes kds-cardflip {
   0%   { transform: rotate(0deg)   scale(1); }
