@@ -113,6 +113,8 @@ interface Announcement {
   cardId?: string;
   emph?: boolean;
   owner?: Owner;
+  /** カードの移動演出が終わるのを待ってから表示するまでの時間 */
+  delayMs?: number;
   /** kind === "turn" のとき、自分の番かどうか */
   mine?: boolean;
   /** kind === "battle" のとき、ぶつかり合う2枚 */
@@ -182,8 +184,16 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         break;
       // 誰の行動かはバッジで示すので、文章では繰り返さない
       case "instructorPlayed":
+        // 場に出す移動演出（約0.9秒）が終わってから詳細を見せる
         if (e.player === OPP)
-          add(`「${getCard(e.cardId).name}」を場に出した！`, e.cardId, false, "cpu");
+          out.push({
+            key: ++annSeq,
+            kind: "text",
+            text: `「${getCard(e.cardId).name}」を場に出した！`,
+            cardId: e.cardId,
+            owner: "cpu",
+            delayMs: 950,
+          });
         break;
       case "cardDrawn":
         // 自分のドローだけ公開（CPUの手札は非公開情報）
@@ -206,7 +216,14 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         break;
       case "supportPlayed":
         if (e.player === OPP)
-          add(`サポート「${getCard(e.cardId).name}」を使った！`, e.cardId, false, "cpu");
+          out.push({
+            key: ++annSeq,
+            kind: "text",
+            text: `サポート「${getCard(e.cardId).name}」を使った！`,
+            cardId: e.cardId,
+            owner: "cpu",
+            delayMs: 650,
+          });
         break;
       case "abilityActivated":
         if (e.player === OPP)
@@ -847,10 +864,17 @@ export default function BattleScreen() {
   // 実況を1件ずつ表示。表示中はCPUの次の手を待たせる（読み飛ばし防止）
   // タイマーは ref で持つ（cleanup を返すと再レンダーのたびに消えてしまうため）
   const annTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 移動演出が終わるまで実況を隠しておくためのフラグ
+  const [annShown, setAnnShown] = useState(true);
+  const annDelayTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissAnn = useCallback(() => {
     if (annTimer.current) {
       clearTimeout(annTimer.current);
       annTimer.current = null;
+    }
+    if (annDelayTimer.current) {
+      clearTimeout(annDelayTimer.current);
+      annDelayTimer.current = null;
     }
     setCurrentAnn(null);
   }, []);
@@ -863,6 +887,21 @@ export default function BattleScreen() {
     if (annTimer.current) {
       clearTimeout(annTimer.current);
       annTimer.current = null;
+    }
+    if (annDelayTimer.current) {
+      clearTimeout(annDelayTimer.current);
+      annDelayTimer.current = null;
+    }
+    // カードを場に出す移動演出が終わってから詳細を見せる
+    const delay = Math.round((next.delayMs ?? 0) * fxScaleRef.current);
+    if (delay > 0) {
+      setAnnShown(false);
+      annDelayTimer.current = setTimeout(() => {
+        annDelayTimer.current = null;
+        setAnnShown(true);
+      }, delay);
+    } else {
+      setAnnShown(true);
     }
     // カード付きの実況はタップするまで表示したままにする（読み逃し防止）。
     // ただし自動プレイ中とオンライン対戦では、少し見せてから自動で進める
@@ -889,7 +928,7 @@ export default function BattleScreen() {
                   : next.emph
                     ? 1300
                     : 850) * fxScaleRef.current
-        )
+        ) + delay
       );
     }
   }, [currentAnn, annQueue, autoPlay, isOnline]);
@@ -897,6 +936,7 @@ export default function BattleScreen() {
   useEffect(
     () => () => {
       if (annTimer.current) clearTimeout(annTimer.current);
+      if (annDelayTimer.current) clearTimeout(annDelayTimer.current);
     },
     []
   );
@@ -1718,7 +1758,7 @@ export default function BattleScreen() {
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
-      {currentAnn && view.phase.type !== "finished" && (
+      {currentAnn && annShown && view.phase.type !== "finished" && (
         <Pressable
           style={[
             styles.annLayer,

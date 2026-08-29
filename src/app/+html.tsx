@@ -116,13 +116,15 @@ window.addEventListener('appinstalled', function () {
   border: 2px solid #e4a018;
   display: flex; align-items: center; justify-content: center;
   color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 1px;
-  animation: kds-cardflip 1.5s ease-in-out infinite;
+  animation: kds-cardflip 1.6s ease-in-out infinite;
 }
 #kds-boot .kds-spinner::after { content: "KDS"; }
+/* 3D回転（rotateY）だと真横を向いた瞬間や描画の相性でカードが
+ * 見えなくなる端末があるため、常に見えている2D回転にしている */
 @keyframes kds-cardflip {
-  0%   { transform: perspective(400px) rotateY(0deg); }
-  50%  { transform: perspective(400px) rotateY(180deg); }
-  100% { transform: perspective(400px) rotateY(360deg); }
+  0%   { transform: rotate(0deg)   scale(1); }
+  50%  { transform: rotate(180deg) scale(0.88); }
+  100% { transform: rotate(360deg) scale(1); }
 }
 `,
           }}
