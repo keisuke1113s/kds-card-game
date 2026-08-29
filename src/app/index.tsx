@@ -400,6 +400,15 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/prematch")}
           />
+          <View style={styles.matchupCard}>
+            <Text style={styles.matchupSide} numberOfLines={1}>
+              {activeDeck.name}
+            </Text>
+            <Text style={styles.matchupVs}>VS</Text>
+            <Text style={styles.matchupSide} numberOfLines={1}>
+              {opponentDeck.name}
+            </Text>
+          </View>
           <AppButton
             label="オンライン対戦"
             icon="🌐"
@@ -422,15 +431,6 @@ export default function HomeScreen() {
               style={styles.halfTall}
               onPress={() => router.push("/quiz")}
             />
-          </View>
-          <View style={styles.matchupCard}>
-            <Text style={styles.matchupSide} numberOfLines={1}>
-              {activeDeck.name}
-            </Text>
-            <Text style={styles.matchupVs}>VS</Text>
-            <Text style={styles.matchupSide} numberOfLines={1}>
-              {opponentDeck.name}
-            </Text>
           </View>
           {/* 通算成績（1戦でもしたら出す） */}
           {record.wins + record.losses > 0 && (
