@@ -4903,8 +4903,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
   },
-  vsSideMe: { top: "18%" },
-  vsSideOpp: { bottom: "18%" },
+  vsSideMe: { bottom: "18%" },
+  vsSideOpp: { top: "18%" },
   vsName: { fontSize: 30, fontWeight: "900", color: "#fff", maxWidth: "86%" },
   vsMark: {
     fontSize: 74,
