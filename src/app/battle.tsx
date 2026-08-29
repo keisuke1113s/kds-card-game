@@ -3983,7 +3983,7 @@ function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
  */
 function CardRain({ cardIds }: { cardIds: string[] }) {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
       {cardIds.map((id, i) => (
         <RainCard key={`${id}-${i}`} cardId={id} index={i} />
       ))}
@@ -5055,7 +5055,7 @@ function Overlay({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.background },
+  root: { flex: 1, backgroundColor: colors.background, overflow: "hidden" },
   shakeWrap: { flex: 1 },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 16 },
   annLayer: {

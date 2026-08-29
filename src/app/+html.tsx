@@ -88,6 +88,10 @@ window.addEventListener('appinstalled', function () {
         <style
           dangerouslySetInnerHTML={{
             __html: `
+/* 演出（降るカード・紙吹雪など）が画面の右端からはみ出しても
+ * ページの横幅が広がらないようにする（広がるとスマホで全体が縮んで見える） */
+html, body { overflow-x: hidden; }
+
 #kds-boot {
   position: fixed; inset: 0; z-index: 9999;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
