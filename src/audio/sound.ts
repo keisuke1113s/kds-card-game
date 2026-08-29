@@ -121,6 +121,9 @@ export type SeKey =
   | "comeback"
   | "cymbal"
   | "chime"
+  | "cheer"
+  | "horn"
+  | "heartbeat"
   | "engine_start"
   | "winker"
   | "tap";

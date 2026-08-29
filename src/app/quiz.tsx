@@ -98,6 +98,96 @@ function QuizHanko({ pass }: { pass: boolean }) {
   );
 }
 
+/**
+ * 教習所の「合格発表」掲示板。番号が並ぶ中、少し間をおいて
+ * 自分の受験番号0946がポッと灯る（チャイム付き）
+ */
+const BOARD_NUMBERS = ["0102", "0215", "0338", "0431", "0507", "0946", "0613", "0724", "0819", "0930", "1024", "1137"];
+const MY_BOARD_INDEX = 5;
+
+function GoukakuBoard({ onDone }: { onDone: () => void }) {
+  const [lit, setLit] = useState(false);
+  const pop = useSharedValue(0);
+  useEffect(() => {
+    const t1 = setTimeout(() => {
+      setLit(true);
+      playSe("chime");
+      haptic("success");
+      pop.value = withSequence(
+        withTiming(1.35, { duration: 220, easing: Easing.out(Easing.cubic) }),
+        withTiming(1, { duration: 150 })
+      );
+    }, 1000);
+    const t2 = setTimeout(onDone, 2100);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const popSt = useAnimatedStyle(() => ({
+    transform: [{ scale: pop.value === 0 ? 1 : pop.value }],
+  }));
+  return (
+    <View style={boardStyles.board}>
+      <Text style={boardStyles.title} allowFontScaling={false}>🔦 合格発表</Text>
+      <View style={boardStyles.grid}>
+        {BOARD_NUMBERS.map((n, i) =>
+          i === MY_BOARD_INDEX ? (
+            <Animated.View key={n} style={[boardStyles.cell, lit && boardStyles.cellMine, popSt]}>
+              <Text style={[boardStyles.num, lit && boardStyles.numMine]} allowFontScaling={false}>
+                {n}
+              </Text>
+            </Animated.View>
+          ) : (
+            <View key={n} style={[boardStyles.cell, i % 3 !== 1 && boardStyles.cellOn]}>
+              <Text style={[boardStyles.num, i % 3 !== 1 && boardStyles.numOn]} allowFontScaling={false}>
+                {n}
+              </Text>
+            </View>
+          )
+        )}
+      </View>
+      <Text style={boardStyles.note} allowFontScaling={false}>
+        {lit ? "あなたの番号 0946 が灯った！" : "受験番号 0946 …ドキドキ…"}
+      </Text>
+    </View>
+  );
+}
+
+const boardStyles = StyleSheet.create({
+  board: {
+    alignSelf: "stretch",
+    backgroundColor: "#1c3a2a",
+    borderRadius: 12,
+    borderWidth: 3,
+    borderColor: "#6b4a2a",
+    padding: 10,
+    alignItems: "center",
+    gap: 6,
+  },
+  title: { color: "#ffe9b0", fontSize: 14, fontWeight: "900" },
+  grid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 6,
+  },
+  cell: {
+    width: 58,
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#12281c",
+    alignItems: "center",
+  },
+  cellOn: { backgroundColor: "#2a4a36" },
+  cellMine: { backgroundColor: "#ffd54d" },
+  num: { color: "#4a6a56", fontSize: 13, fontWeight: "800" },
+  numOn: { color: "#cfe8d8" },
+  numMine: { color: "#5a3a00" },
+  note: { color: "#cfe8d8", fontSize: 12, fontWeight: "700" },
+});
+
 export default function QuizScreen() {
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
@@ -108,6 +198,11 @@ export default function QuizScreen() {
   const biggerQ = largeText ? { fontSize: 20, lineHeight: 30 } : null;
   const biggerN = largeText ? { fontSize: 16, lineHeight: 25 } : null;
   const [phase, setPhase] = useState<"start" | "play" | "result">("start");
+  // 効果測定合格時: 合格発表ボードが灯ってから判子を押す
+  const [boardDone, setBoardDone] = useState(false);
+  useEffect(() => {
+    if (phase !== "result") setBoardDone(false);
+  }, [phase]);
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [index, setIndex] = useState(0);
   const [score, setScore] = useState(0);
@@ -327,7 +422,14 @@ export default function QuizScreen() {
         {phase === "result" && kentei && (
           <View style={styles.card}>
             <Text style={styles.title}>効果測定 結果</Text>
-            <QuizHanko pass={score >= KENTEI_PASS} />
+            {score >= KENTEI_PASS ? (
+              <>
+                <GoukakuBoard onDone={() => setBoardDone(true)} />
+                {boardDone && <QuizHanko pass />}
+              </>
+            ) : (
+              <QuizHanko pass={false} />
+            )}
             <Text style={styles.resultScore}>
               {score} <Text style={styles.resultTotal}>/ {KENTEI_SIZE} 問正解（{score * 2}点）</Text>
             </Text>

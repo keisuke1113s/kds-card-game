@@ -1,7 +1,7 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, ViewStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextStyle, View, ViewStyle } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -435,6 +435,25 @@ export default function HomeScreen() {
             <FannedCard angle={14} offsetX={58} offsetY={10} />
             {/* タップで1枚めくれてランダムなカードの絵が見える */}
             {peek && <PeekCard key={peek.key} cardId={peek.cardId} onDone={() => setPeek(null)} />}
+            {/* 図鑑コンプリートの証: カードファンがときどきキラッと光る */}
+            {unlockedCount >= allCards.length &&
+              [0, 1, 2].map((i) => (
+                <Text
+                  key={i}
+                  {...({ dataSet: { kdsanim: "glowpulse" } } as object)}
+                  style={[
+                    styles.fanSparkle,
+                    { left: 30 + i * 56, top: i === 1 ? -4 : 16 + i * 5 },
+                    {
+                      animationDuration: "2600ms",
+                      animationDelay: `${i * 700}ms`,
+                      animationIterationCount: "infinite",
+                    } as unknown as TextStyle,
+                  ]}
+                >
+                  ✨
+                </Text>
+              ))}
           </Pressable>
 
           <View style={styles.titleBlock}>
@@ -1059,6 +1078,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
   },
+  fanSparkle: { position: "absolute", fontSize: 18, zIndex: 3 },
   fanCard: {
     position: "absolute",
     ...shadow.card,
