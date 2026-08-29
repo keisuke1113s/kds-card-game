@@ -12,6 +12,8 @@ import { useGameStore } from "@/store/gameStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 import { colors, radius, spacing } from "@/theme";
+import { useLineStore } from "@/store/lineStore";
+import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { Difficulty } from "@/ai/types";
 
 const HUMAN = 0 as const;
@@ -26,6 +28,9 @@ const STAGES: { label: string; desc: string; difficulty: Difficulty }[] = [
 
 /** 4連戦を勝ち抜くトーナメント。負けたら最初から */
 export default function TournamentScreen() {
+  const lineLinked = useLineStore((s) => s.linked);
+  if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
@@ -241,4 +246,52 @@ const styles = StyleSheet.create({
   startButtonText: { color: "#fff", fontWeight: "900", fontSize: 16 },
   abandon: { alignItems: "center", paddingVertical: 6 },
   abandonText: { fontSize: 12, color: colors.textMuted, textDecorationLine: "underline" },
+});
+
+/** LINE連携が必要な機能のロック画面 */
+function LineGate() {
+  const router = useRouter();
+  return (
+    <View style={lineGateStyles.root}>
+      <View style={lineGateStyles.card}>
+        <Text style={lineGateStyles.lockIcon}>🔒</Text>
+        <Text style={lineGateStyles.title}>この機能はLINE連携で解放されます</Text>
+        <Text style={lineGateStyles.note}>
+          KDS釧路自動車学校の公式LINEと連携（無料）すると使えるようになります。
+        </Text>
+        <Pressable style={lineGateStyles.button} onPress={() => router.replace("/line")}>
+          <Text style={lineGateStyles.buttonText}>💚 LINE連携する</Text>
+        </Pressable>
+        <Pressable onPress={() => router.back()} hitSlop={8}>
+          <Text style={lineGateStyles.back}>戻る</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const lineGateStyles = StyleSheet.create({
+  root: { flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: colors.background },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    gap: 12,
+    maxWidth: 420,
+    width: "100%",
+  },
+  lockIcon: { fontSize: 44 },
+  title: { fontSize: 17, fontWeight: "900", color: colors.text, textAlign: "center" },
+  note: { fontSize: 13, lineHeight: 20, color: colors.textMuted, textAlign: "center" },
+  button: {
+    backgroundColor: "#06C755",
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignSelf: "stretch",
+    alignItems: "center",
+  },
+  buttonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
+  back: { fontSize: 13, color: colors.textMuted, padding: 4 },
 });

@@ -79,6 +79,7 @@ export default function LineScreen() {
               <Text style={styles.unlockItem}>🌐 オンライン対戦</Text>
               <Text style={styles.unlockItem}>📷 QRカード登録</Text>
               <Text style={styles.unlockItem}>👨‍🏫 インストラクターに挑戦</Text>
+              <Text style={styles.unlockItem}>🏆 トーナメント</Text>
               <Text style={styles.unlockItem}>🎖 称号「KDSファミリー」</Text>
             </View>
             <AppButton label="ホームへ戻る" tone="primary" fullWidth onPress={() => router.replace("/")} />
@@ -93,6 +94,7 @@ export default function LineScreen() {
               <Text style={styles.unlockItem}>🔒 🌐 オンライン対戦</Text>
               <Text style={styles.unlockItem}>🔒 📷 QRカード登録</Text>
               <Text style={styles.unlockItem}>🔒 👨‍🏫 インストラクターに挑戦</Text>
+              <Text style={styles.unlockItem}>🔒 🏆 トーナメント</Text>
               <Text style={styles.unlockItem}>🎁 称号「KDSファミリー」</Text>
             </View>
 

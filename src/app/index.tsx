@@ -590,10 +590,10 @@ export default function HomeScreen() {
               onPress={() => router.push(lineLock ? "/line" : "/kyokan")}
             />
             <AppButton
-              label="🏆 トーナメント（4連戦）"
+              label={lineLock ? "🔒 トーナメント（4連戦）" : "🏆 トーナメント（4連戦）"}
               custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
-              onPress={() => router.push("/tournament")}
+              onPress={() => router.push(lineLock ? "/line" : "/tournament")}
             />
           </View>
           <AppButton
