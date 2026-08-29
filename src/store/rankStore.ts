@@ -12,9 +12,12 @@ interface RankState {
   setPlayerName: (n: string) => void;
   /** 初回起動日（免許証の交付日として表示する） */
   since: string;
-  /** 運転適性診断の結果タイプ（例 "ALS"） */
+  /** 運転適性診断の結果タイプ（例 "ALSD"） */
   shindanType: string;
   setShindanType: (t: string) => void;
+  /** 診断の回答内訳（軸文字の並び。メーターの再表示に使う） */
+  shindanAnswers: string;
+  setShindanAnswers: (a: string) => void;
   /** 入校式（初回ガイド）を見たか */
   entranceDone: boolean;
   setEntranceDone: () => void;
@@ -36,6 +39,8 @@ export const useRankStore = create<RankState>()(
       since: new Date().toISOString().slice(0, 10),
       shindanType: "",
       setShindanType: (shindanType) => set({ shindanType }),
+      shindanAnswers: "",
+      setShindanAnswers: (shindanAnswers) => set({ shindanAnswers }),
       entranceDone: false,
       setEntranceDone: () => set({ entranceDone: true }),
       favoriteCard: "",
