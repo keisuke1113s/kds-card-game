@@ -584,48 +584,47 @@ export default function HomeScreen() {
             fullWidth
             onPress={() => router.push("/online")}
           />
-          <View style={styles.row}>
-            <AppButton
-              label="📝 学科クイズ"
-              custom={{ bg: brand.green }}
-              style={styles.halfTall}
-              onPress={() => router.push("/quiz")}
-            />
-            <AppButton
-              label="⚠️ 危険予測"
-              custom={{ bg: "#e8590c" }}
-              style={styles.halfTall}
-              onPress={() => router.push("/kyt")}
-            />
+          {/* 自動車学校メニュー（学び系をひとつの枠にまとめる） */}
+          <View style={styles.schoolGroup}>
+            <View style={styles.cpuGroupHeader}>
+              <Text style={styles.schoolGroupTitle}>🏫 自動車学校メニュー</Text>
+              <Text style={styles.cpuGroupNote}>学んで身につく</Text>
+            </View>
+            <View style={styles.row}>
+              <AppButton
+                label="📝 学科クイズ"
+                custom={{ bg: brand.green }}
+                style={styles.halfTall}
+                onPress={() => router.push("/quiz")}
+              />
+              <AppButton
+                label="⚠️ 危険予測"
+                custom={{ bg: "#e8590c" }}
+                style={styles.halfTall}
+                onPress={() => router.push("/kyt")}
+              />
+            </View>
+            <View style={styles.row}>
+              <AppButton
+                label="🧠 適性診断"
+                custom={{ bg: "transparent", fg: brand.green, border: brand.green }}
+                style={styles.halfTall}
+                onPress={() => router.push("/shindan")}
+              />
+              <AppButton
+                label="👁 動体視力"
+                custom={{ bg: "transparent", fg: brand.green, border: brand.green }}
+                style={styles.halfTall}
+                onPress={() => router.push("/eyecheck")}
+              />
+            </View>
           </View>
-          <View style={styles.row}>
-            <AppButton
-              label="🧠 適性診断"
-              tone="ghost"
-              style={styles.halfTall}
-              onPress={() => router.push("/shindan")}
-            />
-            <AppButton
-              label="👁 動体視力"
-              tone="ghost"
-              style={styles.halfTall}
-              onPress={() => router.push("/eyecheck")}
-            />
-          </View>
-          <View style={styles.row}>
-            <AppButton
-              label="🚗 S字・クランク"
-              tone="ghost"
-              style={styles.halfTall}
-              onPress={() => router.push("/course")}
-            />
-            <AppButton
-              label="🪪 教習生免許証"
-              tone="ghost"
-              style={styles.halfTall}
-              onPress={() => router.push("/license")}
-            />
-          </View>
+          <AppButton
+            label="🪪 教習生免許証（プロフィール）"
+            tone="ghost"
+            fullWidth
+            onPress={() => router.push("/license")}
+          />
           <View style={styles.row}>
             <AppButton
               label="📜 対戦記録"
@@ -1356,6 +1355,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xs,
   },
   cpuGroupTitle: { fontSize: 13, fontWeight: "800", color: brand.blue },
+  schoolGroup: {
+    borderWidth: 1.5,
+    borderColor: brand.green,
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: radius.lg,
+    padding: spacing.sm,
+    gap: spacing.sm,
+  },
+  schoolGroupTitle: { fontSize: 13, fontWeight: "800", color: brand.green },
   cpuGroupNote: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
   matchupCard: {
     flexDirection: "row",
