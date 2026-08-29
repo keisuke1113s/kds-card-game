@@ -526,7 +526,7 @@ export default function HomeScreen() {
           <InstallPrompt />
         </ScreenEnter>
 
-        <Text style={styles.footer}>KDSトレーディングカードゲーム（非公式デジタル版）</Text>
+        <Text style={styles.footer}>Powered by KDS釧路自動車学校</Text>
         </Animated.ScrollView>
 
         {/* ランダムマッチの相手待ちをやめて戻ってきたときの全画面のお知らせ */}
