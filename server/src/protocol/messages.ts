@@ -18,6 +18,7 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
     type: z.literal("createRoom"),
     name: z.string().max(24),
     title: z.string().max(24).optional(),
+    device: z.string().max(64).optional(),
     deck: deckListSchema,
   }),
   z.object({
@@ -25,12 +26,14 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
     code: z.string().min(4).max(8),
     name: z.string().max(24),
     title: z.string().max(24).optional(),
+    device: z.string().max(64).optional(),
     deck: deckListSchema,
   }),
   z.object({
     type: z.literal("joinQueue"),
     name: z.string().max(24),
     title: z.string().max(24).optional(),
+    device: z.string().max(64).optional(),
     deck: deckListSchema,
   }),
   z.object({
@@ -48,7 +51,19 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("rematch") }),
   z.object({
     type: z.literal("stamp"),
-    id: z.enum(["yoroshiku", "nice", "yaruna", "arigatou"]),
+    // RoomCore の STAMP_IDS と一致させること
+    id: z.enum([
+      "yoroshiku", "nice", "yaruna", "arigatou", "gg", "tsuyoi",
+      "makenai", "yarune", "benkyou", "safety", "mouikkai", "gaman",
+    ]),
+  }),
+  z.object({
+    type: z.literal("spectate"),
+    code: z.string().min(4).max(8),
+  }),
+  z.object({
+    type: z.literal("cheer"),
+    emoji: z.string().max(8),
   }),
   z.object({ type: z.literal("leave") }),
   z.object({ type: z.literal("ping") }),

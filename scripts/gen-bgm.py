@@ -35,6 +35,11 @@ TRACKS = {
         "final lap sirens feel, dramatic synth arpeggios, seamless loop, instrumental",
         40, "mp3",
     ),
+    "bgm_reach2": (
+        "extremely fast furious climactic video game music, double-time drums, sirens and alarm feel, "
+        "last lap overdrive, relentless intense synth and taiko, seamless loop, instrumental",
+        40, "mp3",
+    ),
     "bgm_janken": (
         "suspenseful drumroll build-up loop, taiko drums and snare roll, game show decision moment, "
         "playful tension, short seamless loop, instrumental",

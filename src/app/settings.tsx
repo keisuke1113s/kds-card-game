@@ -78,6 +78,8 @@ export default function SettingsScreen() {
     aiSpeedMs,
     setAiSpeedMs,
     seEnabled,
+    voiceEnabled,
+    setVoiceEnabled,
     setSeEnabled,
     bgmEnabled,
     setBgmEnabled,
@@ -126,6 +128,11 @@ export default function SettingsScreen() {
       <View style={styles.row}>
         <Choice label={`効果音 ${seEnabled ? "ON" : "OFF"}`} active={seEnabled} onPress={() => setSeEnabled(!seEnabled)} />
         <Choice label={`BGM ${bgmEnabled ? "ON" : "OFF"}`} active={bgmEnabled} onPress={() => setBgmEnabled(!bgmEnabled)} />
+        <Choice
+          label={`実況ボイス ${voiceEnabled ? "ON" : "OFF"}`}
+          active={voiceEnabled}
+          onPress={() => setVoiceEnabled(!voiceEnabled)}
+        />
         <Choice
           label={HAPTICS_AVAILABLE ? `振動 ${hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
           active={HAPTICS_AVAILABLE && hapticsEnabled}

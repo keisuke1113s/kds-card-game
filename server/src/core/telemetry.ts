@@ -26,6 +26,10 @@ export interface TrackEvent {
   cardId?: string;
   /** メタ分析用: この対戦で使ったデッキのカードID一覧 */
   cards?: string[];
+  /** 週間ランキング用（本人が付けた表示名。未設定なら送られない） */
+  name?: string;
+  streak?: number;
+  dan?: number;
 }
 
 interface DailyStat {
@@ -66,6 +70,11 @@ interface Aggregates {
   hourly: { cpu: number[]; online: number[] };
   /** LINE連携の実行数（累計と日別） */
   lineLinks?: { total: number; daily: Record<string, number> };
+  /** 週間ランキング（キーは日本時間の週の月曜日 YYYY-MM-DD） */
+  weekly?: Record<
+    string,
+    Record<string, { name: string; wins: number; losses: number; bestStreak: number; dan: number }>
+  >;
 }
 
 const MAX_DEVICES = 20000;
@@ -97,6 +106,7 @@ function emptyAggregates(): Aggregates {
     envTotals: {},
     hourly: { cpu: new Array(24).fill(0), online: new Array(24).fill(0) },
     lineLinks: { total: 0, daily: {} },
+    weekly: {},
   };
 }
 
@@ -125,6 +135,14 @@ export class Telemetry {
 
   private today(): string {
     return this.now().toISOString().slice(0, 10);
+  }
+
+  /** 日本時間でその週の月曜日の日付（週間ランキングのキー） */
+  private weekKey(): string {
+    const jst = new Date(this.now().getTime() + 9 * 3600 * 1000);
+    const day = (jst.getUTCDay() + 6) % 7; // 月曜=0
+    const monday = new Date(jst.getTime() - day * 86400000);
+    return monday.toISOString().slice(0, 10);
   }
 
   private dayOf(date: string): DailyStat {
@@ -212,6 +230,23 @@ export class Telemetry {
         this.agg.firstPlayer.firstMatches++;
         if (e.first && e.result === "win") this.agg.firstPlayer.firstWins++;
       }
+      // 週間ランキング（表示名を送ってきた対戦だけ数える）
+      if (typeof e.name === "string" && e.name.trim()) {
+        this.agg.weekly ??= {};
+        const wk = this.weekKey();
+        const week = (this.agg.weekly[wk] ??= {});
+        // 古い週は8週ぶんだけ残す
+        const wkeys = Object.keys(this.agg.weekly).sort();
+        while (wkeys.length > 8) delete this.agg.weekly[wkeys.shift()!];
+        if (week[deviceId] || Object.keys(week).length < 2000) {
+          const r = (week[deviceId] ??= { name: "", wins: 0, losses: 0, bestStreak: 0, dan: 0 });
+          r.name = String(e.name).slice(0, 12);
+          if (e.result === "win") r.wins++;
+          else if (e.result === "lose") r.losses++;
+          if (typeof e.streak === "number") r.bestStreak = Math.max(r.bestStreak, Math.min(999, e.streak));
+          if (typeof e.dan === "number") r.dan = Math.max(0, Math.min(999, e.dan));
+        }
+      }
       // カード別のメタ分析（重複IDは1回として数える）
       if (Array.isArray(e.cards) && e.cards.length <= 40) {
         const ids = [...new Set(e.cards.map((c) => String(c).slice(0, 64)).filter(Boolean))].sort();
@@ -272,6 +307,32 @@ export class Telemetry {
     } catch (e) {
       console.warn("集計の保存に失敗しました:", e);
     }
+  }
+
+  /** 週間ランキング（今週と先週の上位） */
+  ranking(): object {
+    const weekly = this.agg.weekly ?? {};
+    const wk = this.weekKey();
+    const prevWk = new Date(Date.parse(wk) - 7 * 86400000).toISOString().slice(0, 10);
+    const topOf = (key: string) =>
+      Object.values(weekly[key] ?? {})
+        .filter((r) => r.wins + r.losses > 0)
+        .sort((a, b) => b.wins - a.wins || b.bestStreak - a.bestStreak || a.losses - b.losses)
+        .slice(0, 20)
+        .map((r) => ({
+          name: r.name,
+          wins: r.wins,
+          losses: r.losses,
+          bestStreak: r.bestStreak,
+          dan: r.dan,
+        }));
+    return {
+      generatedAt: this.now().toISOString(),
+      week: wk,
+      top: topOf(wk),
+      prevWeek: prevWk,
+      prevTop: topOf(prevWk).slice(0, 3),
+    };
   }
 
   /** 管理画面向けの集計サマリー */

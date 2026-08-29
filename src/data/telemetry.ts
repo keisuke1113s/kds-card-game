@@ -43,6 +43,11 @@ async function deviceId(): Promise<string> {
   return id;
 }
 
+/** この端末の匿名ID（挑戦状の宛先交換にも使う） */
+export async function getDeviceId(): Promise<string> {
+  return deviceId();
+}
+
 /** どの環境からの利用か（分析で本番/開発を分けるため） */
 function envName(): string | null {
   if (Platform.OS !== "web") return "app";

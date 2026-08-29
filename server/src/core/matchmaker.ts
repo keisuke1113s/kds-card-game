@@ -97,6 +97,18 @@ export class Matchmaker {
     return created;
   }
 
+  /** 観戦できる進行中の対戦一覧 */
+  listWatchable(): { code: string; names: string[]; turnNumber: number; spectators: number }[] {
+    this.sweep();
+    const out: { code: string; names: string[]; turnNumber: number; spectators: number }[] = [];
+    for (const [code, entry] of this.rooms) {
+      const info = entry.room.publicInfo();
+      if (!info || info.finished || entry.room.playerCount < 2) continue;
+      out.push({ code, names: info.names, turnNumber: info.turnNumber, spectators: entry.room.spectatorCount });
+    }
+    return out.slice(0, 20);
+  }
+
   get roomCount(): number {
     this.sweep();
     return this.rooms.size;

@@ -494,7 +494,14 @@ function StatsPanel() {
       devices: number;
     }[];
   }
+  interface AdminRanking {
+    week: string;
+    top: { name: string; wins: number; losses: number; bestStreak: number; dan: number }[];
+    prevWeek: string;
+    prevTop: { name: string; wins: number }[];
+  }
   const [stats, setStats] = useState<Stats | null>(null);
+  const [rankingData, setRankingData] = useState<AdminRanking | null>(null);
   const [errors, setErrors] = useState<{ at: string; msg: string; url?: string }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -508,6 +515,12 @@ function StatsPanel() {
         r.json()
       )) as Stats;
       setStats(s);
+      try {
+        const rres = await fetch(`${base}/ranking?t=${Date.now()}`, { cache: "no-store" });
+        setRankingData((await rres.json()) as AdminRanking);
+      } catch {
+        // ランキングは取れなくても集計表示は続ける
+      }
       // エラーログは取れなくても集計表示は続ける
       try {
         const e = (await fetch(`${base}/errlog?key=946946${bust}`, { cache: "no-store" }).then((r) => r.json())) as {
@@ -608,6 +621,17 @@ function StatsPanel() {
               {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}（{c.count}回）
             </Text>
           ))}
+
+          <Text style={styles.sectionTitle}>🏆 週間ランキング（{rankingData?.week ?? "—"}週）</Text>
+          {!rankingData || rankingData.top.length === 0 ? (
+            <Text style={styles.note}>今週の記録はまだありません（免許証に名前を付けた人だけが載ります）</Text>
+          ) : (
+            rankingData.top.slice(0, 10).map((r, i) => (
+              <Text key={`rk-${i}`} style={styles.note}>
+                {i + 1}位 {r.name}｜{r.wins}勝{r.losses}敗｜最高{r.bestStreak}連勝
+              </Text>
+            ))
+          )}
 
           <Text style={styles.sectionTitle}>💚 LINE連携の分析</Text>
           {stats.line ? (

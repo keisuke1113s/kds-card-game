@@ -7,6 +7,7 @@ import { Matchmaker } from "../core/matchmaker";
 import { RoomCore, ServerMessage } from "../core/room";
 import { clientMessageSchema, sanitizeName, sanitizeTitle } from "../protocol/messages";
 import { Telemetry } from "../core/telemetry";
+import { Challenges } from "../core/challenges";
 import { config } from "../config";
 
 /** ディレクトリとして存在し書き込めそうか */
@@ -27,6 +28,8 @@ interface ConnState {
   room: RoomCore | null;
   roomCode: string | null;
   seat: PlayerId | null;
+  /** 観戦中の部屋と観戦者ID */
+  spectating: { room: RoomCore; id: number } | null;
 }
 
 export function startServer(port: number): http.Server {
@@ -37,6 +40,7 @@ export function startServer(port: number): http.Server {
   const dataDir =
     process.env.KDS_DATA_DIR ?? (fsExistsDir("/data") ? "/data" : "./data");
   const telemetry = new Telemetry(dataDir);
+  const challenges = new Challenges();
   process.on("beforeExit", () => telemetry.saveNow());
 
   // アプリから届いたエラー報告（直近200件をメモリに保持）
@@ -133,6 +137,114 @@ export function startServer(port: number): http.Server {
       res.end(JSON.stringify([...errorLog].reverse(), null, 2));
       return;
     }
+    if (req.url === "/ranking" && req.method === "GET") {
+      // 週間ランキング（ホームの掲示板と管理画面が読む）
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(telemetry.ranking()));
+      return;
+    }
+    if (req.url === "/matches" && req.method === "GET") {
+      // 観戦できる進行中の対戦一覧
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify({ matches: matchmaker.listWatchable() }));
+      return;
+    }
+    if (req.url === "/challenge" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (req.url === "/challenge" && req.method === "POST") {
+      // 挑戦状を送る
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 2000) req.destroy();
+      });
+      req.on("end", () => {
+        let out: object = { error: "送信内容を読み取れませんでした" };
+        try {
+          const b = JSON.parse(body) as {
+            fromDevice?: string; fromName?: string; toDevice?: string; toName?: string;
+          };
+          out = challenges.create(
+            String(b.fromDevice ?? ""),
+            sanitizeName(String(b.fromName ?? "")),
+            String(b.toDevice ?? ""),
+            sanitizeName(String(b.toName ?? ""))
+          );
+        } catch {
+          // 壊れた入力はそのままエラー応答
+        }
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*",
+        });
+        res.end(JSON.stringify(out));
+      });
+      return;
+    }
+    if (req.url?.startsWith("/challenges?device=") && req.method === "GET") {
+      const device = decodeURIComponent(req.url.split("device=")[1] ?? "").slice(0, 64);
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(challenges.listFor(device)));
+      return;
+    }
+    if (req.url === "/challenge/respond" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (req.url === "/challenge/respond" && req.method === "POST") {
+      // 挑戦状に返事する（受ける=部屋コードつき／断る）
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 2000) req.destroy();
+      });
+      req.on("end", () => {
+        let out: object = { error: "送信内容を読み取れませんでした" };
+        try {
+          const b = JSON.parse(body) as {
+            id?: string; device?: string; accept?: boolean; code?: string;
+          };
+          out = challenges.respond(
+            String(b.id ?? ""),
+            String(b.device ?? ""),
+            Boolean(b.accept),
+            b.code ? String(b.code) : undefined
+          );
+        } catch {
+          // 壊れた入力はそのままエラー応答
+        }
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*",
+        });
+        res.end(JSON.stringify(out));
+      });
+      return;
+    }
     if (req.url === "/healthz") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, rooms: matchmaker.roomCount }));
@@ -163,7 +275,7 @@ export function startServer(port: number): http.Server {
       }
     }
 
-    const conn: ConnState = { room: null, roomCode: null, seat: null };
+    const conn: ConnState = { room: null, roomCode: null, seat: null, spectating: null };
     const send = (msg: ServerMessage | { type: "roomCreated"; code: string } | { type: "pong" }) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     };
@@ -190,7 +302,9 @@ export function startServer(port: number): http.Server {
 
         case "createRoom": {
           const { code, room } = matchmaker.createRoom();
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
+          const joined = room.join(
+            sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title), msg.device
+          );
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;
@@ -208,7 +322,9 @@ export function startServer(port: number): http.Server {
             send({ type: "error", message: "その合言葉の部屋が見つかりません" });
             return;
           }
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
+          const joined = room.join(
+            sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title), msg.device
+          );
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;
@@ -221,7 +337,9 @@ export function startServer(port: number): http.Server {
 
         case "joinQueue": {
           const { code, room } = matchmaker.joinQueue();
-          const joined = room.join(sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title));
+          const joined = room.join(
+            sanitizeName(msg.name), msg.deck, send, sanitizeTitle(msg.title), msg.device
+          );
           if ("error" in joined) {
             send({ type: "error", message: joined.error });
             return;
@@ -273,8 +391,33 @@ export function startServer(port: number): http.Server {
           if (conn.room && conn.seat !== null) conn.room.handleStamp(conn.seat, msg.id);
           break;
 
+        case "spectate": {
+          // 観戦。すでに観戦中なら前の部屋から抜ける
+          if (conn.spectating) {
+            conn.spectating.room.removeSpectator(conn.spectating.id);
+            conn.spectating = null;
+          }
+          const room = matchmaker.findRoom(msg.code);
+          if (!room || !room.started) {
+            send({ type: "error", message: "その対戦はもう観戦できません" });
+            return;
+          }
+          conn.spectating = { room, id: room.addSpectator(send) };
+          break;
+        }
+
+        case "cheer":
+          if (conn.spectating) {
+            conn.spectating.room.handleCheer(conn.spectating.id, msg.emoji);
+          }
+          break;
+
         case "leave":
           if (conn.room && conn.seat !== null) conn.room.leave(conn.seat);
+          if (conn.spectating) {
+            conn.spectating.room.removeSpectator(conn.spectating.id);
+            conn.spectating = null;
+          }
           conn.room = null;
           conn.roomCode = null;
           conn.seat = null;
@@ -284,6 +427,7 @@ export function startServer(port: number): http.Server {
 
     ws.on("close", () => {
       if (conn.room && conn.seat !== null) conn.room.markDisconnected(conn.seat);
+      if (conn.spectating) conn.spectating.room.removeSpectator(conn.spectating.id);
     });
   });
 

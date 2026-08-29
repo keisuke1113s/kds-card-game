@@ -31,6 +31,9 @@ interface SettingsState {
   setCpuPersona: (p: CpuPersona) => void;
   setAiSpeedMs: (ms: number) => void;
   setSeEnabled: (v: boolean) => void;
+  /** 実況ボイス（「リーチ！」「決着！」などの音声） */
+  voiceEnabled: boolean;
+  setVoiceEnabled: (v: boolean) => void;
   setBgmEnabled: (v: boolean) => void;
   setHapticsEnabled: (v: boolean) => void;
   setRandomizeStandard: (v: boolean) => void;
@@ -45,6 +48,7 @@ export const useSettingsStore = create<SettingsState>()(
       cpuPersona: "balanced",
       aiSpeedMs: 1000,
       seEnabled: true,
+      voiceEnabled: true,
       bgmEnabled: true,
       hapticsEnabled: true,
       randomizeStandard: false,
@@ -60,6 +64,7 @@ export const useSettingsStore = create<SettingsState>()(
       setCpuPersona: (cpuPersona) => set({ cpuPersona }),
       setAiSpeedMs: (aiSpeedMs) => set({ aiSpeedMs }),
       setSeEnabled: (seEnabled) => set({ seEnabled }),
+      setVoiceEnabled: (voiceEnabled) => set({ voiceEnabled }),
       setBgmEnabled: (bgmEnabled) => set({ bgmEnabled }),
       setHapticsEnabled: (hapticsEnabled) => set({ hapticsEnabled }),
       setRandomizeStandard: (randomizeStandard) => set({ randomizeStandard }),
