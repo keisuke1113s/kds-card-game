@@ -472,11 +472,15 @@ function StatsPanel() {
     setLoadError(null);
     try {
       const base = "https://kds-taisen.fly.dev";
-      const s = (await fetch(`${base}/stats?key=946946`).then((r) => r.json())) as Stats;
+      // ブラウザのHTTPキャッシュに乗らないよう、時刻つきURL＋no-storeで取得する
+      const bust = `&t=${Date.now()}`;
+      const s = (await fetch(`${base}/stats?key=946946${bust}`, { cache: "no-store" }).then((r) =>
+        r.json()
+      )) as Stats;
       setStats(s);
       // エラーログは取れなくても集計表示は続ける
       try {
-        const e = (await fetch(`${base}/errlog?key=946946`).then((r) => r.json())) as {
+        const e = (await fetch(`${base}/errlog?key=946946${bust}`, { cache: "no-store" }).then((r) => r.json())) as {
           at: string;
           msg: string;
           url?: string;
