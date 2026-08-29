@@ -37,6 +37,9 @@ SES = {
     "chime": ("school chime bell ding dong ding dong, japanese school kin-kon-kan-kon chime, warm bell tones, short", 4, 3.0),
     "engine_start": ("car engine ignition and start, starter motor cranking then engine settles into gentle idle, short, realistic sound effect", 3, 2.0),
     "winker": ("car turn signal indicator clicking, two clean relay clicks tick tock, quiet interior, sound effect", 2, 1.0),
+    "cheer": ("excited crowd cheering and roaring with applause, stadium audience burst of joy, short, sound effect", 4, 2.6),
+    "horn": ("cheerful car horn honking twice, friendly beep beep toot, short sound effect", 2, 1.2),
+    "heartbeat": ("deep slow human heartbeat, two loud thumps lub-dub, tense suspense, sound effect", 3, 1.6),
     "win": ("grand victory fanfare, celebratory brass and glockenspiel, short and joyful, game jingle", 5, 3.5),
     "lose": ("gentle melancholic defeat jingle, soft piano phrase, encouraging and warm, short game jingle", 5, 3.5),
 }

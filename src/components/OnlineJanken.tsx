@@ -8,6 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
+import { playSe } from "@/audio/sound";
 import { JankenHand, useGameStore } from "@/store/gameStore";
 import { colors, radius } from "@/theme";
 
@@ -35,6 +36,25 @@ export function OnlineJanken() {
   const jankenResult = useGameStore((s) => s.jankenResult);
   const sendJanken = useGameStore((s) => s.sendJanken);
   const opponentName = useGameStore((s) => s.opponentName);
+
+  // あいこが続くほど盛り上がる（3連続で「熱すぎる！」、5連続で奇跡）
+  const [tieStreak, setTieStreak] = React.useState(0);
+  useEffect(() => {
+    if (!jankenActive) {
+      setTieStreak(0);
+      return;
+    }
+    if (!jankenResult) return;
+    if (jankenResult.result === "tie") setTieStreak((n) => n + 1);
+    else setTieStreak(0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jankenResult, jankenActive]);
+  useEffect(() => {
+    if (tieStreak === 3 || tieStreak === 5) {
+      playSe("cheer");
+      haptic("heavy");
+    }
+  }, [tieStreak]);
 
   if (!jankenActive) return null;
 
@@ -79,6 +99,12 @@ export function OnlineJanken() {
                   ? "勝ち！ あなたが先攻"
                   : `負け… ${opp} さんが先攻`}
             </Text>
+            {jankenResult.result === "tie" && tieStreak >= 3 && (
+              <Text style={styles.tieHype} allowFontScaling={false}>
+                {tieStreak >= 5 ? "🌈 奇跡の" : "🔥 熱すぎる！！"}
+                {tieStreak}連続あいこ！
+              </Text>
+            )}
           </>
         ) : jankenHand ? (
           <>
@@ -173,4 +199,5 @@ const styles = StyleSheet.create({
   handWho: { color: "#ffffffcc", fontSize: 12, fontWeight: "800" },
   vs: { color: "#ffd54d", fontSize: 16, fontWeight: "900" },
   resultText: { color: "#fff", fontSize: 19, fontWeight: "900", marginTop: 4 },
+  tieHype: { color: "#ffd54d", fontSize: 15, fontWeight: "900" },
 });

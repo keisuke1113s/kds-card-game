@@ -1,7 +1,14 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import Animated, { ZoomIn } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+  ZoomIn,
+} from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -220,6 +227,8 @@ export default function KytScreen() {
                   ? "💮 いいセンス！"
                   : "📚 おつかれさま！"}
             </Text>
+            {/* 全問正解は指差し確認で「ヨシ！」 */}
+            {correctCount >= scenes.length && <YoshiStamp />}
             <Text style={styles.resultScore}>
               {correctCount} <Text style={styles.resultTotal}>/ {scenes.length} 問正解</Text>
             </Text>
@@ -382,4 +391,43 @@ const lineGateStyles = StyleSheet.create({
   },
   buttonText: { color: "#fff", fontWeight: "900", fontSize: 15 },
   back: { fontSize: 13, color: colors.textMuted, padding: 4 },
+});
+
+/** 全問正解のごほうび: 指差し確認の「ヨシ！」スタンプがバンッと押される */
+function YoshiStamp() {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    playSe("cheer");
+    haptic("success");
+    t.value = withSequence(
+      withTiming(1.12, { duration: 210, easing: Easing.in(Easing.cubic) }),
+      withTiming(1, { duration: 130 })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    opacity: Math.min(1, t.value * 3),
+    transform: [{ rotate: "-8deg" }, { scale: t.value === 0 ? 2.2 : 2.2 - t.value * 1.2 }],
+  }));
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Animated.View style={[yoshiStyles.box, st]}>
+        <Text style={yoshiStyles.text} allowFontScaling={false}>
+          👉 ヨシ！
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+const yoshiStyles = StyleSheet.create({
+  box: {
+    borderWidth: 4,
+    borderColor: "#e8590c",
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+    backgroundColor: "#fff7f0",
+  },
+  text: { color: "#e8590c", fontSize: 26, fontWeight: "900", letterSpacing: 2 },
 });

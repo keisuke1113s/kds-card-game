@@ -270,6 +270,21 @@ function applyOp(
 
     case "modifyTrackChoice": {
       const sign = op.amount >= 0 ? `＋${op.amount}` : `${op.amount}`;
+      // 進める場合、すでに修了している教習は選ばせない（+1が無駄になるため）。
+      // 片方だけ残っているなら聞かずにそちらへ進める
+      if (op.amount > 0) {
+        const canAcademic = me.academic < ACADEMIC_GOAL;
+        const canSkill = me.skill < SKILL_GOAL;
+        if (!canAcademic && canSkill) {
+          modifyTrack(state, owner, "skill", op.amount, events);
+          break;
+        }
+        if (!canSkill && canAcademic) {
+          modifyTrack(state, owner, "academic", op.amount, events);
+          break;
+        }
+        if (!canAcademic && !canSkill) break;
+      }
       suspend(
         state,
         makePending(

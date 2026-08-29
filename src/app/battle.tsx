@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
   BounceIn,
+  type SharedValue,
   Easing,
   FadeIn,
   FadeInDown,
@@ -120,6 +121,8 @@ interface Announcement {
   delayMs?: number;
   /** 決着の一手（最後の教習の進み）。スローモーションの特別演出になる */
   finalBlow?: boolean;
+  /** 同じバッチで効果が連続したときのチェイン番号（2以上で表示） */
+  chain?: number;
   /** kind === "turn" のとき、自分の番かどうか */
   mine?: boolean;
   /** kind === "battle" のとき、ぶつかり合う2枚 */
@@ -385,6 +388,14 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         break;
     }
   }
+  // 効果の連鎖（教習・力の増減が2つ以上続く）はチェイン数を数えて爽快感を出す
+  let chainN = 0;
+  for (const a of out) {
+    if (a.kind === "lesson" || a.kind === "power") {
+      chainN++;
+      if (chainN >= 2) a.chain = chainN;
+    }
+  }
   if (myPlayDelay > 0 && out.length > 0 && out[0].delayMs === undefined) {
     out[0].delayMs = myPlayDelay;
   }
@@ -462,6 +473,15 @@ export default function BattleScreen() {
   const autoLight = usePerfStore((s) => s.autoLight);
   const effFxLevel = autoLight ? "light" : fxLevel;
   const fxScale = effFxLevel === "light" ? 0.6 : effFxLevel === "normal" ? 0.85 : 1;
+  // 日替わりの天気。雨・雪の日は対戦画面にうっすら天気演出（豆知識の季節感と連動）
+  const weather = useMemo<"sunny" | "rain" | "snow">(() => {
+    const d = new Date();
+    const month = d.getMonth() + 1;
+    const h = (((d.getFullYear() * 10000 + month * 100 + d.getDate()) * 2654435761) >>> 0) % 5;
+    if (h === 0) return "rain";
+    if ((month === 12 || month <= 2) && h === 1) return "snow";
+    return "sunny";
+  }, []);
   // 自動軽量化のお知らせ（1回だけ数秒表示）
   const [autoLightNote, setAutoLightNote] = useState(false);
   useEffect(() => {
@@ -481,7 +501,10 @@ export default function BattleScreen() {
   }));
 
   // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
-  const [reachFx, setReachFx] = useState<{ mine: boolean } | null>(null);
+  const [reachFx, setReachFx] = useState<{ mine: boolean; double?: boolean } | null>(null);
+  // 両者リーチ（運命の最終局面）
+  const [doubleReachOn, setDoubleReachOn] = useState(false);
+  const doubleReachShown = useRef(false);
   const [reachOn, setReachOn] = useState(false);
   // 実況の表示時間の計算から参照する（effectの再実行を増やさないためref越し）
   const reachOnRef = useRef(false);
@@ -701,7 +724,7 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guideActive, view?.phase.type, view?.self.field.length]);
   // 実況が流れている間は待ち、捌けてから表示する（演出の重なり防止）
-  const [pendingReach, setPendingReach] = useState<{ mine: boolean } | null>(null);
+  const [pendingReach, setPendingReach] = useState<{ mine: boolean; double?: boolean } | null>(null);
   const reachShown = useRef({ me: false, opp: false });
 
   // 進捗バーの表示値。学科技能の全画面演出が終わってから動かす
@@ -757,9 +780,12 @@ export default function BattleScreen() {
   }, [matchFound]);
 
   useEffect(() => {
-    // 決着したら、たまっていた実況・演出をすべて捨てて勝敗の演出だけを見せる
+    // 決着したら、たまっていた実況・演出を片づける。
+    // ただし「決着の一手」（最後のゲージの進み）だけは残して、
+    // スローモーション演出を見せてから結果画面に進む
     if (lastEvents.some((e) => e.type === "gameEnded")) {
-      setAnnQueue([]);
+      const finalAnns = announcementsFor(lastEvents, view).filter((a) => a.finalBlow);
+      setAnnQueue(finalAnns);
       dismissAnn();
       setPendingDraw(null);
       setDrawFx(null);
@@ -814,7 +840,16 @@ export default function BattleScreen() {
       Math.max(0, ACADEMIC_GOAL - p.academic) + Math.max(0, SKILL_GOAL - p.skill);
     const meReach = remain(view.self) <= 2;
     const oppReach = remain(view.opponent) <= 2;
-    if (meReach && !reachShown.current.me) {
+    const both = meReach && oppReach;
+    if (both && !doubleReachShown.current) {
+      // 両者リーチ＝運命の最終局面。あとから追いついた側で演出を変える
+      doubleReachShown.current = true;
+      const mineCaught = !reachShown.current.me;
+      reachShown.current.me = true;
+      reachShown.current.opp = true;
+      setPendingReach({ mine: mineCaught, double: true });
+      say(mineCaught ? CPU_LINES.playerReach : CPU_LINES.cpuReach, mineCaught ? "playerReach" : "cpuReach");
+    } else if (meReach && !reachShown.current.me) {
       reachShown.current.me = true;
       setPendingReach({ mine: true });
       say(CPU_LINES.playerReach, "playerReach");
@@ -825,6 +860,8 @@ export default function BattleScreen() {
     }
     if (!meReach) reachShown.current.me = false;
     if (!oppReach) reachShown.current.opp = false;
+    if (!both) doubleReachShown.current = false;
+    setDoubleReachOn(both);
     setReachOn(meReach || oppReach);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
@@ -891,9 +928,38 @@ export default function BattleScreen() {
   // リーチ演出は少し見せて自動で閉じる
   useEffect(() => {
     if (!reachFx) return;
-    const t = setTimeout(() => setReachFx(null), 2000);
+    const t = setTimeout(() => setReachFx(null), reachFx.double ? 2800 : 2000);
     return () => clearTimeout(t);
   }, [reachFx]);
+
+  // 両者リーチの間は心臓の音がドクン…ドクン…と鳴り続ける
+  useEffect(() => {
+    if (!doubleReachOn || view?.phase.type === "finished") return;
+    const timer = setInterval(() => playSe("heartbeat"), 1900);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doubleReachOn, view?.phase.type]);
+
+  // 場にインストラクターが5人そろったら「フルライン！」
+  const fullLineShown = useRef(false);
+  useEffect(() => {
+    const n = view?.self.field.length ?? 0;
+    if (view && view.phase.type !== "finished" && n >= 5 && !fullLineShown.current) {
+      fullLineShown.current = true;
+      playSe("cheer");
+      setAnnQueue((q) => [
+        ...q,
+        {
+          key: ++annSeq,
+          kind: "text",
+          text: "🖐️ フルライン！！\n場にインストラクターが5人そろった！",
+          emph: true,
+        },
+      ]);
+    }
+    if (n < 5) fullLineShown.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.field.length, view?.phase.type]);
 
   // オンライン対戦: 相手の手番の経過時間を数える
   useEffect(() => {
@@ -1075,6 +1141,11 @@ export default function BattleScreen() {
       annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult"));
   // 決着演出（最後のゲージの進み）が終わってから結果画面を出すための待ち
   const [resultShown, setResultShown] = useState(false);
+  // 決着の一手をあとで「もう一度」再生できるように取っておく
+  const finalBlowAnnRef = useRef<Announcement | null>(null);
+  useEffect(() => {
+    if (currentAnn?.finalBlow) finalBlowAnnRef.current = currentAnn;
+  }, [currentAnn]);
   const finishedOutcome =
     view?.phase.type === "finished" && !replayActive
       ? view.phase.winner === ME
@@ -1110,6 +1181,8 @@ export default function BattleScreen() {
       // 結果画面が出てからリザルト曲へ
       const t = setTimeout(() => {
         if (!playBgm(finishedOutcome === "win" ? "bgm_result_win" : "bgm_result_lose")) pauseBgm();
+        // 勝利したら教習車のクラクションでお祝い（プップー！）
+        if (finishedOutcome === "win") playSe("horn");
       }, 900);
       return () => clearTimeout(t);
     }
@@ -1808,6 +1881,16 @@ export default function BattleScreen() {
           })}
           {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
         </ScrollView>
+        {/* 手札が残り1枚の緊張感 */}
+        {me.hand.length === 1 && view.phase.type !== "finished" && (
+          <View
+            style={styles.lastCardChip}
+            {...({ dataSet: { kdsanim: "breathe" } } as object)}
+            pointerEvents="none"
+          >
+            <Text style={styles.lastCardChipText} allowFontScaling={false}>⚠️ ラスト1枚！</Text>
+          </View>
+        )}
       </View>
 
       </Animated.View>
@@ -1842,6 +1925,11 @@ export default function BattleScreen() {
             if (wipeDoneRef.current) showVsIntro();
           }}
         />
+      )}
+
+      {/* 日替わりの天気（雨・雪）。軽量モード中は出さない */}
+      {weather !== "sunny" && effFxLevel !== "light" && view.phase.type !== "finished" && (
+        <WeatherLayer kind={weather} />
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
@@ -1949,7 +2037,7 @@ export default function BattleScreen() {
               entering={ZoomIn.springify().damping(10)}
               exiting={ZoomOut.duration(200)}
             >
-              <Text style={styles.annBigText}>{currentAnn.text}</Text>
+              <TypewriterText text={currentAnn.text} style={styles.annBigText} />
             </Animated.View>
           ) : (
             <Animated.View
@@ -1960,6 +2048,9 @@ export default function BattleScreen() {
             >
               <Text style={[styles.annText, annBigger]}>{currentAnn.text}</Text>
             </Animated.View>
+          )}
+          {(currentAnn.chain ?? 0) >= 2 && (
+            <ChainBadge key={`chain-${currentAnn.key}`} n={currentAnn.chain ?? 2} />
           )}
         </Pressable>
       )}
@@ -2024,7 +2115,12 @@ export default function BattleScreen() {
       )}
 
       {/* リーチ演出（残り2時限以下になった瞬間の全画面カットイン） */}
-      {reachFx && <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />}
+      {reachFx &&
+        (reachFx.double ? (
+          <DoubleReachCutIn mineCaught={reachFx.mine} oppName={oppLabel} />
+        ) : (
+          <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />
+        ))}
       {/* カードの移動演出（出す・引く・退場・サポート） */}
       {flyFx.map((f) => (
         <FlyCard key={f.key} item={f} onDone={removeFly} />
@@ -2083,7 +2179,7 @@ export default function BattleScreen() {
         <CertificateFx name={kyokanDef.name} onClose={() => setCertShown(false)} />
       )}
       {/* リーチ中は画面のフチが赤く脈動する */}
-      {reachOn && view.phase.type !== "finished" && <ReachVignette />}
+      {reachOn && view.phase.type !== "finished" && <ReachVignette double={doubleReachOn} />}
       {/* 進捗の折返し到達のお祝い */}
       {milestone && <MilestonePop key={milestone.key} label={milestone.label} />}
       {/* 初対戦のガイド（吹き出しナビ。タップで閉じる） */}
@@ -2435,6 +2531,10 @@ export default function BattleScreen() {
               me.tantou,
             ]}
           />
+          {/* 通算勝利数の節目は花火大会でお祝い */}
+          {[50, 100, 200, 300, 500, 1000].includes(record.wins) && (
+            <Fireworks label={`🎆 通算${record.wins}勝 達成！！`} />
+          )}
         </>
       )}
 
@@ -2506,12 +2606,17 @@ export default function BattleScreen() {
               style={[
                 styles.streakBanner,
                 record.streak >= 5 && styles.streakBannerGold,
+                record.streak >= 10 && styles.streakBannerRainbow,
               ]}
             >
-              <Text style={styles.streakBannerText}>
-                {record.streak >= 5 ? "👑" : "🔥"} {record.streak}連勝中！
-                {record.streak >= 5 ? " 無敵の勢い！" : " ノリにノってる！"}
-              </Text>
+              {record.streak >= 10 ? (
+                <RainbowText text={`🌈⚡ ${record.streak}連勝中！ 伝説の走り！`} size={15} />
+              ) : (
+                <Text style={styles.streakBannerText}>
+                  {record.streak >= 5 ? "👑" : "🔥"} {record.streak}連勝中！
+                  {record.streak >= 5 ? " 無敵の勢い！" : " ノリにノってる！"}
+                </Text>
+              )}
             </View>
           )}
           {/* 今回の連戦と通算の成績 */}
@@ -2579,6 +2684,19 @@ export default function BattleScreen() {
               !replayActive && (
                 <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
               )
+            )}
+            {finalBlowAnnRef.current && !replayActive && (
+              <ActionButton
+                label="🎬 決着の瞬間をもう一度"
+                color={colors.accent}
+                onPress={() => {
+                  haptic("medium");
+                  const ann = finalBlowAnnRef.current;
+                  if (!ann) return;
+                  setResultShown(false);
+                  setAnnQueue((q) => [...q, { ...ann, key: ++annSeq }]);
+                }}
+              />
             )}
             {Platform.OS === "web" && !replayActive && (
               <ActionButton
@@ -2812,7 +2930,10 @@ export function BattleResultCutIn({
 }) {
   const scale = useSharedValue(0.4);
   const opacity = useSharedValue(0);
-  const [reveal, setReveal] = useState(!deciding);
+  const flash = useSharedValue(0);
+  // 戦闘力の差が1以内の「接戦」は、ひと呼吸ためてから決着を見せる
+  const close = !deciding && !tie && Math.abs(atk - def) <= 1;
+  const [reveal, setReveal] = useState(!deciding && !close);
   const [shown, setShown] = useState<{ atk: number; def: number }>(
     deciding ? { atk: 0, def: 0 } : { atk, def }
   );
@@ -2821,11 +2942,36 @@ export function BattleResultCutIn({
     const revealFx = () => {
       playSe(tie ? "battle_tie" : mine ? "battle_win" : "battle_lose");
       haptic(tie ? "heavy" : mine ? "success" : "warning");
+      if (tie) {
+        // 相打ちは白い閃光と衝撃の揺れ
+        flash.value = withSequence(
+          withTiming(0.85, { duration: 70 }),
+          withTiming(0, { duration: 420 })
+        );
+        scale.value = withSequence(
+          withTiming(1.2, { duration: 140, easing: Easing.out(Easing.cubic) }),
+          withTiming(0.96, { duration: 90 }),
+          withTiming(1.04, { duration: 80 }),
+          withTiming(1, { duration: 80 })
+        );
+        return;
+      }
       scale.value = withSequence(
         withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
         withTiming(1, { duration: 150 })
       );
     };
+    if (close) {
+      // 接戦: 「大接戦…！」と見せて一拍ためる
+      playSe("battle");
+      haptic("medium");
+      scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+      const t = setTimeout(() => {
+        setReveal(true);
+        revealFx();
+      }, 900);
+      return () => clearTimeout(t);
+    }
     if (!deciding) {
       revealFx();
       return;
@@ -2873,6 +3019,7 @@ export function BattleResultCutIn({
     transform: [{ scale: scale.value }],
     opacity: opacity.value,
   }));
+  const flashSt = useAnimatedStyle(() => ({ opacity: flash.value }));
   const bg = !reveal
     ? require("../../assets/images/fx/fx_battle.webp")
     : tie
@@ -2881,9 +3028,11 @@ export function BattleResultCutIn({
         ? require("../../assets/images/fx/fx_victory.webp")
         : require("../../assets/images/fx/fx_down.webp");
   const title = !reveal
-    ? "🏁 ラストバトル！！"
+    ? deciding
+      ? "🏁 ラストバトル！！"
+      : "⚡ 大接戦…！！"
     : tie
-      ? "⚡ 相打ち！"
+      ? "⚡ 相打ち！！"
       : mine
         ? "🔥 バトル勝利！"
         : "💥 バトル敗北…";
@@ -2904,7 +3053,9 @@ export function BattleResultCutIn({
         </Text>
         <Text style={styles.reachSub}>
           {!reveal
-            ? "勝敗の行方は…！？"
+            ? deciding
+              ? "勝敗の行方は…！？"
+              : "ほぼ互角！勝つのはどっちだ…！？"
             : tie
               ? "両者のインストラクターが場外へ！"
               : mine
@@ -2912,6 +3063,11 @@ export function BattleResultCutIn({
                 : "インストラクターが場外へ送られた…"}
         </Text>
       </Animated.View>
+      {/* 相打ちの閃光 */}
+      <Animated.View
+        style={[StyleSheet.absoluteFill, { backgroundColor: "#ffffff" }, flashSt]}
+        pointerEvents="none"
+      />
     </View>
   );
 }
@@ -3095,6 +3251,8 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
         style={[StyleSheet.absoluteFill, { opacity: 0.85 }]}
         contentFit="cover"
       />
+      {/* 自分のリーチは相手側を暗くして、自分の陣地にスポットライトを当てる */}
+      {mine && <View style={styles.spotDim} pointerEvents="none" />}
       <Animated.View style={[styles.reachBox, box]}>
         <Animated.Text style={[styles.reachTitle, { color }, glowStyle]} allowFontScaling={false}>
           {mine ? "⚡ リーチ！" : "⚠️ 相手がリーチ！"}
@@ -3525,6 +3683,241 @@ function PulseRing({
  * 暗転した画面に赤い斜め帯が交差し、対戦する2枚のカードが
  * 左右から飛び込んでぶつかり、「いざ、勝負！」が飛び出す。
  */
+
+/** 両者リーチ。「運命の最終局面」の紫カットイン。追いついた側で文言が変わる */
+function DoubleReachCutIn({ mineCaught, oppName }: { mineCaught: boolean; oppName: string }) {
+  const scale = useSharedValue(0.5);
+  const opacity = useSharedValue(0);
+  const glow = useSharedValue(0);
+  useEffect(() => {
+    playSe("battle");
+    playSe("heartbeat");
+    haptic("heavy");
+    const t = mineCaught ? setTimeout(() => playSe("cheer"), 450) : null;
+    scale.value = withSequence(
+      withTiming(1.18, { duration: 220, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 160 })
+    );
+    opacity.value = withTiming(1, { duration: 150 });
+    glow.value = withRepeat(
+      withSequence(withTiming(1, { duration: 330 }), withTiming(0.45, { duration: 330 })),
+      -1
+    );
+    return () => {
+      if (t) clearTimeout(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const box = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+    opacity: opacity.value,
+  }));
+  const glowStyle = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Image
+        source={require("../../assets/images/fx/fx_battle.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.8 }]}
+        contentFit="cover"
+      />
+      {/* 紫の帳で「運命の最終局面」を演出 */}
+      <View
+        style={[StyleSheet.absoluteFill, { backgroundColor: "#2a0a4ac9" }]}
+        pointerEvents="none"
+      />
+      <Animated.View style={[styles.reachBox, box]}>
+        {mineCaught && (
+          <View style={styles.doubleReachBand}>
+            <Text style={styles.doubleReachBandText} allowFontScaling={false}>
+              🔥 追いついた！！
+            </Text>
+          </View>
+        )}
+        <Animated.Text
+          style={[styles.reachTitle, styles.doubleReachTitle, glowStyle]}
+          allowFontScaling={false}
+          numberOfLines={1}
+        >
+          ⚡ 運命の最終局面 ⚡
+        </Animated.Text>
+        <Text style={styles.reachSub}>
+          {mineCaught
+            ? "両者リーチ！ 次の一手がすべてを決める！"
+            : `${oppName}に並ばれた…！ 先に卒業するのはどっちだ！？`}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** 効果チェインの回数表示。連鎖のたびに数字が跳ね上がり音程も上がる */
+function ChainBadge({ n }: { n: number }) {
+  const pop = useSharedValue(0);
+  useEffect(() => {
+    playSe("achievement", Math.min(2, 1 + (n - 2) * 0.16));
+    haptic("light");
+    pop.value = withSequence(
+      withTiming(1.3, { duration: 170, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 130 })
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    opacity: Math.min(1, pop.value * 3),
+    transform: [{ scale: pop.value }, { rotate: "-6deg" }],
+  }));
+  return (
+    <Animated.View style={[styles.chainBadge, st]} pointerEvents="none">
+      <Text style={styles.chainBadgeText} allowFontScaling={false}>
+        🔗 {n} CHAIN!
+      </Text>
+    </Animated.View>
+  );
+}
+
+/** 1文字ずつダダダッと表示する実況テキスト */
+function TypewriterText({ text, style }: { text: string; style?: StyleProp<TextStyle> }) {
+  const [shownLen, setShownLen] = useState(text.length <= 6 ? text.length : 1);
+  useEffect(() => {
+    if (text.length <= 6) return;
+    let i = 1;
+    const timer = setInterval(() => {
+      i += 2;
+      if (i >= text.length) {
+        setShownLen(text.length);
+        clearInterval(timer);
+      } else {
+        setShownLen(i);
+      }
+    }, 40);
+    return () => clearInterval(timer);
+  }, [text]);
+  // 幅がガタつかないよう、未表示分は透明で敷いておく
+  return (
+    <Text style={style}>
+      {text.slice(0, shownLen)}
+      <Text style={{ opacity: 0 }}>{text.slice(shownLen)}</Text>
+    </Text>
+  );
+}
+
+/** 節目のお祝い花火。色とりどりの光の輪が次々に開く */
+function Fireworks({ label }: { label: string }) {
+  useEffect(() => {
+    playSe("cheer");
+    const t = setTimeout(() => playSe("horn"), 750);
+    return () => clearTimeout(t);
+  }, []);
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
+      {Array.from({ length: 10 }, (_, i) => (
+        <FireworkBurst key={i} index={i} />
+      ))}
+      <View style={styles.fireworksLabelWrap}>
+        <Text style={styles.fireworksLabel} allowFontScaling={false}>
+          {label}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+function FireworkBurst({ index }: { index: number }) {
+  const p = useSharedValue(0);
+  // 位置と色は固定値で散らす（乱数だと再レンダーで変わってしまう）
+  const left = ((index * 37 + 11) % 78) + 8;
+  const top = ((index * 53 + 13) % 42) + 8;
+  const hue = ["#ffd54d", "#ff8a8a", "#8fd3ee", "#b0f2a0", "#d9a6ff", "#ffc37d"][index % 6];
+  useEffect(() => {
+    p.value = withDelay(
+      index * 430,
+      withRepeat(withTiming(1, { duration: 1500, easing: Easing.out(Easing.cubic) }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const st = useAnimatedStyle(() => ({
+    opacity: p.value < 0.15 ? p.value * 6 : Math.max(0, 1 - (p.value - 0.15) / 0.65),
+    transform: [{ scale: 0.2 + p.value * 2.1 }],
+  }));
+  return (
+    <Animated.View
+      style={[
+        styles.fireworkDot,
+        { left: `${left}%` as DimensionValue, top: `${top}%` as DimensionValue, borderColor: hue },
+        st,
+      ]}
+    />
+  );
+}
+
+/** ロゴ配色で1文字ずつ色を変えるお祝いテキスト */
+const RAINBOW_COLORS = ["#ff6b6b", "#ffc37d", "#ffe86b", "#b0f2a0", "#8fd3ee", "#d9a6ff"];
+
+function RainbowText({ text, size }: { text: string; size: number }) {
+  return (
+    <Text style={{ fontSize: size, fontWeight: "900" }} allowFontScaling={false}>
+      {Array.from(text).map((ch, i) => (
+        <Text key={i} style={{ color: RAINBOW_COLORS[i % RAINBOW_COLORS.length] }}>
+          {ch}
+        </Text>
+      ))}
+    </Text>
+  );
+}
+
+/** 日替わりの天気演出（雨/雪）。ブラウザ合成のCSSアニメーションで軽く流す */
+function WeatherLayer({ kind }: { kind: "rain" | "snow" }) {
+  if (Platform.OS !== "web") return null;
+  const count = kind === "rain" ? 14 : 12;
+  return (
+    <View style={[StyleSheet.absoluteFill, { overflow: "hidden", zIndex: 18 }]} pointerEvents="none">
+      {Array.from({ length: count }, (_, i) => {
+        const left = `${(i * 61.8 + 9) % 97}%`;
+        const duration = kind === "rain" ? 900 + ((i * 977) % 700) : 3800 + ((i * 977) % 2600);
+        const delay = (i * 1371) % 3200;
+        return (
+          <View
+            key={i}
+            {...({ dataSet: { kdsanim: "fall" } } as object)}
+            style={[
+              kind === "rain" ? styles.weatherDrop : styles.weatherFlake,
+              { left: left as DimensionValue },
+              {
+                animationDuration: `${duration}ms`,
+                animationDelay: `${delay}ms`,
+                animationTimingFunction: "linear",
+                animationIterationCount: "infinite",
+              } as unknown as ViewStyle,
+            ]}
+          />
+        );
+      })}
+      <View style={styles.weatherChip}>
+        <Text style={styles.weatherChipText} allowFontScaling={false}>
+          {kind === "rain" ? "☔ 本日は雨天教習" : "⛄ 本日は雪道教習"}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
+/** バトル激突時に飛び散る火花のひとつ */
+function ClashSpark({ index, progress }: { index: number; progress: SharedValue<number> }) {
+  const st = useAnimatedStyle(() => {
+    const a = (index / 8) * Math.PI * 2 + 0.4;
+    const d = progress.value * (70 + (index % 3) * 34);
+    return {
+      opacity: progress.value === 0 ? 0 : Math.max(0, 1 - progress.value),
+      transform: [
+        { translateX: Math.cos(a) * d },
+        { translateY: Math.sin(a) * d },
+        { scale: 1 - progress.value * 0.5 },
+      ],
+    };
+  });
+  return <Animated.View style={[styles.spark, index % 2 === 0 && styles.sparkGold, st]} />;
+}
+
 export function BattleCutIn({
   subtitle,
   atkCardId,
@@ -3542,6 +3935,7 @@ export function BattleCutIn({
   const cardR = useSharedValue(0);
   const pop = useSharedValue(0);
   const clash = useSharedValue(0);
+  const sparks = useSharedValue(0);
 
   useEffect(() => {
     playSe("battle");
@@ -3561,6 +3955,8 @@ export function BattleCutIn({
       )
     );
     pop.value = withDelay(620, withSpring(1, { damping: 9, stiffness: 160 }));
+    // ぶつかった瞬間に火花が散る
+    sparks.value = withDelay(560, withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) }));
     const t = setTimeout(() => haptic("heavy"), 560);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3579,6 +3975,7 @@ export function BattleCutIn({
     transform: [
       { translateX: (1 - cardL.value) * -320 + clash.value * 8 },
       { rotate: `${-8 + (1 - cardL.value) * -14}deg` },
+      { scale: 1 + clash.value * 0.06 },
     ],
   }));
   const cardRStyle = useAnimatedStyle(() => ({
@@ -3586,6 +3983,7 @@ export function BattleCutIn({
     transform: [
       { translateX: (1 - cardR.value) * 320 - clash.value * 8 },
       { rotate: `${8 + (1 - cardR.value) * 14}deg` },
+      { scale: 1 + clash.value * 0.06 },
     ],
   }));
   const shakeStyle = useAnimatedStyle(() => ({
@@ -3610,6 +4008,13 @@ export function BattleCutIn({
       />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashA, slashAStyle]} />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashB, slashBStyle]} />
+
+      {/* 激突の火花 */}
+      <View style={styles.sparkWrap} pointerEvents="none">
+        {Array.from({ length: 8 }, (_, i) => (
+          <ClashSpark key={i} index={i} progress={sparks} />
+        ))}
+      </View>
 
       {atkCardId && defCardId && (
         <View style={styles.cutinCards}>
@@ -3672,6 +4077,7 @@ function LessonCutIn({
       pop.value = withDelay(200, withSpring(1, { damping: 12, stiffness: 90 }));
       const t1 = setTimeout(() => {
         playSe(mine ? "battle_win" : "battle_lose");
+        if (mine) playSe("cheer");
         haptic("heavy");
         flash.value = withSequence(
           withTiming(1, { duration: 90 }),
@@ -3828,11 +4234,17 @@ function FlyToOut({
   const dx = target ? target.x - win.width / 2 : -130;
   const dy = target ? target.y - win.height / 2 : mine ? 210 : -260;
 
+  const dust = useSharedValue(0);
   useEffect(() => {
     playSe("hit");
     p.value = withDelay(
       index * 220,
       withTiming(1, { duration: 850, easing: Easing.inOut(Easing.cubic) })
+    );
+    // 着地点にモワッと広がる土煙
+    dust.value = withDelay(
+      index * 220 + 640,
+      withTiming(1, { duration: 520, easing: Easing.out(Easing.cubic) })
     );
     const t = setTimeout(onDone ?? (() => {}), index * 220 + 950);
     return () => clearTimeout(t);
@@ -3854,8 +4266,18 @@ function FlyToOut({
     };
   });
 
+  const dustSt = useAnimatedStyle(() => ({
+    opacity: dust.value === 0 ? 0 : Math.max(0, 0.7 - dust.value * 0.7),
+    transform: [
+      { translateX: dx },
+      { translateY: dy },
+      { scale: 0.3 + dust.value * 1.8 },
+    ],
+  }));
+
   return (
     <View style={styles.outFxCenter} pointerEvents="none">
+      <Animated.View style={[styles.dustPuff, dustSt]} />
       <Animated.View style={style}>
         <CardFace cardId={cardId} size="md" />
       </Animated.View>
@@ -4201,7 +4623,7 @@ function pickLine(lines: readonly string[]): string {
 }
 
 /** リーチ中、画面のフチが赤く脈動して緊迫感を出すビネット */
-function ReachVignette() {
+function ReachVignette({ double = false }: { double?: boolean }) {
   // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
   if (Platform.OS === "web") {
     return (
@@ -4218,7 +4640,7 @@ function ReachVignette() {
         ]}
         pointerEvents="none"
       >
-        <ReachVignetteBody />
+        <ReachVignetteBody purple={double} />
       </View>
     );
   }
@@ -4235,35 +4657,42 @@ function ReachVignette() {
   const st = useAnimatedStyle(() => ({ opacity: pulse.value }));
   return (
     <Animated.View style={[StyleSheet.absoluteFill, st, { zIndex: 25 }]} pointerEvents="none">
-      <ReachVignetteBody />
+      <ReachVignetteBody purple={double} />
     </Animated.View>
   );
 }
 
 /** リーチ演出の4辺の赤いグラデーション（本体は再描画不要なのでメモ化） */
-const ReachVignetteBody = React.memo(function ReachVignetteBody() {
+const ReachVignetteBody = React.memo(function ReachVignetteBody({
+  purple = false,
+}: {
+  purple?: boolean;
+}) {
+  // 両者リーチは「運命の最終局面」の紫、通常は警告の赤
+  const strong = purple ? "#8a3ddfaa" : "#d83030aa";
+  const weak = purple ? "#8a3ddf77" : "#d8303077";
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <LinearGradient
-        colors={["#d83030aa", "transparent"]}
+        colors={[strong, "transparent"]}
         style={styles.vignetteTop}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
       <LinearGradient
-        colors={["transparent", "#d83030aa"]}
+        colors={["transparent", strong]}
         style={styles.vignetteBottom}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       />
       <LinearGradient
-        colors={["#d8303077", "transparent"]}
+        colors={[weak, "transparent"]}
         style={styles.vignetteLeft}
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
       />
       <LinearGradient
-        colors={["transparent", "#d8303077"]}
+        colors={["transparent", weak]}
         style={styles.vignetteRight}
         start={{ x: 0, y: 0.5 }}
         end={{ x: 1, y: 0.5 }}
@@ -5150,6 +5579,116 @@ const styles = StyleSheet.create({
     backgroundColor: "#0b1024cc",
     padding: 0,
     alignItems: "stretch",
+  },
+  chainBadge: {
+    position: "absolute",
+    top: "16%",
+    right: 14,
+    backgroundColor: "#12308a",
+    borderColor: "#ffd54d",
+    borderWidth: 3,
+    borderRadius: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  chainBadgeText: { color: "#ffd54d", fontSize: 20, fontWeight: "900", letterSpacing: 1 },
+  lastCardChip: {
+    position: "absolute",
+    top: -12,
+    alignSelf: "center",
+    backgroundColor: "#c22525",
+    borderRadius: 999,
+    paddingVertical: 3,
+    paddingHorizontal: 12,
+    zIndex: 5,
+  },
+  lastCardChipText: { color: "#fff", fontSize: 11, fontWeight: "900" },
+  streakBannerRainbow: {
+    backgroundColor: "#1a1038",
+    borderWidth: 2,
+    borderColor: "#d9a6ff",
+  },
+  doubleReachTitle: { color: "#d9a6ff", fontSize: 30 },
+  doubleReachBand: {
+    backgroundColor: "#c9971b",
+    borderRadius: 999,
+    paddingVertical: 4,
+    paddingHorizontal: 16,
+    marginBottom: 6,
+  },
+  doubleReachBandText: { color: "#fff", fontSize: 16, fontWeight: "900" },
+  fireworkDot: {
+    position: "absolute",
+    width: 92,
+    height: 92,
+    borderRadius: 999,
+    borderWidth: 3,
+  },
+  fireworksLabelWrap: {
+    position: "absolute",
+    top: "9%",
+    alignSelf: "center",
+    backgroundColor: "#000000a8",
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "#ffd54d",
+    paddingVertical: 6,
+    paddingHorizontal: 18,
+  },
+  fireworksLabel: { color: "#ffd54d", fontSize: 17, fontWeight: "900" },
+  weatherDrop: {
+    position: "absolute",
+    top: -46,
+    width: 2,
+    height: 26,
+    borderRadius: 2,
+    backgroundColor: "#9fc3ee88",
+  },
+  weatherFlake: {
+    position: "absolute",
+    top: -46,
+    width: 7,
+    height: 7,
+    borderRadius: 999,
+    backgroundColor: "#ffffffcc",
+  },
+  weatherChip: {
+    position: "absolute",
+    top: 6,
+    right: 8,
+    backgroundColor: "#12308acc",
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+  },
+  weatherChipText: { color: "#cfe4ff", fontSize: 10, fontWeight: "800" },
+  sparkWrap: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  spark: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+    borderRadius: 3,
+    backgroundColor: "#ffef9e",
+  },
+  sparkGold: { backgroundColor: "#ffc37d", width: 13, height: 13 },
+  dustPuff: {
+    position: "absolute",
+    width: 64,
+    height: 64,
+    borderRadius: 999,
+    backgroundColor: "#b89a6a",
+  },
+  spotDim: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "52%",
+    backgroundColor: "#04081ab8",
   },
   finalBlowStamp: {
     position: "absolute",
