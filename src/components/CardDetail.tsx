@@ -10,6 +10,7 @@ import { getCard } from "@/data/cards";
 import { cardThumbs } from "@/data/images";
 import { CardFace } from "./CardFace";
 import { cardSize, colors, shadow } from "@/theme";
+import { useSettingsStore } from "@/store/settingsStore";
 
 /**
  * 指でなぞるとカードが傾き、ホログラム風の光沢が流れる3Dチルト。
@@ -116,6 +117,9 @@ const typeLabel: Record<string, string> = {
  */
 export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?: boolean }) {
   const def = getCard(cardId);
+  // 設定「大きめ文字」で効果文をひとまわり大きく
+  const largeText = useSettingsStore((s) => s.largeText);
+  const bigger = largeText ? { fontSize: 16, lineHeight: 24 } : null;
   const [term, setTerm] = React.useState<string | null>(null);
   const Container = scroll ? ScrollView : View;
   const containerProps = scroll
@@ -168,7 +172,7 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
           <Text style={styles.effectLabel}>効果（下線の言葉はタップで説明）</Text>
           <EffectTextWithGlossary
             text={def.effectText}
-            style={styles.effectText}
+            style={[styles.effectText, bigger]}
             onTerm={setTerm}
           />
         </View>

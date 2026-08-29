@@ -33,6 +33,7 @@ import { todayMissions, useMissionStore } from "@/store/missionStore";
 import { RANKS, lastMilestone, nextMilestone, rankIndexFor, totalDistanceKm, winsToNextRank } from "@/data/rank";
 import { useRankStore } from "@/store/rankStore";
 import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
+import { useQuizStore } from "@/store/quizStore";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -42,6 +43,9 @@ const IS_DEV_DEMO =
   Platform.OS === "web" &&
   typeof window !== "undefined" &&
   window.location.pathname.includes("/dev/");
+
+/** 枠内ボタンの下地。ライト=白 / ダーク=カード面の濃紺（白だと眩しいため） */
+const PALE_BG = DARK_MODE ? "#1a2536" : "#ffffff";
 
 /** カード実物のロゴから採色した色 */
 const brand = {
@@ -344,6 +348,11 @@ export default function HomeScreen() {
     (Date.now() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 86400000
   );
   const dailyQ = QUIZ_QUESTIONS[dayIndex % QUIZ_QUESTIONS.length];
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const dailyDate = useQuizStore((s) => s.dailyDate);
+  const dailyCorrect = useQuizStore((s) => s.dailyCorrect);
+  const setDaily = useQuizStore((s) => s.setDaily);
+  const dailyDone = dailyDate === todayStr;
   const [dailyQOpen, setDailyQOpen] = useState(false);
   const [dailyQAnswer, setDailyQAnswer] = useState<boolean | null>(null);
   const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
@@ -521,14 +530,21 @@ export default function HomeScreen() {
             <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
             <Text style={styles.tipText}>{tipOfToday()}</Text>
             <Pressable
-              style={styles.dailyQButton}
+              style={[styles.dailyQButton, dailyDone && styles.dailyQButtonDone]}
               onPress={() => {
                 haptic("light");
-                setDailyQAnswer(null);
+                // 挑戦済みなら答えと解説をそのまま見られる
+                setDailyQAnswer(dailyDone ? (dailyCorrect ? dailyQ.answer : !dailyQ.answer) : null);
                 setDailyQOpen(true);
               }}
             >
-              <Text style={styles.dailyQButtonText}>📝 今日の1問に挑戦</Text>
+              <Text style={[styles.dailyQButtonText, dailyDone && styles.dailyQButtonTextDone]}>
+                {dailyDone
+                  ? dailyCorrect
+                    ? "✅ 今日の1問 正解ずみ！"
+                    : "☑️ 今日の1問 挑戦ずみ"
+                  : "📝 今日の1問に挑戦"}
+              </Text>
             </Pressable>
           </View>
           <AppButton
@@ -564,13 +580,13 @@ export default function HomeScreen() {
             </View>
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
-              custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
+              custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/kyokan")}
             />
             <AppButton
               label="🏆 トーナメント（4連戦）"
-              custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
+              custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/tournament")}
             />
@@ -593,13 +609,13 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <AppButton
                 label="📝 学科クイズ"
-                custom={{ bg: "#ffffff", fg: brand.green, border: brand.green }}
+                custom={{ bg: PALE_BG, fg: brand.green, border: brand.green }}
                 style={styles.halfTall}
                 onPress={() => router.push("/quiz")}
               />
               <AppButton
                 label="⚠️ 危険予測"
-                custom={{ bg: "#ffffff", fg: "#e8590c", border: "#e8590c" }}
+                custom={{ bg: PALE_BG, fg: "#e8590c", border: "#e8590c" }}
                 style={styles.halfTall}
                 onPress={() => router.push("/kyt")}
               />
@@ -607,13 +623,13 @@ export default function HomeScreen() {
             <View style={styles.row}>
               <AppButton
                 label="🧠 適性診断"
-                custom={{ bg: "#ffffff", fg: brand.coral, border: brand.coral }}
+                custom={{ bg: PALE_BG, fg: brand.coral, border: brand.coral }}
                 style={styles.halfTall}
                 onPress={() => router.push("/shindan")}
               />
               <AppButton
                 label="👁 動体視力"
-                custom={{ bg: "#ffffff", fg: brand.blue, border: brand.blue }}
+                custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
                 style={styles.halfTall}
                 onPress={() => router.push("/eyecheck")}
               />
@@ -828,6 +844,7 @@ export default function HomeScreen() {
                     onPress={() => {
                       haptic("light");
                       playSe(dailyQ.answer === true ? "battle_win" : "battle_lose");
+                      setDaily(todayStr, dailyQ.answer === true);
                       setDailyQAnswer(true);
                     }}
                   >
@@ -838,6 +855,7 @@ export default function HomeScreen() {
                     onPress={() => {
                       haptic("light");
                       playSe(dailyQ.answer === false ? "battle_win" : "battle_lose");
+                      setDaily(todayStr, dailyQ.answer === false);
                       setDailyQAnswer(false);
                     }}
                   >
@@ -1190,6 +1208,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   dailyQButtonText: { fontSize: 12, fontWeight: "800", color: "#8a6d00" },
+  dailyQButtonDone: { backgroundColor: "#e9f5e2", borderColor: "#78b424" },
+  dailyQButtonTextDone: { color: "#4e7d16" },
   missionCard: {
     backgroundColor: colors.surface,
     borderWidth: 1.5,

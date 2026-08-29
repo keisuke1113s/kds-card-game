@@ -13,6 +13,10 @@ interface QuizState {
   kenteiPlays: number;
   kenteiPassed: number;
   kenteiBest: number;
+  /** 今日の1問（ホームの豆知識から）の挑戦記録 */
+  dailyDate: string;
+  dailyCorrect: boolean;
+  setDaily: (date: string, correct: boolean) => void;
   addResult: (score: number, total: number, category: string) => void;
   addKentei: (score: number, passed: boolean) => void;
 }
@@ -27,6 +31,9 @@ export const useQuizStore = create<QuizState>()(
       kenteiPlays: 0,
       kenteiPassed: 0,
       kenteiBest: 0,
+      dailyDate: "",
+      dailyCorrect: false,
+      setDaily: (dailyDate, dailyCorrect) => set({ dailyDate, dailyCorrect }),
       addResult: (score, total, category) =>
         set((s) => ({
           plays: s.plays + 1,

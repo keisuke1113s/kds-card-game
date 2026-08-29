@@ -14,6 +14,7 @@ import { ScreenEnter } from "@/components/ScreenEnter";
 import { allDecks, cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
+import { useRankStore } from "@/store/rankStore";
 import { DeckList } from "@/engine/deckRules";
 import { MatchPrep } from "@/components/MatchPrep";
 import { OnlineJanken } from "@/components/OnlineJanken";
@@ -45,7 +46,7 @@ const SPEEDS: { label: string; ms: number }[] = [
   { label: "ゆっくり", ms: 1600 },
 ];
 
-const useOnlinePrefs = create<OnlinePrefs>()(
+export const useOnlinePrefs = create<OnlinePrefs>()(
   persist(
     (set) => ({
       name: "",
@@ -73,6 +74,13 @@ export default function OnlineScreen() {
   const onlineError = useGameStore((s) => s.onlineError);
   const roomCode = useGameStore((s) => s.roomCode);
   const opponentName = useGameStore((s) => s.opponentName);
+  // 免許証（プロフィール）の名前と同期する。免許証側が新しければそちらを使う
+  React.useEffect(() => {
+    const licName = useRankStore.getState().playerName.trim();
+    if (licName && licName !== prefs.name) prefs.setName(licName);
+    else if (!licName && prefs.name.trim()) useRankStore.getState().setPlayerName(prefs.name.trim());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const quitGame = useGameStore((s) => s.quitGame);
   const queueActive = useGameStore((s) => s.queueActive);
   const startGame = useGameStore((s) => s.startGame);
@@ -141,6 +149,8 @@ export default function OnlineScreen() {
     const name = nameDraft.trim();
     if (!name || !namePrompt) return;
     prefs.setName(name);
+    // 免許証の名前とも連動させる（1つの名前をどこでも使う）
+    useRankStore.getState().setPlayerName(name);
     const mode = namePrompt;
     setNamePrompt(null);
     // 名前の変更だけのときは参加しない

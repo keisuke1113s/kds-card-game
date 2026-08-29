@@ -6,6 +6,8 @@ import { reportByUser } from "@/data/errlog";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { applyBgmVolume } from "@/audio/sound";
+import { exportTransferCode, importTransferCode } from "@/data/transfer";
 import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
@@ -80,6 +82,10 @@ export default function SettingsScreen() {
     hapticsEnabled,
     setHapticsEnabled,
     fxLevel,
+    largeText,
+    setLargeText,
+    bgmVolume,
+    setBgmVolume,
     setFxLevel,
   } = useSettingsStore();
 
@@ -125,6 +131,20 @@ export default function SettingsScreen() {
           onPress={() => HAPTICS_AVAILABLE && setHapticsEnabled(!hapticsEnabled)}
         />
       </View>
+      <Text style={styles.subLabel}>BGMの音量</Text>
+      <View style={styles.row}>
+        {([0.25, 0.5, 0.75, 1] as const).map((v) => (
+          <Choice
+            key={v}
+            label={v === 1 ? "最大" : `${v * 100}%`}
+            active={bgmVolume === v}
+            onPress={() => {
+              setBgmVolume(v);
+              applyBgmVolume();
+            }}
+          />
+        ))}
+      </View>
 
       <Text style={styles.sectionTitle}>画面の見た目</Text>
       <View style={styles.row}>
@@ -148,6 +168,21 @@ export default function SettingsScreen() {
         ONにするとカットインを短くし、カードが飛ぶ演出を省いてテンポ重視になります。
         動きが重い端末では、対戦中に自動でひかえめ相当に切り替わります。
       </Text>
+
+      <Text style={styles.sectionTitle}>文字の大きさ</Text>
+      <View style={styles.row}>
+        <Choice
+          label={`大きめ文字 ${largeText ? "ON" : "OFF"}`}
+          active={largeText}
+          onPress={() => setLargeText(!largeText)}
+        />
+      </View>
+      <Text style={styles.note}>
+        カードの効果文・対戦の実況・クイズの問題文をひとまわり大きくします。
+      </Text>
+
+      <Text style={styles.sectionTitle}>データの引き継ぎ</Text>
+      <TransferSection />
 
       <Text style={styles.note}>
         CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
@@ -388,7 +423,114 @@ function DevCardReset() {
   );
 }
 
+/** 引き継ぎコードの発行・復元 */
+function TransferSection() {
+  const [code, setCode] = React.useState<string | null>(null);
+  const [input, setInput] = React.useState("");
+  const [message, setMessage] = React.useState<string | null>(null);
+  return (
+    <View style={{ gap: 10 }}>
+      <Pressable
+        style={styles.wideButtonSecondary}
+        onPress={async () => {
+          const c = await exportTransferCode();
+          setCode(c);
+          setMessage(null);
+        }}
+      >
+        <Text style={styles.transferButtonText}>📤 引き継ぎコードを発行</Text>
+      </Pressable>
+      {code && (
+        <View style={styles.transferBox}>
+          <Text style={styles.transferNote} selectable numberOfLines={4}>
+            {code}
+          </Text>
+          <Pressable
+            style={styles.copyButton}
+            onPress={async () => {
+              try {
+                await navigator.clipboard.writeText(code);
+                setMessage("コピーしました。新しい端末の設定画面で貼り付けてください。");
+              } catch {
+                setMessage("コピーできませんでした。コードを長押しで選択してコピーしてください。");
+              }
+            }}
+          >
+            <Text style={styles.copyButtonText}>コードをコピー</Text>
+          </Pressable>
+        </View>
+      )}
+      <TextInput
+        style={styles.transferInput}
+        value={input}
+        onChangeText={setInput}
+        placeholder="引き継ぎコードを貼り付け（KDT1.…）"
+        autoCapitalize="none"
+      />
+      <Pressable
+        style={[styles.wideButtonSecondary, { borderColor: "#b0413e" }]}
+        onPress={async () => {
+          if (!input.trim()) return;
+          const ok = await importTransferCode(input);
+          if (ok) {
+            setMessage("復元しました。読み込み直します…");
+            setTimeout(() => {
+              if (typeof window !== "undefined") window.location.reload();
+            }, 800);
+          } else {
+            setMessage("コードが正しくありません。全文をコピーできているか確認してください。");
+          }
+        }}
+      >
+        <Text style={[styles.transferButtonText, { color: "#b0413e" }]}>
+          📥 コードで復元（この端末のデータを上書き）
+        </Text>
+      </Pressable>
+      {message && <Text style={styles.note}>{message}</Text>}
+      <Text style={styles.note}>
+        コレクション・実績・戦績・設定など、この端末の記録をまるごと移せます。
+        復元すると今の端末のデータは上書きされるので注意してください。
+      </Text>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
+  subLabel: { fontSize: 12, fontWeight: "800", color: colors.textMuted, marginTop: 4 },
+  transferBox: {
+    backgroundColor: colors.surfaceAlt,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 10,
+    gap: 8,
+  },
+  transferNote: { fontSize: 10, color: colors.textMuted },
+  copyButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+  },
+  copyButtonText: { color: "#fff", fontWeight: "800", fontSize: 13 },
+  transferInput: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    fontSize: 13,
+    color: colors.text,
+    backgroundColor: colors.surface,
+  },
+  wideButtonSecondary: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  transferButtonText: { color: colors.primary, fontWeight: "800", fontSize: 14 },
   choiceRow: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   recordBox: {
     flexDirection: "row",

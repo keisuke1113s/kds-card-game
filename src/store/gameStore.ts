@@ -134,6 +134,11 @@ interface GameStore {
   replayActive: boolean;
   replaySpeed: 1 | 2;
   setReplaySpeed: (s: 1 | 2) => void;
+  /** リプレイの一時停止 */
+  replayPaused: boolean;
+  toggleReplayPause: () => void;
+  /** リプレイを1手戻す（最初から高速で作り直す） */
+  replayStepBack: () => void;
   startReplay: (replay: ReplayData) => void;
 }
 
@@ -206,6 +211,9 @@ let myStampTimer: ReturnType<typeof setTimeout> | null = null;
 /** リプレイ再生用のタイマーと残り手順 */
 let replayTimer: ReturnType<typeof setTimeout> | null = null;
 let replayQueue: GameAction[] = [];
+// 1手戻し用に、再生中のリプレイ全体と適用済み手数を持っておく
+let replayData: ReplayData | null = null;
+let replayApplied = 0;
 
 /** イベントを見て対戦メモを進め、決着していたら対戦記録に保存する */
 function trackMatchEvents(
@@ -470,13 +478,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
       if (token !== gameToken) return;
       const st = get();
       if (!st.replayActive || !st.state || st.state.phase.type === "finished") return;
-      // 演出中は捌けるまで待つ
-      if (st.presentationBusy) {
+      // 一時停止中・演出中は捌けるまで待つ
+      if (st.replayPaused || st.presentationBusy) {
         replayTimer = setTimeout(step, 200);
         return;
       }
       const action = replayQueue.shift();
       if (!action) return;
+      replayApplied++;
       try {
         const { state, events } = applyAction(ctx, st.state, action);
         const visible = redactEventsFor(events, HUMAN);
@@ -513,6 +522,39 @@ export const useGameStore = create<GameStore>()((set, get) => {
     replayActive: false,
     replaySpeed: 1 as const,
     setReplaySpeed: (replaySpeed) => set({ replaySpeed }),
+    replayPaused: false,
+    toggleReplayPause: () => set({ replayPaused: !get().replayPaused }),
+    replayStepBack: () => {
+      if (!replayData || replayApplied <= 0) return;
+      // 最初から (適用済み-1) 手までを音・演出なしで一気に適用し直す
+      const target = replayApplied - 1;
+      try {
+        let { state } = createGame(ctx, {
+          seed: replayData.seed,
+          decks: [replayData.playerDeck, replayData.cpuDeck],
+          firstPlayer: replayData.firstPlayer,
+        });
+        const log: GameEvent[] = [];
+        for (let i = 0; i < target; i++) {
+          const r = applyAction(ctx, state, replayData.actions[i]);
+          state = r.state;
+          log.push(...redactEventsFor(r.events, HUMAN));
+        }
+        replayQueue = replayData.actions.slice(target);
+        replayApplied = target;
+        set({
+          state,
+          view: viewFor(state, HUMAN),
+          lastEvents: [],
+          eventLog: log,
+          replayPaused: true, // 戻した後は止めて見られるように
+          presentationBusy: false,
+        });
+        scheduleReplayStep();
+      } catch (e) {
+        console.warn("リプレイの巻き戻しに失敗しました:", e);
+      }
+    },
     startReplay: (replay) => {
       // 進行中の対局や接続を片づけてから、記録どおりに対局を作り直す
       gameToken++;
@@ -528,6 +570,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
         firstPlayer: replay.firstPlayer,
       });
       replayQueue = [...replay.actions];
+      replayData = replay;
+      replayApplied = 0;
       const visible = redactEventsFor(events, HUMAN);
       set({
         state,
@@ -547,6 +591,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
         autoPlay: true, // 実況を自動送りにする
         replayActive: true,
         replaySpeed: 1,
+        replayPaused: false,
       });
       scheduleReplayStep();
     },

@@ -21,6 +21,12 @@ interface SettingsState {
   /** 演出の量（full=たっぷり / normal=標準 / light=ひかえめ） */
   fxLevel: "full" | "normal" | "light";
   setFxLevel: (v: "full" | "normal" | "light") => void;
+  /** 大きめ文字モード（効果文・実況・クイズの文字を1段階大きく） */
+  largeText: boolean;
+  setLargeText: (v: boolean) => void;
+  /** BGMの音量（0.25〜1） */
+  bgmVolume: number;
+  setBgmVolume: (v: number) => void;
   setDifficulty: (d: Difficulty) => void;
   setCpuPersona: (p: CpuPersona) => void;
   setAiSpeedMs: (ms: number) => void;
@@ -46,6 +52,10 @@ export const useSettingsStore = create<SettingsState>()(
       guideDone: false,
       fxLevel: "full",
       setFxLevel: (fxLevel) => set({ fxLevel }),
+      largeText: false,
+      setLargeText: (largeText) => set({ largeText }),
+      bgmVolume: 1,
+      setBgmVolume: (bgmVolume) => set({ bgmVolume }),
       setDifficulty: (difficulty) => set({ difficulty }),
       setCpuPersona: (cpuPersona) => set({ cpuPersona }),
       setAiSpeedMs: (aiSpeedMs) => set({ aiSpeedMs }),

@@ -18,6 +18,12 @@ interface RankState {
   /** 入校式（初回ガイド）を見たか */
   entranceDone: boolean;
   setEntranceDone: () => void;
+  /** 免許証の顔写真に使うお気に入りカード（空なら使用デッキの担当） */
+  favoriteCard: string;
+  setFavoriteCard: (id: string) => void;
+  /** 免許証に表示する称号（獲得済みから1つ選ぶ） */
+  selectedTitle: string;
+  setSelectedTitle: (t: string) => void;
 }
 
 export const useRankStore = create<RankState>()(
@@ -32,6 +38,10 @@ export const useRankStore = create<RankState>()(
       setShindanType: (shindanType) => set({ shindanType }),
       entranceDone: false,
       setEntranceDone: () => set({ entranceDone: true }),
+      favoriteCard: "",
+      setFavoriteCard: (favoriteCard) => set({ favoriteCard }),
+      selectedTitle: "",
+      setSelectedTitle: (selectedTitle) => set({ selectedTitle }),
     }),
     { name: "kds-rank", storage: createJSONStorage(() => AsyncStorage), version: 1 }
   )

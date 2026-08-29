@@ -15,6 +15,7 @@ import { QUIZ_CATEGORIES, QUIZ_QUESTIONS, QuizCategory, QuizQuestion } from "@/d
 import { SignImage } from "@/components/SignImage";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { useQuizStore } from "@/store/quizStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useMissionStore } from "@/store/missionStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -98,6 +99,9 @@ function QuizHanko({ pass }: { pass: boolean }) {
 export default function QuizScreen() {
   const router = useRouter();
   const quiz = useQuizStore();
+  const largeText = useSettingsStore((s) => s.largeText);
+  const biggerQ = largeText ? { fontSize: 20, lineHeight: 30 } : null;
+  const biggerN = largeText ? { fontSize: 16, lineHeight: 25 } : null;
   const [phase, setPhase] = useState<"start" | "play" | "result">("start");
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [index, setIndex] = useState(0);
@@ -264,7 +268,7 @@ export default function QuizScreen() {
                 <SignImage id={q.sign} />
               </View>
             )}
-            <Text style={styles.question}>{q.q}</Text>
+            <Text style={[styles.question, biggerQ]}>{q.q}</Text>
             {/* 回答の瞬間、大きな○×がドンとスタンプされる */}
             {picked !== null && <JudgeStamp key={index} correct={correct} />}
             {picked !== null && comboStreak >= 3 && (
@@ -288,7 +292,7 @@ export default function QuizScreen() {
                 <Text style={[styles.judge, { color: correct ? colors.success : colors.danger }]}>
                   {correct ? "⭕ 正解！" : `❌ 不正解…（答えは${q.answer ? "○" : "×"}）`}
                 </Text>
-                <Text style={styles.explain}>{q.note}</Text>
+                <Text style={[styles.explain, biggerN]}>{q.note}</Text>
                 <Pressable style={[styles.wideButton, { backgroundColor: colors.primary }]} onPress={next}>
                   <Text style={styles.wideButtonText}>
                     {index + 1 >= questions.length ? "結果を見る" : "次の問題へ"}

@@ -125,6 +125,8 @@ export interface LicenseShareData {
   name: string;
   /** 適性診断のタイプ（未診断なら空文字） */
   typeName: string;
+  /** 選んだ称号（未設定なら空文字） */
+  title: string;
   rankName: string;
   rankEmoji: string;
   since: string;
@@ -176,6 +178,11 @@ export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
   ctx.fillText(`通算成績　${d.wins}勝 ${d.losses}敗`, L, 440);
   ctx.fillText(`総走行距離　${d.km.toLocaleString()}km`, L, 505);
   if (d.typeName) ctx.fillText(`適性タイプ　${d.typeName}`, L, 570);
+  if (d.title) {
+    ctx.fillStyle = "#7a5a00";
+    ctx.fillText(`称号　🎖 ${d.title}`, L, d.typeName ? 635 : 570);
+    ctx.fillStyle = "#1c2a1a";
+  }
 
   // 判子
   ctx.strokeStyle = "#d02020";

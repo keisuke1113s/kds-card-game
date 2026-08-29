@@ -10,6 +10,11 @@ import { shareLicenseImage } from "@/data/shareImage";
 import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useRankStore } from "@/store/rankStore";
 import { shindanTypeOf } from "@/data/shindan";
+import { ACHIEVEMENTS } from "@/data/achievements";
+import { useAchievementStore } from "@/store/achievementStore";
+import { allCards } from "@/data/cards";
+import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
+import { useOnlinePrefs } from "./online";
 import { useRecordStore } from "@/store/recordStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -31,6 +36,15 @@ export default function LicenseScreen() {
   const gold = rankIdx >= RANKS.length - 1;
 
   const shindan = shindanTypeOf(rankStore.shindanType);
+  // 獲得済みの称号（実績のtitle付きのうち達成済みのもの）
+  const earned = useAchievementStore((s) => s.earned);
+  const earnedTitles = ACHIEVEMENTS.filter((a) => a.title && earned[a.id]).map((a) => a.title!);
+  const [titlePicker, setTitlePicker] = useState(false);
+  // 顔写真のカード選択
+  const unlock = useUnlockStore();
+  const owned = allCards.filter((c) => unlockedSet(unlock).has(c.id)).map((c) => c.id);
+  const [photoPicker, setPhotoPicker] = useState(false);
+  const photoCard = rankStore.favoriteCard || activeDeck.list.tantou;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(rankStore.playerName);
 
@@ -60,6 +74,7 @@ export default function LicenseScreen() {
                     placeholder="なまえ（10文字まで）"
                     onSubmitEditing={() => {
                       rankStore.setPlayerName(draft.trim());
+                      useOnlinePrefs.getState().setName(draft.trim().slice(0, 10));
                       setEditing(false);
                     }}
                   />
@@ -82,11 +97,15 @@ export default function LicenseScreen() {
                   style={styles.saveButton}
                   onPress={() => {
                     rankStore.setPlayerName(draft.trim());
+                    useOnlinePrefs.getState().setName(draft.trim().slice(0, 10));
                     setEditing(false);
                   }}
                 >
                   <Text style={styles.saveButtonText}>保存</Text>
                 </Pressable>
+              )}
+              {!!rankStore.selectedTitle && (
+                <Text style={styles.titleBadge}>🎖 {rankStore.selectedTitle}</Text>
               )}
               <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>段階</Text>
@@ -109,6 +128,19 @@ export default function LicenseScreen() {
                 <Text style={styles.fieldValue}>{km.toLocaleString()}km</Text>
               </View>
               <View style={styles.fieldRow}>
+                <Text style={styles.fieldLabel}>称号</Text>
+                {earnedTitles.length > 0 ? (
+                  <Pressable onPress={() => setTitlePicker(true)}>
+                    <Text style={styles.fieldValue}>
+                      {rankStore.selectedTitle || "未設定"}
+                      <Text style={styles.editHint}> ▾</Text>
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Text style={[styles.fieldValue, { color: "#5a6b50" }]}>実績を達成すると選べます</Text>
+                )}
+              </View>
+              <View style={styles.fieldRow}>
                 <Text style={styles.fieldLabel}>適性</Text>
                 {shindan ? (
                   <Text style={styles.fieldValue}>
@@ -121,11 +153,11 @@ export default function LicenseScreen() {
                 )}
               </View>
             </View>
-            {/* 顔写真の枠には使用デッキの担当カード */}
-            <View style={styles.photoBox}>
-              <CardFace cardId={activeDeck.list.tantou} size="md" />
-              <Text style={styles.photoLabel}>担当</Text>
-            </View>
+            {/* 顔写真の枠。タップでお気に入りカードに変更できる */}
+            <Pressable style={styles.photoBox} onPress={() => setPhotoPicker(true)}>
+              <CardFace cardId={photoCard} size="md" />
+              <Text style={styles.photoLabel}>写真（タップで変更）</Text>
+            </Pressable>
           </View>
           <View style={styles.licenseFooter}>
             <Text style={styles.footerNote}>
@@ -147,6 +179,7 @@ export default function LicenseScreen() {
             shareLicenseImage({
               name,
               typeName: shindan ? `${shindan.emoji} ${shindan.name}` : "",
+              title: rankStore.selectedTitle,
               rankName: rank.name,
               rankEmoji: rank.emoji,
               since: rankStore.since,
@@ -158,6 +191,64 @@ export default function LicenseScreen() {
           }
         />
         <AppButton label="ホームへ戻る" tone="ghost" fullWidth onPress={() => router.back()} />
+
+        {/* 称号えらび */}
+        {titlePicker && (
+          <Pressable style={styles.pickerLayer} onPress={() => setTitlePicker(false)}>
+            <Pressable style={styles.pickerBox} onPress={() => {}}>
+              <Text style={styles.pickerTitle}>🎖 称号をえらぶ</Text>
+              <ScrollView style={styles.pickerScroll}>
+                <Pressable
+                  style={styles.pickerRow}
+                  onPress={() => {
+                    rankStore.setSelectedTitle("");
+                    setTitlePicker(false);
+                  }}
+                >
+                  <Text style={styles.pickerRowText}>（表示しない）</Text>
+                </Pressable>
+                {earnedTitles.map((t) => (
+                  <Pressable
+                    key={t}
+                    style={[styles.pickerRow, rankStore.selectedTitle === t && styles.pickerRowActive]}
+                    onPress={() => {
+                      haptic("light");
+                      rankStore.setSelectedTitle(t);
+                      setTitlePicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerRowText}>{t}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        )}
+
+        {/* 顔写真のカードえらび */}
+        {photoPicker && (
+          <Pressable style={styles.pickerLayer} onPress={() => setPhotoPicker(false)}>
+            <Pressable style={styles.pickerBox} onPress={() => {}}>
+              <Text style={styles.pickerTitle}>📷 写真にするカードをえらぶ</Text>
+              <ScrollView style={styles.pickerScroll}>
+                <View style={styles.photoGrid}>
+                  {owned.map((id) => (
+                    <Pressable
+                      key={id}
+                      onPress={() => {
+                        haptic("light");
+                        rankStore.setFavoriteCard(id);
+                        setPhotoPicker(false);
+                      }}
+                    >
+                      <CardFace cardId={id} size="sm" />
+                    </Pressable>
+                  ))}
+                </View>
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        )}
 
         <Text style={styles.note}>
           名前をタップすると変更できます。段階は通算勝利数で上がっていきます
@@ -188,6 +279,7 @@ const styles = StyleSheet.create({
   fieldLabel: { width: 62, fontSize: 11, fontWeight: "800", color: "#5a6b50" },
   fieldName: { fontSize: 20, fontWeight: "900", color: "#1c2a1a" },
   editHint: { fontSize: 13 },
+  titleBadge: { fontSize: 13, fontWeight: "800", color: "#7a5a00" },
   fieldValue: { fontSize: 14, fontWeight: "700", color: "#1c2a1a" },
   nameInput: {
     flex: 1,
@@ -229,4 +321,32 @@ const styles = StyleSheet.create({
   },
   hankoBoxText: { color: "#d02020", fontSize: 13, fontWeight: "900" },
   note: { fontSize: 12, lineHeight: 19, color: colors.textMuted },
+  pickerLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#000000a0",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    zIndex: 50,
+  },
+  pickerBox: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: 16,
+    gap: 10,
+    width: "100%",
+    maxWidth: 420,
+    maxHeight: "80%",
+  },
+  pickerTitle: { fontSize: 16, fontWeight: "900", color: colors.text, textAlign: "center" },
+  pickerScroll: { flexGrow: 0 },
+  pickerRow: {
+    paddingVertical: 12,
+    paddingHorizontal: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  pickerRowActive: { backgroundColor: colors.surfaceAlt, borderRadius: 8 },
+  pickerRowText: { fontSize: 15, fontWeight: "700", color: colors.text },
+  photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
 });

@@ -73,6 +73,7 @@ import {
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { useTournamentStore } from "@/store/tournamentStore";
 import { startFrameWatch, usePerfStore } from "@/perf";
 import { colors } from "@/theme";
 
@@ -420,6 +421,9 @@ export default function BattleScreen() {
   const tournamentMatch = useGameStore((s) => s.tournamentMatch);
   const kyokanDef = kyokanId ? KYOKAN_LIST.find((k) => k.cardId === kyokanId) : undefined;
   const replaySpeed = useGameStore((s) => s.replaySpeed);
+  const replayPaused = useGameStore((s) => s.replayPaused);
+  const toggleReplayPause = useGameStore((s) => s.toggleReplayPause);
+  const replayStepBack = useGameStore((s) => s.replayStepBack);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
   const isOnline = matchMode === "online";
   oppLabel = isOnline ? (opponentName ?? "相手") : kyokanDef ? `${kyokanDef.name}インストラクター` : "CPU";
@@ -445,6 +449,9 @@ export default function BattleScreen() {
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
   const seEnabled = useSettingsStore((s) => s.seEnabled);
+  // 大きめ文字（実況の読みやすさ）
+  const largeText = useSettingsStore((s) => s.largeText);
+  const annBigger = largeText ? { fontSize: 19, lineHeight: 28 } : null;
   // 演出の量（light はカットイン短縮・飛翔系の演出を省略）
   const fxLevel = useSettingsStore((s) => s.fxLevel);
   // カクつき検知でこの対戦の間だけ「ひかえめ」相当に自動で落とす
@@ -594,6 +601,8 @@ export default function BattleScreen() {
   const wipeDoneRef = useRef(false);
   const dealDoneRef = useRef(false);
   const vsShownRef = useRef(false);
+  // 検定開始アナウンス（VSの後に「準備はいいですか？…始め！」）
+  const [examBand, setExamBand] = useState(false);
   const showVsIntro = useCallback(() => {
     if (vsShownRef.current || replayActive) return;
     vsShownRef.current = true;
@@ -1695,12 +1704,15 @@ export default function BattleScreen() {
             <Text style={styles.infoLink}>場外 {me.outOfPlay.length} ▸</Text>
           </Pressable>
           <PulseRing active={tantouUsable} style={tantouUsable ? styles.tantouUsable : undefined}>
-            {/* 担当カードはタップすると拡大表示。そこから力を使う */}
-            <CardFace
-              cardId={me.tantou}
-              size="sm"
-              onPress={() => setDetailCardId(me.tantou, "self")}
-            />
+            {/* 担当カードはタップすると拡大表示。そこから力を使う。
+                決着時は勝てば跳ねて喜び、負ければしゅんと沈む */}
+            <TantouMood mood={finishedOutcome}>
+              <CardFace
+                cardId={me.tantou}
+                size="sm"
+                onPress={() => setDetailCardId(me.tantou, "self")}
+              />
+            </TantouMood>
           </PulseRing>
           <View style={{ flex: 1 }} />
           {battleInfo?.myPriority && (
@@ -1903,7 +1915,7 @@ export default function BattleScreen() {
               style={styles.annCardBox}
             >
               {currentAnn.owner && <OwnerBadge owner={currentAnn.owner} />}
-              <Text style={styles.annCardTitle}>{currentAnn.text}</Text>
+              <Text style={[styles.annCardTitle, annBigger]}>{currentAnn.text}</Text>
               {annQueue.length > 0 && (
                 <Text style={styles.annHint}>あと{annQueue.length}件</Text>
               )}
@@ -1925,7 +1937,7 @@ export default function BattleScreen() {
               exiting={ZoomOut.duration(200)}
               style={styles.annBox}
             >
-              <Text style={styles.annText}>{currentAnn.text}</Text>
+              <Text style={[styles.annText, annBigger]}>{currentAnn.text}</Text>
             </Animated.View>
           )}
         </Pressable>
@@ -1962,13 +1974,21 @@ export default function BattleScreen() {
       {replayActive && (
         <View style={styles.replayBar} pointerEvents="box-none">
           <View style={styles.replayBadge}>
-            <Text style={styles.replayBadgeText}>▶ リプレイ再生中</Text>
+            <Text style={styles.replayBadgeText}>
+              {replayPaused ? "⏸ 一時停止中" : "▶ リプレイ再生中"}
+            </Text>
           </View>
+          <Pressable style={styles.replayButton} onPress={() => replayStepBack()}>
+            <Text style={styles.replayButtonText}>⏪ 1手戻す</Text>
+          </Pressable>
+          <Pressable style={styles.replayButton} onPress={() => toggleReplayPause()}>
+            <Text style={styles.replayButtonText}>{replayPaused ? "▶ 再生" : "⏸ 停止"}</Text>
+          </Pressable>
           <Pressable
             style={styles.replayButton}
             onPress={() => setReplaySpeed(replaySpeed === 1 ? 2 : 1)}
           >
-            <Text style={styles.replayButtonText}>{replaySpeed === 1 ? "×1" : "×2"} 速さ</Text>
+            <Text style={styles.replayButtonText}>{replaySpeed === 1 ? "×1" : "×2"}</Text>
           </Pressable>
           <Pressable
             style={[styles.replayButton, { backgroundColor: colors.danger }]}
@@ -2010,13 +2030,22 @@ export default function BattleScreen() {
           }}
         />
       )}
+      {examBand && (
+        <ExamStartBand
+          final={tournamentMatch && useTournamentStore.getState().stage >= 3}
+          onDone={() => {
+            setExamBand(false);
+            fireEntryBanner();
+          }}
+        />
+      )}
       {vsIntro && (
         <VsIntro
           oppName={oppLabel}
           kyokanCardId={kyokanDef?.cardId}
           onDone={() => {
             setVsIntro(false);
-            fireEntryBanner();
+            setExamBand(true);
           }}
         />
       )}
@@ -4607,6 +4636,44 @@ function FlyingStamp({ emoji, up }: { emoji: string; up: boolean }) {
 }
 
 /** バトルで狙われているカードの怯え（小刻みな震え） */
+/** 担当カードの喜怒。勝ち=3回ピョンと跳ねる / 負け=しゅんと傾いて沈む */
+function TantouMood({
+  mood,
+  children,
+}: {
+  mood: "win" | "lose" | null;
+  children: React.ReactNode;
+}) {
+  const y = useSharedValue(0);
+  const rot = useSharedValue(0);
+  useEffect(() => {
+    if (mood === "win") {
+      y.value = withDelay(
+        600,
+        withSequence(
+          withTiming(-14, { duration: 180, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 160, easing: Easing.in(Easing.quad) }),
+          withTiming(-10, { duration: 160, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 150, easing: Easing.in(Easing.quad) }),
+          withTiming(-6, { duration: 140, easing: Easing.out(Easing.quad) }),
+          withTiming(0, { duration: 130, easing: Easing.in(Easing.quad) })
+        )
+      );
+    } else if (mood === "lose") {
+      y.value = withDelay(600, withTiming(6, { duration: 500, easing: Easing.out(Easing.quad) }));
+      rot.value = withDelay(600, withTiming(8, { duration: 500 }));
+    } else {
+      y.value = withTiming(0, { duration: 150 });
+      rot.value = withTiming(0, { duration: 150 });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mood]);
+  const st = useAnimatedStyle(() => ({
+    transform: [{ translateY: y.value }, { rotate: `${rot.value}deg` }],
+  }));
+  return <Animated.View style={st}>{children}</Animated.View>;
+}
+
 function Tremble({ active, children }: { active: boolean; children: React.ReactNode }) {
   // Webではブラウザ合成のCSSアニメーションで回す（JSが混んでいても滑らか）
   if (Platform.OS === "web") {
@@ -4811,6 +4878,47 @@ function KenteiHanko({ pass }: { pass: boolean }) {
         <Text style={styles.hankoSub} allowFontScaling={false}>
           KDS釧路自動車学校
         </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** 検定員のアナウンス帯。「準備はいいですか？ → 始めてください！」の2段階 */
+function ExamStartBand({ final, onDone }: { final: boolean; onDone: () => void }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    playSe("janken");
+    const t1 = setTimeout(() => {
+      setStep(1);
+      playSe("battle");
+      haptic("medium");
+    }, 900);
+    const t2 = setTimeout(onDone, 1900);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <View style={styles.examLayer} pointerEvents="none">
+      <Animated.View
+        key={step}
+        entering={step === 0 ? SlideInLeft.duration(260) : ZoomIn.springify().damping(11)}
+        style={[styles.examBand, final && styles.examBandFinal]}
+      >
+        <Text style={styles.examBandText} allowFontScaling={false}>
+          {final
+            ? step === 0
+              ? "🎓 卒業検定"
+              : "始めてください！"
+            : step === 0
+              ? "準備はいいですか？"
+              : "始めてください！"}
+        </Text>
+        {final && step === 0 && (
+          <Text style={styles.examBandSub} allowFontScaling={false}>トーナメント決勝戦</Text>
+        )}
       </Animated.View>
     </View>
   );
@@ -5279,6 +5387,25 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff30",
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
+  examLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 60,
+  },
+  examBand: {
+    backgroundColor: "#1c3a5ee8",
+    paddingVertical: 14,
+    paddingHorizontal: 30,
+    borderRadius: 14,
+    alignItems: "center",
+    gap: 2,
+    borderWidth: 2,
+    borderColor: "#ffffff55",
+  },
+  examBandFinal: { backgroundColor: "#7a5a00e8", borderColor: "#ffd54d" },
+  examBandText: { color: "#fff", fontSize: 24, fontWeight: "900", letterSpacing: 2 },
+  examBandSub: { color: "#ffd54d", fontSize: 12, fontWeight: "800" },
   entryBannerLayer: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",

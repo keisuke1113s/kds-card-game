@@ -195,9 +195,9 @@ export function playBgm(key: string): boolean {
     if (!p) {
       p = createAudioPlayer(asset);
       p.loop = true;
-      p.volume = 0.4;
       bgmPlayers[key] = p;
     }
+    p.volume = 0.4 * (useSettingsStore.getState().bgmVolume ?? 1);
     safePlay(p);
     currentBgmKey = key;
     return true;
@@ -211,6 +211,18 @@ export function playBgm(key: string): boolean {
  * 終盤（リーチ）でBGMのテンポを少し上げて緊迫感を出す。
  * 専用の曲が無くても効果が出るよう、再生速度で表現する
  */
+/** 設定画面から呼ぶ: BGM音量の変更を再生中の曲にも反映する */
+export function applyBgmVolume(): void {
+  const v = 0.4 * (useSettingsStore.getState().bgmVolume ?? 1);
+  for (const key of Object.keys(bgmPlayers)) {
+    try {
+      bgmPlayers[key].volume = v;
+    } catch {
+      // 反映できない環境では次の再生から効く
+    }
+  }
+}
+
 export function setBgmTense(tense: boolean): void {
   const player = currentBgmKey ? bgmPlayers[currentBgmKey] : null;
   if (!player) return;
