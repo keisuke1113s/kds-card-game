@@ -199,10 +199,34 @@ export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
   ctx.font = "900 26px 'Hiragino Sans', sans-serif";
   ctx.fillText("釧路自動車学校", W - 180, 510);
 
-  // フッターは最下段に固定（本文と重ならない）
-  ctx.fillStyle = "#5a6b50";
-  ctx.font = "800 30px 'Hiragino Sans', sans-serif";
-  ctx.fillText("運転が楽しくなる!! KDS a GO! GO!", W / 2, H - 45);
+  // フッターは最下段に固定。ホームのロゴと同じ文字色で1文字ずつ描く
+  ctx.font = "900 34px 'Hiragino Sans', sans-serif";
+  ctx.textAlign = "left";
+  const segs: { t: string; c: string }[] = [
+    { t: "K", c: "#d83030" },
+    { t: "D", c: "#e49c18" },
+    { t: "S", c: "#78b424" },
+    { t: " ", c: "#000" },
+    { t: "a", c: "#e2604a" },
+    { t: " G", c: "#e49c18" },
+    { t: "O", c: "#3d8fd0" },
+    { t: "!", c: "#d83030" },
+    { t: " G", c: "#c9d63a" },
+    { t: "O", c: "#8fd3ee" },
+    { t: "!", c: "#eeb121" },
+    { t: "　", c: "#000" },
+    { t: "運転", c: "#d83030" },
+    { t: "が", c: "#16283c" },
+    { t: "楽しく", c: "#d83030" },
+    { t: "なる", c: "#16283c" },
+  ];
+  const total = segs.reduce((w, seg) => w + ctx.measureText(seg.t).width, 0);
+  let fx = (W - total) / 2;
+  for (const seg of segs) {
+    ctx.fillStyle = seg.c;
+    ctx.fillText(seg.t, fx, H - 45);
+    fx += ctx.measureText(seg.t).width;
+  }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) return false;
