@@ -6,7 +6,7 @@ import { CardFace } from "@/components/CardFace";
 import { cardRegistry, getCard } from "@/data/cards";
 import { registryForUnlocked } from "@/data/unlock";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
-import { decodeDeck } from "@/data/deckCode";
+import { decodeDeck, encodeDeck } from "@/data/deckCode";
 import { randomDeckList, validateDeck } from "@/engine/deckRules";
 import {
   allDecks,
@@ -23,6 +23,7 @@ export default function DeckListScreen() {
     useDeckStore();
   const decks = allDecks(customDecks, builtinOverrides);
   const [viewing, setViewing] = useState<SavedDeck | null>(null);
+  const [viewShareMsg, setViewShareMsg] = useState<string | null>(null);
   const [detailCardId, setDetailCardId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<SavedDeck | null>(null);
   const [importCode, setImportCode] = useState("");
@@ -96,7 +97,7 @@ export default function DeckListScreen() {
               </Text>
               {errors.length > 0 && <Text style={styles.error}>{errors[0]}</Text>}
               <View style={styles.deckActions}>
-                <SmallButton label="中身を見る" onPress={() => setViewing(deck)} />
+                <SmallButton label="中身を見る" onPress={() => { setViewShareMsg(null); setViewing(deck); }} />
                 <SmallButton label="中身を変える" onPress={() => router.push(`/deck/${deck.id}`)} />
                 <SmallButton label="コピー" onPress={() => copyDeck(deck)} />
                 {!isBuiltinDeck(deck.id) && (
@@ -148,7 +149,7 @@ export default function DeckListScreen() {
       </ScrollView>
 
       {viewing && (
-        <Pressable style={styles.overlayBg} onPress={() => setViewing(null)}>
+        <Pressable style={styles.overlayBg} onPress={() => { setViewing(null); setViewShareMsg(null); }}>
           <Pressable style={styles.overlayBox} onPress={() => {}}>
             <Text style={styles.overlayTitle}>{viewing.name}</Text>
             <Text style={styles.hint}>カードをタップすると拡大して確認できます</Text>
@@ -184,7 +185,27 @@ export default function DeckListScreen() {
                 );
               })}
             </ScrollView>
-            <Pressable style={styles.closeButton} onPress={() => setViewing(null)}>
+            {/* このデッキの共有コード（構築画面と同じもの） */}
+            <Pressable
+              style={styles.viewShareButton}
+              onPress={async () => {
+                const code = encodeDeck(viewing.name, viewing.list);
+                try {
+                  await navigator.clipboard.writeText(code);
+                  setViewShareMsg("共有コードをコピーしました！LINEなどで送ってください。");
+                } catch {
+                  setViewShareMsg(code);
+                }
+              }}
+            >
+              <Text style={styles.viewShareButtonText}>🔗 共有コードをコピー</Text>
+            </Pressable>
+            {viewShareMsg && (
+              <Text style={styles.viewShareMsg} selectable>
+                {viewShareMsg}
+              </Text>
+            )}
+            <Pressable style={styles.closeButton} onPress={() => { setViewing(null); setViewShareMsg(null); }}>
               <Text style={styles.closeText}>閉じる</Text>
             </Pressable>
           </Pressable>
@@ -323,6 +344,16 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: 6 , justifyContent: "center" },
+  viewShareButton: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 10,
+    paddingVertical: 10,
+    alignItems: "center",
+    marginTop: 8,
+  },
+  viewShareButtonText: { color: colors.primary, fontWeight: "800", fontSize: 14 },
+  viewShareMsg: { fontSize: 11, color: colors.textMuted, marginTop: 4 },
   closeButton: {
     backgroundColor: colors.textMuted,
     borderRadius: 10,
