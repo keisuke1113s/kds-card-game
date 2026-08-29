@@ -49,6 +49,8 @@ interface Props {
   /** 絵文字の代わりに画像などを置きたいとき */
   iconNode?: React.ReactNode;
   fullWidth?: boolean;
+  /** tone の代わりにブランドカラー等を直接指定したいとき（bg 必須・fg 省略時は白） */
+  custom?: { bg: string; fg?: string; border?: string };
 }
 
 export function AppButton({
@@ -62,9 +64,12 @@ export function AppButton({
   icon,
   iconNode,
   fullWidth,
+  custom,
 }: Props) {
   const press = useSharedValue(0);
-  const c = toneColor[tone];
+  const c = custom
+    ? { bg: custom.bg, fg: custom.fg ?? "#ffffff", border: custom.border }
+    : toneColor[tone];
   // 押した位置から波紋が広がる
   const [ripple, setRipple] = useState<{ x: number; y: number; key: number } | null>(null);
 

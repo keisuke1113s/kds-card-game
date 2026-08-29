@@ -413,7 +413,7 @@ export default function HomeScreen() {
           <AppButton
             label="はじめての方へ（遊び方）"
             icon="📖"
-            tone="accent"
+            custom={{ bg: brand.amber }}
             fullWidth
             onPress={() => router.push("/tutorial")}
           />
@@ -426,7 +426,7 @@ export default function HomeScreen() {
             <AppButton
               label="CPU対戦"
               iconNode={<CrossedCards />}
-              tone="primary"
+              custom={{ bg: brand.blue }}
               size="lg"
               feel="medium"
               fullWidth
@@ -443,13 +443,13 @@ export default function HomeScreen() {
             </View>
             <AppButton
               label="👨‍🏫 インストラクターに挑戦"
-              tone="ghost"
+              custom={{ bg: "transparent", fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/kyokan")}
             />
             <AppButton
               label="🏆 トーナメント（4連戦）"
-              tone="ghost"
+              custom={{ bg: "transparent", fg: brand.blue, border: brand.blue }}
               fullWidth
               onPress={() => router.push("/tournament")}
             />
@@ -457,7 +457,7 @@ export default function HomeScreen() {
           <AppButton
             label="オンライン対戦"
             icon="🌐"
-            tone="primary"
+            custom={{ bg: brand.red }}
             size="lg"
             feel="medium"
             fullWidth
@@ -465,7 +465,7 @@ export default function HomeScreen() {
           />
           <AppButton
             label="📝 学科クイズ"
-            tone="ghost"
+            custom={{ bg: brand.green }}
             fullWidth
             onPress={() => router.push("/quiz")}
           />
@@ -494,7 +494,7 @@ export default function HomeScreen() {
                   contentFit="cover"
                 />
               }
-              tone="success"
+              custom={{ bg: brand.coral }}
               style={styles.flex}
               onPress={() => router.push("/deck")}
             />
@@ -507,7 +507,7 @@ export default function HomeScreen() {
                   contentFit="cover"
                 />
               }
-              tone="primary"
+              custom={{ bg: brand.yellow }}
               style={styles.flex}
               onPress={() => router.push("/library")}
             />
@@ -913,7 +913,7 @@ const styles = StyleSheet.create({
   crossRight: { transform: [{ translateX: 8 }, { rotate: "18deg" }] },
   cpuGroup: {
     borderWidth: 1.5,
-    borderColor: colors.primaryLight,
+    borderColor: brand.blue,
     backgroundColor: colors.surfaceAlt,
     borderRadius: radius.lg,
     padding: spacing.sm,
@@ -925,7 +925,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: spacing.xs,
   },
-  cpuGroupTitle: { fontSize: 13, fontWeight: "800", color: colors.primary },
+  cpuGroupTitle: { fontSize: 13, fontWeight: "800", color: brand.blue },
   cpuGroupNote: { fontSize: 11, fontWeight: "600", color: colors.textMuted },
   matchupCard: {
     flexDirection: "row",
