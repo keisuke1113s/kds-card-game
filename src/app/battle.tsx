@@ -211,9 +211,17 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
           });
         break;
       case "cardDrawn":
-        // 自分のドローだけ公開（CPUの手札は非公開情報）
+        // 自分のドローだけ公開（CPUの手札は非公開情報）。
+        // 山札から引くアニメーション（約0.8秒）を見せてから確認画面を出す
         if (e.player === ME && e.cardId)
-          add(`「${getCard(e.cardId).name}」を引いた`, e.cardId, false, "self");
+          out.push({
+            key: ++annSeq,
+            kind: "text",
+            text: `「${getCard(e.cardId).name}」を引いた`,
+            cardId: e.cardId,
+            owner: "self",
+            delayMs: 850,
+          });
         break;
       case "instructorActed":
         if (e.player === OPP) {
@@ -1125,12 +1133,17 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
   useEffect(() => {
-    if (!pendingDraw || busy || drawFx) return;
+    if (!pendingDraw || drawFx) return;
+    // 実況が出ている間は待つ。ただし「引いた」確認画面の待ち時間中は、
+    // 先にドロー演出（山札からめくれて手札へ）を見せる
+    const myDrawAnnWaiting =
+      currentAnn?.kind === "text" && currentAnn.cardId === pendingDraw && !annShown;
+    if (busy && !myDrawAnnWaiting) return;
     setDrawFx({ key: Date.now(), cardId: pendingDraw });
     setPendingDraw(null);
     // 引いたカードは右端に加わる。隠れないよう手札を送る
     setTimeout(() => handScroll.current?.scrollToEnd({ animated: true }), 120);
-  }, [pendingDraw, busy, drawFx]);
+  }, [pendingDraw, busy, drawFx, currentAnn, annShown]);
 
   // BGM: ふだんは bgm_main、バトルの流れ（いざ勝負！〜サポート）の間は bgm_battle、
   // リーチ中は bgm_reach、対戦が終わったら勝敗に応じたリザルト曲。
