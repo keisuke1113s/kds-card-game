@@ -118,6 +118,8 @@ interface Announcement {
   owner?: Owner;
   /** カードの移動演出が終わるのを待ってから表示するまでの時間 */
   delayMs?: number;
+  /** 決着の一手（最後の教習の進み）。スローモーションの特別演出になる */
+  finalBlow?: boolean;
   /** kind === "turn" のとき、自分の番かどうか */
   mine?: boolean;
   /** kind === "battle" のとき、ぶつかり合う2枚 */
@@ -307,6 +309,8 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
             amount: e.amount,
             newValue: e.newValue,
             goal,
+            // この一手で決着するなら、スローモーションの特別演出
+            finalBlow: endsGame && e.amount > 0 && e.newValue >= goal,
           });
         }
         // 全課程修了！（両方そろって勝利したときは勝利演出に譲る）
@@ -968,6 +972,8 @@ export default function BattleScreen() {
               ? 3200 // いざ勝負！と勝敗はしっかり見せる
               : next.kind === "trackComplete"
               ? 2600 // 全課程修了のお祝い
+              : next.kind === "lesson" && next.finalBlow
+                ? 4200 // 決着の一手はスローモーションでたっぷり見せる
               : next.kind === "lesson" || next.kind === "power" || next.kind === "recycle"
                 ? 2000
                 : next.cardId
@@ -1067,12 +1073,24 @@ export default function BattleScreen() {
     (view?.phase.type === "battleSupport" ||
       currentAnn?.kind === "battle" ||
       annQueue.some((a) => a.kind === "battle" || a.kind === "battleResult"));
+  // 決着演出（最後のゲージの進み）が終わってから結果画面を出すための待ち
+  const [resultShown, setResultShown] = useState(false);
   const finishedOutcome =
     view?.phase.type === "finished" && !replayActive
       ? view.phase.winner === ME
         ? "win"
         : "lose"
       : null;
+  // 決着していても、最後の実況（決着ゲージ等）が流れ終わるまで結果は出さない
+  useEffect(() => {
+    if (!finishedOutcome) {
+      setResultShown(false);
+      return;
+    }
+    if (busy || flyFx.length > 0) return;
+    const t = setTimeout(() => setResultShown(true), 350);
+    return () => clearTimeout(t);
+  }, [finishedOutcome, busy, flyFx.length]);
   useEffect(() => {
     if (!bgmEnabled && !seEnabled) {
       stopBgm();
@@ -1083,14 +1101,16 @@ export default function BattleScreen() {
       return;
     }
     if (finishedOutcome) {
-      // 教習終了のチャイム
-      playSe("chime");
-      // 対戦が終わった瞬間にリーチ曲などを止めて勝敗の効果音を響かせ、
-      // 鳴り終わるのを待ってからリザルト曲を流す
-      pauseBgm();
+      // 決着の瞬間: チャイムを鳴らしてBGMを止める（決着ゲージの演出に集中させる）
+      if (!resultShown) {
+        playSe("chime");
+        pauseBgm();
+        return;
+      }
+      // 結果画面が出てからリザルト曲へ
       const t = setTimeout(() => {
         if (!playBgm(finishedOutcome === "win" ? "bgm_result_win" : "bgm_result_lose")) pauseBgm();
-      }, 1200);
+      }, 900);
       return () => clearTimeout(t);
     }
     if (jankenActive) {
@@ -1114,7 +1134,7 @@ export default function BattleScreen() {
       if (!playBgm("bgm_main")) pauseBgm();
     }, 350);
     return () => clearTimeout(t);
-  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, jankenActive]);
+  }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, resultShown, reachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
 
   // 大逆転判定: 相手がリーチ状態のまま自分が勝ったか
@@ -1825,7 +1845,7 @@ export default function BattleScreen() {
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
-      {currentAnn && annShown && view.phase.type !== "finished" && (
+      {currentAnn && annShown && (
         <Pressable
           style={[
             styles.annLayer,
@@ -1853,6 +1873,7 @@ export default function BattleScreen() {
               amount={currentAnn.amount ?? 0}
               newValue={currentAnn.newValue ?? 0}
               goal={currentAnn.goal ?? 10}
+              finalBlow={currentAnn.finalBlow ?? false}
             />
           ) : currentAnn.kind === "battle" ? (
             <BattleCutIn
@@ -2394,7 +2415,7 @@ export default function BattleScreen() {
         </Overlay>
       )}
 
-      {view.phase.type === "finished" && view.phase.winner === ME && (
+      {view.phase.type === "finished" && resultShown && view.phase.winner === ME && (
         <>
           {/* AI生成の祝福背景（金色バースト＋紙吹雪） */}
           <Image
@@ -2418,11 +2439,11 @@ export default function BattleScreen() {
       )}
 
       {/* 敗北: 画面が暗く沈み、雨が降り、カードが力なく落ちていく */}
-      {view.phase.type === "finished" && view.phase.winner === OPP && (
+      {view.phase.type === "finished" && resultShown && view.phase.winner === OPP && (
         <LossScene cardIds={[...me.hand, ...me.field.map((f) => f.cardId), me.tantou]} />
       )}
 
-      {view.phase.type === "finished" && (
+      {view.phase.type === "finished" && resultShown && (
         <Overlay
           title={
             view.phase.winner === ME
@@ -3624,19 +3645,45 @@ function LessonCutIn({
   amount,
   newValue,
   goal,
+  finalBlow = false,
 }: {
   mine: boolean;
   track: Track;
   amount: number;
   newValue: number;
   goal: number;
+  /** この一手で決着（スローモーションの特別演出） */
+  finalBlow?: boolean;
 }) {
   const gained = amount > 0;
   const pop = useSharedValue(0);
   const run = useSharedValue(0);
   const shake = useSharedValue(0);
+  const flash = useSharedValue(0);
+  const stamp = useSharedValue(0);
 
   useEffect(() => {
+    if (finalBlow) {
+      // ===== 決着の一手: スローモーション =====
+      // ゆっくり低い音で進み → ため → 白いフラッシュ＋決着スタンプ
+      playSe("advance", 0.55);
+      haptic("medium");
+      run.value = withTiming(1, { duration: 2600, easing: Easing.out(Easing.cubic) });
+      pop.value = withDelay(200, withSpring(1, { damping: 12, stiffness: 90 }));
+      const t1 = setTimeout(() => {
+        playSe(mine ? "battle_win" : "battle_lose");
+        haptic("heavy");
+        flash.value = withSequence(
+          withTiming(1, { duration: 90 }),
+          withTiming(0, { duration: 500 })
+        );
+        stamp.value = withSequence(
+          withTiming(1.15, { duration: 160, easing: Easing.in(Easing.cubic) }),
+          withTiming(1, { duration: 140 })
+        );
+      }, 2500);
+      return () => clearTimeout(t1);
+    }
     playSe(gained ? "advance" : "hit");
     run.value = withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) });
     pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
@@ -3669,7 +3716,18 @@ function LessonCutIn({
   }));
   const popStyle = useAnimatedStyle(() => ({
     opacity: Math.min(1, pop.value * 2),
-    transform: [{ scale: 0.4 + pop.value * 0.6 }, { translateX: shake.value }],
+    transform: [
+      { scale: (0.4 + pop.value * 0.6) * (finalBlow ? 1.15 : 1) },
+      { translateX: shake.value },
+    ],
+  }));
+  const flashStyle = useAnimatedStyle(() => ({ opacity: flash.value }));
+  const stampStyle = useAnimatedStyle(() => ({
+    opacity: Math.min(1, stamp.value * 3),
+    transform: [
+      { rotate: "-7deg" },
+      { scale: stamp.value === 0 ? 2.4 : 2.4 - stamp.value * 1.4 },
+    ],
   }));
 
   const color = gained ? (track === "academic" ? "#6ab7ff" : "#7ce08f") : "#ff8a8a";
@@ -3716,11 +3774,30 @@ function LessonCutIn({
           <Text style={styles.lessonCutUnit}>時限</Text>
         </Text>
         <Text style={styles.lessonCutSub}>
-          {gained
-            ? `${TRACK_LABEL[track]}教習が ${newValue}/${goal} まで進んだ！`
-            : `${TRACK_LABEL[track]}教習が ${newValue}/${goal} に戻された…`}
+          {finalBlow
+            ? `${TRACK_LABEL[track]}教習 ${newValue}/${goal} —— 全課程達成なるか…！`
+            : gained
+              ? `${TRACK_LABEL[track]}教習が ${newValue}/${goal} まで進んだ！`
+              : `${TRACK_LABEL[track]}教習が ${newValue}/${goal} に戻された…`}
         </Text>
       </Animated.View>
+      {/* 決着の瞬間: 白いフラッシュ → 「決着!!」スタンプ */}
+      {finalBlow && (
+        <>
+          <Animated.View
+            style={[StyleSheet.absoluteFill, { backgroundColor: "#ffffff" }, flashStyle]}
+            pointerEvents="none"
+          />
+          <Animated.View style={[styles.finalBlowStamp, mine ? styles.finalBlowStampWin : styles.finalBlowStampLose, stampStyle]}>
+            <Text style={[styles.finalBlowText, { color: mine ? "#ffd54d" : "#ff8a8a" }]} allowFontScaling={false}>
+              {mine ? "決着!!" : "先着…"}
+            </Text>
+            <Text style={styles.finalBlowSub} allowFontScaling={false}>
+              {mine ? "全課程達成！卒業だ！" : `${oppLabel}が先に卒業してしまった…`}
+            </Text>
+          </Animated.View>
+        </>
+      )}
     </View>
   );
 }
@@ -5074,6 +5151,22 @@ const styles = StyleSheet.create({
     padding: 0,
     alignItems: "stretch",
   },
+  finalBlowStamp: {
+    position: "absolute",
+    alignSelf: "center",
+    top: "18%",
+    borderWidth: 4,
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 26,
+    alignItems: "center",
+    gap: 2,
+    backgroundColor: "#000000b8",
+  },
+  finalBlowStampWin: { borderColor: "#ffd54d" },
+  finalBlowStampLose: { borderColor: "#ff8a8a" },
+  finalBlowText: { fontSize: 40, fontWeight: "900", letterSpacing: 6 },
+  finalBlowSub: { color: "#ffffff", fontSize: 13, fontWeight: "800" },
   lessonCutWrap: {
     flex: 1,
     alignItems: "center",
