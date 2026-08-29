@@ -103,6 +103,16 @@ function abilityWindowOpenFromView(view: PlayerView, ability: AbilityDef): boole
     if (op.op === "lessonMod" && op.target !== "source" && view.self.field.length === 0) {
       return false;
     }
+    // 自分の教習力を上げる能力は、このターン教習できる（休憩していない）
+    // インストラクターがいなければ無意味なので起動不可（サポートの永山と同じ扱い）
+    if (
+      op.op === "lessonMod" &&
+      (op.target === "chooseOwn" || op.target === "allOwn") &&
+      op.amount > 0 &&
+      !view.self.field.some((f) => !f.rested)
+    ) {
+      return false;
+    }
     if (op.op === "removeTarget" && view.opponent.field.length === 0) {
       return false;
     }

@@ -294,6 +294,18 @@ describe("修正値・元気化系", () => {
     expect(legal2.some((a) => a.type === "playSupport")).toBe(true);
   });
 
+  it("担当タイプA: 全員休憩中は起動できない（教習できる相手がいない）", () => {
+    const i1 = fieldInst("i_tomino", { rested: true });
+    // 担当 t_kuji はタイプA（教習力+1）
+    const state = makeState({ hand: [], field: [i1], tantou: "t_kuji" });
+    const legal = getLegalActions(ctx, state, 0);
+    expect(legal.some((a) => a.type === "activateAbility" && a.uid === undefined)).toBe(false);
+    const i2 = fieldInst("i_oda");
+    const state2 = makeState({ hand: [], field: [i1, i2], tantou: "t_kuji" });
+    const legal2 = getLegalActions(ctx, state2, 0);
+    expect(legal2.some((a) => a.type === "activateAbility" && a.uid === undefined)).toBe(true);
+  });
+
   it("送迎サポート: ターン終了時にインストラクターを1人元気にする", () => {
     const i1 = fieldInst("i_tomino");
     const state = makeState({ hand: ["s_sato"], field: [i1] });
