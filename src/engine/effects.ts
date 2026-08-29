@@ -465,11 +465,15 @@ function applyOp(
     }
 
     case "removeAllExceptSource": {
-      // 自分の場: 発生源以外すべて。相手の場: 保護されていないものすべて
+      // 『井関』以外を全て退場。テキストどおり、発生源と同名のカードは
+      // 自分の場でも相手の場でも退場させない（相手の井関も残る）
+      const srcCardId = me.field.find((f) => f.uid === ec.sourceUid)?.cardId;
       for (const inst of [...me.field]) {
-        if (inst.uid !== ec.sourceUid) removeInstructor(ctx, state, owner, inst.uid, events, queue);
+        if (inst.uid === ec.sourceUid || inst.cardId === srcCardId) continue;
+        removeInstructor(ctx, state, owner, inst.uid, events, queue);
       }
       for (const inst of [...them.field]) {
+        if (inst.cardId === srcCardId) continue;
         if (!isProtected(ctx, owner, opp, inst.cardId)) {
           removeInstructor(ctx, state, opp, inst.uid, events, queue);
         }

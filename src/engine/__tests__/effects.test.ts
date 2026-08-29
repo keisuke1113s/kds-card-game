@@ -139,6 +139,15 @@ describe("退場・除去系", () => {
     expect(a.state.players[1].field.length).toBe(0);
   });
 
+  it("井関: 相手の場の井関は退場させない（同名カードは両者の場で残る）", () => {
+    const oppIseki = fieldInst("i_iseki");
+    const oppOther = fieldInst("i_tomino");
+    const state = makeState({ hand: ["i_iseki"] }, { field: [oppIseki, oppOther] });
+    const a = act(state, { type: "playInstructor", player: 0, handIndex: 0 });
+    expect(a.state.players[0].field.map((f) => f.cardId)).toEqual(["i_iseki"]);
+    expect(a.state.players[1].field.map((f) => f.cardId)).toEqual(["i_iseki"]);
+  });
+
   it("奥村は相手の効果で場を離れない（井関のリセットにも耐える）", () => {
     const okumura = fieldInst("i_okumura");
     const state = makeState({ hand: ["i_iseki"] }, { field: [okumura] });
