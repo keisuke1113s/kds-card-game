@@ -391,6 +391,48 @@ function QrList() {
   );
 }
 
+/** 時間帯別の対戦数の棒グラフ（0〜23時、CPU=青・オンライン=赤） */
+function HourlyChart({ cpu, online }: { cpu: number[]; online: number[] }) {
+  const max = Math.max(1, ...cpu, ...online);
+  const total = cpu.reduce((a, b) => a + b, 0) + online.reduce((a, b) => a + b, 0);
+  if (total === 0) {
+    return <Text style={styles.note}>まだデータがありません（対戦が集まると表示されます）</Text>;
+  }
+  return (
+    <View style={{ gap: 3 }}>
+      {Array.from({ length: 24 }, (_, h) => {
+        const c = cpu[h] ?? 0;
+        const o = online[h] ?? 0;
+        if (c === 0 && o === 0) return null;
+        return (
+          <View key={h} style={hourlyStyles.row}>
+            <Text style={hourlyStyles.hour}>{String(h).padStart(2, "0")}時</Text>
+            <View style={hourlyStyles.bars}>
+              <View style={[hourlyStyles.bar, hourlyStyles.barCpu, { width: `${(c / max) * 100}%` }]} />
+              <View style={[hourlyStyles.bar, hourlyStyles.barOnline, { width: `${(o / max) * 100}%` }]} />
+            </View>
+            <Text style={hourlyStyles.count}>
+              {c > 0 ? `CPU ${c}` : ""}
+              {c > 0 && o > 0 ? " / " : ""}
+              {o > 0 ? `オンライン ${o}` : ""}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+const hourlyStyles = StyleSheet.create({
+  row: { flexDirection: "row", alignItems: "center", gap: 8 },
+  hour: { width: 36, fontSize: 12, fontWeight: "800", color: colors.textMuted },
+  bars: { flex: 1, gap: 2 },
+  bar: { height: 7, borderRadius: 3, minWidth: 2 },
+  barCpu: { backgroundColor: "#3d8fd0" },
+  barOnline: { backgroundColor: "#d83030" },
+  count: { fontSize: 11, color: colors.textMuted, minWidth: 90, textAlign: "right" },
+});
+
 /** 利用状況の分析。対戦サーバーの集計とエラー報告を表示する */
 function StatsPanel() {
   interface Stats {
@@ -409,6 +451,7 @@ function StatsPanel() {
       byDifficulty: Record<string, { matches: number; wins: number }>;
     };
     scans: { total: number; topCards: { cardId: string; count: number }[] };
+    hourly?: { cpu: number[]; online: number[] };
     cardUsage?: { cardId: string; matches: number; wins: number }[];
     bestPairs?: { pair: string[]; matches: number; wins: number }[];
     env: Record<string, { opens: number; matches: number }>;
@@ -531,6 +574,12 @@ function StatsPanel() {
               {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}（{c.count}回）
             </Text>
           ))}
+
+          <Text style={styles.sectionTitle}>⏰ 時間帯別の対戦数（日本時間）</Text>
+          <Text style={styles.note}>
+            どの時間帯に遊ばれているかの集計です（青=CPU対戦 / 赤=オンライン対戦）。
+          </Text>
+          <HourlyChart cpu={stats.hourly?.cpu ?? []} online={stats.hourly?.online ?? []} />
 
           <Text style={styles.sectionTitle}>カード別のメタ分析（使用数と勝率）</Text>
           <Text style={styles.note}>

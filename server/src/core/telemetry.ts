@@ -58,6 +58,8 @@ interface Aggregates {
   /** カード2枚の組み合わせ別のメタ分析（キーは "小さいID|大きいID"） */
   pairUsage: Record<string, { matches: number; wins: number }>;
   envTotals: Record<string, { opens: number; matches: number }>;
+  /** 時間帯別（日本時間0〜23時）の対戦数 */
+  hourly: { cpu: number[]; online: number[] };
 }
 
 const MAX_DEVICES = 20000;
@@ -87,6 +89,7 @@ function emptyAggregates(): Aggregates {
     cardUsage: {},
     pairUsage: {},
     envTotals: {},
+    hourly: { cpu: new Array(24).fill(0), online: new Array(24).fill(0) },
   };
 }
 
@@ -163,6 +166,11 @@ export class Telemetry {
       this.agg.totals.matches++;
       day.matches++;
       envT.matches++;
+      // 時間帯別（日本時間）。古い保存データには hourly が無いことがある
+      this.agg.hourly ??= { cpu: new Array(24).fill(0), online: new Array(24).fill(0) };
+      const jstHour = (this.now().getUTCHours() + 9) % 24;
+      if (e.mode === "online") this.agg.hourly.online[jstHour]++;
+      else this.agg.hourly.cpu[jstHour]++;
       if (e.mode === "online") {
         this.agg.totals.onlineMatches++;
         day.onlineMatches++;
@@ -276,6 +284,10 @@ export class Telemetry {
       .map(([cardId, count]) => ({ cardId, count }));
     return {
       generatedAt: this.now().toISOString(),
+      hourly: {
+        cpu: a.hourly?.cpu ?? new Array(24).fill(0),
+        online: a.hourly?.online ?? new Array(24).fill(0),
+      },
       devices: {
         total: Object.keys(a.devices).length,
         today: a.daily[today]?.devices.length ?? 0,
