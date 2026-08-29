@@ -171,6 +171,13 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
   const out: Announcement[] = [];
   const add = (text: string, cardId?: string, emph?: boolean, owner?: Owner) =>
     out.push({ key: ++annSeq, kind: "text", text, cardId, emph, owner });
+  // 自分がカードを出したバッチでは、登場時効果（教習が進む等）のカットインが
+  // カードの移動演出と重ならないよう、最初の実況に待ち時間を入れる
+  const myPlayDelay = events.some((e) => e.type === "instructorPlayed" && e.player === ME)
+    ? 950
+    : events.some((e) => e.type === "supportPlayed" && e.player === ME)
+      ? 650
+      : 0;
   // このバッチで決着している場合、修了のお祝いは勝利演出に譲る
   const endsGame = events.some((e) => e.type === "gameEnded");
 
@@ -372,6 +379,9 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
         });
         break;
     }
+  }
+  if (myPlayDelay > 0 && out.length > 0 && out[0].delayMs === undefined) {
+    out[0].delayMs = myPlayDelay;
   }
   return out;
 }
