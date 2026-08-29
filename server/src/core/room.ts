@@ -40,6 +40,7 @@ export type ServerMessage =
   | { type: "matchStart"; seat: PlayerId }
   | { type: "update"; seq: number; view: PlayerView; events: GameEvent[] }
   | { type: "opponentLeft" }
+  | { type: "opponentConnection"; connected: boolean }
   /** 相手が再戦を希望した */
   | { type: "rematchOffered" }
   /** 相手からの定型スタンプ */
@@ -212,6 +213,9 @@ export class RoomCore {
     const seat = this.seats[seatIndex]!;
     seat.send = send;
     seat.connected = true;
+    // 相手に「復帰した」ことを知らせる
+    const other = this.seats[1 - seatIndex];
+    if (other?.connected) other.send({ type: "opponentConnection", connected: true });
     // 復帰できたので、切断負けの猶予タイマーを解除する
     const timer = this.graceTimers[seatIndex];
     if (timer) {
@@ -401,6 +405,9 @@ export class RoomCore {
     const seat = this.seats[seatIndex];
     if (!seat) return;
     seat.connected = false;
+    // 相手に「接続が切れた（復帰待ち）」を知らせる
+    const other = this.seats[1 - seatIndex];
+    if (other?.connected) other.send({ type: "opponentConnection", connected: false });
     // 対局中の切断は、猶予以内に復帰しなければ切断側の負けにする
     if (this.state && this.state.phase.type !== "finished" && !this.graceTimers[seatIndex]) {
       this.graceTimers[seatIndex] = this.setTimer(() => {

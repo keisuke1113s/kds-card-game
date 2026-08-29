@@ -23,6 +23,9 @@ interface UnlockState {
   issued: { id: string; name: string; at: string }[];
   /** テスト用: true の間は全カードが登録済みになる（設定画面で切り替え） */
   allOpenMode: boolean;
+  /** 図鑑コンプリートのお祝いを表示済みか */
+  celebratedComplete: boolean;
+  setCelebratedComplete: () => void;
   unlock: (cardId: string) => void;
   setInitialSet: (ids: string[]) => void;
   setAllOpenMode: (v: boolean) => void;
@@ -41,6 +44,8 @@ export const useUnlockStore = create<UnlockState>()(
       scannedLog: {},
       issued: [],
       allOpenMode: ALL_CARDS_OPEN_FOR_TESTING,
+      celebratedComplete: false,
+      setCelebratedComplete: () => set({ celebratedComplete: true }),
       unlock: (cardId) =>
         set((s) =>
           s.scannedIds.includes(cardId)
@@ -72,6 +77,7 @@ export const useUnlockStore = create<UnlockState>()(
           scannedLog: s.scannedLog ?? {},
           issued: s.issued ?? [],
           allOpenMode: s.allOpenMode ?? ALL_CARDS_OPEN_FOR_TESTING,
+          celebratedComplete: s.celebratedComplete ?? false,
         } as UnlockState;
       },
     }

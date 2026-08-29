@@ -11,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { PackOpeningFX } from "@/app/scan";
 import { evaluateAchievements } from "@/store/achievementStore";
+import { playSe } from "@/audio/sound";
 import { CardDetail } from "@/components/CardDetail";
 import { CardFace } from "@/components/CardFace";
 import { LockedCard } from "@/components/LockedCard";
@@ -52,6 +53,21 @@ export default function LibraryScreen() {
   const [query, setQuery] = useState("");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
+  // 図鑑コンプリートの祝祭（正式仕様＝通常配布モードで全カード開放した最初の1回だけ）
+  const [completeFx, setCompleteFx] = useState(false);
+  useEffect(() => {
+    if (
+      !unlockState.allOpenMode &&
+      unlocked.size >= allCards.length &&
+      !unlockState.celebratedComplete
+    ) {
+      setCompleteFx(true);
+      playSe("win");
+      unlockState.setCelebratedComplete();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [unlocked.size]);
+
   // 3日以内にQRで開放したカードにはNEWバッジ＋輝きを出す
   const isNew = (id: string) => {
     const at = unlockState.scannedLog[id];
@@ -204,6 +220,20 @@ export default function LibraryScreen() {
           </Pressable>
         </Pressable>
       )}
+      {completeFx && (
+        <Pressable style={styles.completeLayer} onPress={() => setCompleteFx(false)}>
+          {Array.from({ length: 40 }, (_, i) => (
+            <CompletePiece key={i} index={i} />
+          ))}
+          <View style={styles.completeBox}>
+            <Text style={styles.completeTitle}>🌈 コンプリート！！ 🌈</Text>
+            <Text style={styles.completeSub}>
+              全{allCards.length}枚のカードがそろいました！{"\n"}あなたは真のカードマスターです！
+            </Text>
+            <Text style={styles.completeClose}>タップで閉じる</Text>
+          </View>
+        </Pressable>
+      )}
       {lockedTapped && (
         <Pressable style={styles.overlayBg} onPress={() => setLockedTapped(null)}>
           <Pressable style={styles.overlayBox} onPress={() => {}}>
@@ -288,6 +318,40 @@ function CompletionRing({ collected, total }: { collected: number; total: number
         </View>
       </View>
     </View>
+  );
+}
+
+/** コンプ祝祭の虹色紙吹雪（1粒） */
+const COMPLETE_COLORS = ["#ff5252", "#ff9800", "#ffd600", "#8bc34a", "#00bcd4", "#3f51b5", "#9c27b0"];
+function CompletePiece({ index }: { index: number }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 2400 + (index % 7) * 300, easing: Easing.in(Easing.quad) });
+  }, [t, index]);
+  const left = (index * 61) % 100;
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -30 + t.value * 900 },
+      { rotate: `${t.value * (360 + (index % 4) * 180)}deg` },
+    ],
+    opacity: t.value > 0.85 ? (1 - t.value) * 6 : 1,
+  }));
+  return (
+    <Animated.View
+      style={[
+        {
+          position: "absolute",
+          left: `${left}%`,
+          top: 0,
+          width: 10,
+          height: 14,
+          borderRadius: 2,
+          backgroundColor: COMPLETE_COLORS[index % COMPLETE_COLORS.length],
+        },
+        style,
+      ]}
+      pointerEvents="none"
+    />
   );
 }
 
@@ -414,6 +478,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overlayTitle: { fontSize: 18, fontWeight: "800", color: colors.text },
+  completeLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#0b1226dd",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 50,
+  },
+  completeBox: { alignItems: "center", gap: 12, padding: 24 },
+  completeTitle: { fontSize: 30, fontWeight: "900", color: "#ffd54d", textAlign: "center" },
+  completeSub: { fontSize: 15, lineHeight: 24, color: "#fff", textAlign: "center", fontWeight: "700" },
+  completeClose: { fontSize: 12, color: "#ffffff99" },
   newBadge: {
     position: "absolute",
     top: -6,

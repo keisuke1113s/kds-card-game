@@ -1,9 +1,10 @@
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect, useRouter } from "expo-router";
-import React, { useCallback } from "react";
+import React, { useCallback, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import Animated, {
+  Easing,
   FadeInDown,
   useAnimatedScrollHandler,
   useAnimatedStyle,
@@ -78,6 +79,12 @@ function OutlinedText({
       <Text style={style}>{children}</Text>
     </View>
   );
+}
+
+/** 夕方〜夜（17時〜翌6時）かどうか。ホームの校舎イラストを夜版に切り替える */
+function isNightTime(): boolean {
+  const h = new Date().getHours();
+  return h >= 17 || h < 6;
 }
 
 /** 季節の環境演出。月で自動的に切り替わる（対象外の月は何も出さない） */
@@ -159,6 +166,9 @@ export default function HomeScreen() {
   const clearQueueCancelledNotice = useGameStore((s) => s.clearQueueCancelledNotice);
   const deckState = useDeckStore();
 
+  // カードファンをタップすると1枚めくれる遊び
+  const [peek, setPeek] = useState<{ cardId: string; key: number } | null>(null);
+
   // スクロールに合わせて背景イラストをわずかに視差で動かす（奥行き感）
   const scrollY = useSharedValue(0);
   const onScroll = useAnimatedScrollHandler((ev) => {
@@ -200,11 +210,16 @@ export default function HomeScreen() {
 
   return (
     <LinearGradient colors={[colors.background, colors.backgroundDeep]} style={styles.root}>
-      {/* KDS校舎のイラスト（ユーザー提供）をタイトルの後ろにうっすら敷く。
+      {/* KDS校舎のイラストをタイトルの後ろにうっすら敷く。
+          夕方〜夜（17時〜6時）は窓に明かりの灯った夜バージョンになり、
           スクロールでわずかに視差で動く */}
       <Animated.View style={[styles.homeBgArt, bgParallax]} pointerEvents="none">
         <Image
-          source={require("../../assets/images/fx/bg_home.webp")}
+          source={
+            isNightTime()
+              ? require("../../assets/images/fx/bg_home_night.webp")
+              : require("../../assets/images/fx/bg_home.webp")
+          }
           style={StyleSheet.absoluteFill}
           contentFit="contain"
         />
@@ -231,13 +246,25 @@ export default function HomeScreen() {
 
         {/* タイトル：カード裏面を扇状に並べた上にロゴを置く */}
         <View style={styles.hero}>
-          <View style={styles.fanRow}>
+          <Pressable
+            style={styles.fanRow}
+            onPress={() => {
+              const pool = [...unlockedSet(unlockState)];
+              if (pool.length === 0) return;
+              setPeek({
+                cardId: pool[Math.floor(Math.random() * pool.length)],
+                key: Date.now(),
+              });
+            }}
+          >
             <FannedCard angle={-14} offsetX={-58} offsetY={10} />
             <FannedCard angle={-6} offsetX={-28} offsetY={2} />
             <FannedCard angle={0} offsetX={0} offsetY={-2} float />
             <FannedCard angle={6} offsetX={28} offsetY={2} />
             <FannedCard angle={14} offsetX={58} offsetY={10} />
-          </View>
+            {/* タップで1枚めくれてランダムなカードの絵が見える */}
+            {peek && <PeekCard key={peek.key} cardId={peek.cardId} onDone={() => setPeek(null)} />}
+          </Pressable>
 
           <View style={styles.titleBlock}>
             {/* カード実物のロゴと同じ配色にする */}
@@ -456,6 +483,34 @@ function CrossedCards() {
 }
 
 /** 扇状に並べたカード裏面。中央の1枚だけゆっくり上下に揺れる */
+/** ファンの中央で1枚がクルッとめくれてカードの絵が見え、少ししたら戻る */
+function PeekCard({ cardId, onDone }: { cardId: string; onDone: () => void }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withSequence(
+      withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) }),
+      withDelay(1500, withTiming(0, { duration: 320 }))
+    );
+    const timer = setTimeout(onDone, 2400);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const style = useAnimatedStyle(() => ({
+    opacity: Math.min(1, t.value * 3),
+    transform: [
+      { perspective: 700 },
+      { translateY: -t.value * 26 },
+      { rotateY: `${(1 - t.value) * 180}deg` },
+      { scale: 0.9 + t.value * 0.25 },
+    ],
+  }));
+  return (
+    <Animated.View style={[styles.peekCard, style]} pointerEvents="none">
+      <CardFace cardId={cardId} size="sm" />
+    </Animated.View>
+  );
+}
+
 function FannedCard({
   angle,
   offsetX,
@@ -636,6 +691,12 @@ const styles = StyleSheet.create({
   tipTitle: { fontSize: 13, fontWeight: "900", color: "#8a6d00" },
   // カードの背景がライト固定色なので、文字色もダークモードに影響されない固定色にする
   tipText: { fontSize: 13, lineHeight: 20, color: "#4a3d10" },
+  peekCard: {
+    position: "absolute",
+    alignSelf: "center",
+    top: -6,
+    zIndex: 5,
+  },
   collectionRibbon: {
     alignSelf: "center",
     paddingVertical: 6,

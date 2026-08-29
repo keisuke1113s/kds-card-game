@@ -1,10 +1,66 @@
 import { Image } from "expo-image";
-import React from "react";
+import React, { useRef } from "react";
 import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from "react-native-reanimated";
 import { getCard } from "@/data/cards";
 import { cardThumbs } from "@/data/images";
 import { CardFace } from "./CardFace";
 import { cardSize, colors, shadow } from "@/theme";
+
+/**
+ * 指でなぞるとカードが傾き、ホログラム風の光沢が流れる3Dチルト。
+ * 触っていないときはゆっくり元の向きに戻る
+ */
+function TiltCard({ children }: { children: React.ReactNode }) {
+  const rx = useSharedValue(0);
+  const ry = useSharedValue(0);
+  const gloss = useSharedValue(0);
+  const size = useRef({ w: 1, h: 1 });
+  const onTouch = (x: number, y: number) => {
+    const nx = Math.min(1, Math.max(0, x / size.current.w)) - 0.5;
+    const ny = Math.min(1, Math.max(0, y / size.current.h)) - 0.5;
+    ry.value = nx * 22;
+    rx.value = -ny * 16;
+    gloss.value = nx + 0.5;
+  };
+  const release = () => {
+    rx.value = withSpring(0, { damping: 12 });
+    ry.value = withSpring(0, { damping: 12 });
+    gloss.value = withSpring(0.5);
+  };
+  const style = useAnimatedStyle(() => ({
+    transform: [
+      { perspective: 700 },
+      { rotateX: `${rx.value}deg` },
+      { rotateY: `${ry.value}deg` },
+    ],
+  }));
+  const glossStyle = useAnimatedStyle(() => ({
+    opacity: Math.abs(ry.value) / 30 + 0.05,
+    transform: [{ translateX: (gloss.value - 0.5) * 140 }, { rotate: "18deg" }],
+  }));
+  return (
+    <Animated.View
+      style={style}
+      onLayout={(e) => {
+        size.current = { w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height };
+      }}
+      onStartShouldSetResponder={() => true}
+      onMoveShouldSetResponder={() => true}
+      onResponderMove={(e) => onTouch(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+      onResponderGrant={(e) => onTouch(e.nativeEvent.locationX, e.nativeEvent.locationY)}
+      onResponderRelease={release}
+      onResponderTerminate={release}
+    >
+      {children}
+      <Animated.View style={[styles.gloss, glossStyle]} pointerEvents="none" />
+    </Animated.View>
+  );
+}
 
 const typeLabel: Record<string, string> = {
   instructor: "インストラクター",
@@ -33,7 +89,9 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
           contentFit="cover"
         />
         <View style={styles.frontCard}>
-          <CardFace cardId={cardId} size="lg" />
+          <TiltCard>
+            <CardFace cardId={cardId} size="lg" />
+          </TiltCard>
         </View>
       </View>
       <View style={styles.headerRow}>
@@ -65,6 +123,15 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
 }
 
 const styles = StyleSheet.create({
+  gloss: {
+    position: "absolute",
+    top: -30,
+    bottom: -30,
+    width: 70,
+    alignSelf: "center",
+    backgroundColor: "#ffffff",
+    borderRadius: 35,
+  },
   scroll: {
     alignSelf: "stretch",
     maxHeight: Math.min(560, Dimensions.get("window").height * 0.58),

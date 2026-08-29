@@ -96,6 +96,8 @@ interface GameStore {
   rematchRequested: boolean;
   rematchOffered: boolean;
   requestRematch: () => void;
+  /** 相手の接続状態（オンライン。false=切断中・復帰待ち） */
+  opponentConnected: boolean;
   /** 定型スタンプ */
   incomingStamp: string | null;
   myStamp: string | null;
@@ -529,6 +531,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       socket.send(JSON.stringify({ type: "rematch" }));
       set({ rematchRequested: true });
     },
+    opponentConnected: true,
     incomingStamp: null,
     myStamp: null,
     sendStamp: (id) => {
@@ -650,6 +653,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
       closeSocket();
       onlineSession = null;
       set({
+        opponentConnected: true,
         mode: "online",
         queueActive: mode === "queue",
         matchFound: null,
@@ -878,6 +882,9 @@ export const useGameStore = create<GameStore>()((set, get) => {
             }
             case "opponentLeft":
               set({ onlineStatus: "opponentLeft" });
+              break;
+            case "opponentConnection":
+              set({ opponentConnected: (msg as { connected?: boolean }).connected !== false });
               break;
             case "error":
               set({ onlineError: msg.message ?? "エラーが発生しました" });

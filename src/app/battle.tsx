@@ -428,6 +428,59 @@ export default function BattleScreen() {
   const reachOnRef = useRef(false);
   reachOnRef.current = reachOn;
 
+  // 入場バナー（リベンジマッチ／連勝の勢い）。ワイプが開いた直後に出す
+  const [entryBanner, setEntryBanner] = useState<string | null>(null);
+  useEffect(() => {
+    if (replayActive) return;
+    const last = useRecordStore.getState().history[0];
+    const streak = useRecordStore.getState().streak;
+    let text: string | null = null;
+    if (last && last.result === "lose") {
+      const sameKyokan = kyokanId && last.kyokan === kyokanId;
+      const sameOnline = isOnline && last.mode === "online" && last.opponentName === opponentName;
+      const sameCpu = !isOnline && !kyokanId && last.mode === "cpu" && !last.kyokan;
+      if (sameKyokan || sameOnline || sameCpu) text = "⚡ REVENGE MATCH！";
+    }
+    if (!text && streak >= 3) text = `🔥 ${streak}連勝中の勢い！`;
+    if (!text) return;
+    const t1 = setTimeout(() => setEntryBanner(text), 700);
+    const t2 = setTimeout(() => setEntryBanner(null), 2500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // スタンプの飛翔（送信=下から上へ、受信=上から下へ）
+  const [flyStamps, setFlyStamps] = useState<{ key: number; emoji: string; up: boolean }[]>([]);
+  const stampSeq = useRef(0);
+  useEffect(() => {
+    if (!myStamp) return;
+    const emoji = stampOf(myStamp)?.emoji ?? "👍";
+    const key = ++stampSeq.current;
+    setFlyStamps((q) => [...q.slice(-3), { key, emoji, up: true }]);
+    const t = setTimeout(() => setFlyStamps((q) => q.filter((f) => f.key !== key)), 1200);
+    return () => clearTimeout(t);
+  }, [myStamp]);
+  useEffect(() => {
+    if (!incomingStamp) return;
+    const emoji = stampOf(incomingStamp)?.emoji ?? "👍";
+    const key = ++stampSeq.current;
+    setFlyStamps((q) => [...q.slice(-3), { key, emoji, up: false }]);
+    const t = setTimeout(() => setFlyStamps((q) => q.filter((f) => f.key !== key)), 1200);
+    return () => clearTimeout(t);
+  }, [incomingStamp]);
+
+  // 相手の接続状態（オンライン）
+  const opponentConnected = useGameStore((st) => st.opponentConnected);
+
+  // バトルで狙われている（防御側）のカードは怯えて震える
+  const scaredUid =
+    view?.phase.type === "battleSupport" ? view.phase.battle.defenderUid : null;
+  const scaredPlayer =
+    view?.phase.type === "battleSupport" ? ((1 - view.phase.battle.attackerPlayer) as 0 | 1) : null;
+
   // カードの移動演出（出す・引く・退場・サポート叩きつけ）
   const [flyFx, setFlyFx] = useState<FlyItem[]>([]);
   const flySeq = useRef(0);
@@ -914,6 +967,36 @@ export default function BattleScreen() {
   }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, reachOn, jankenActive]);
   useEffect(() => () => stopBgm(), []);
 
+  // 大逆転判定: 相手がリーチ状態のまま自分が勝ったか
+  const oppWasReach =
+    view != null &&
+    Math.max(0, ACADEMIC_GOAL - view.opponent.academic) +
+      Math.max(0, SKILL_GOAL - view.opponent.skill) <=
+      2;
+  const comebackWin = finishedOutcome === "win" && oppWasReach;
+  const [comebackFx, setComebackFx] = useState(false);
+  useEffect(() => {
+    if (!comebackWin) return;
+    const t1 = setTimeout(() => setComebackFx(true), 400);
+    const t2 = setTimeout(() => setComebackFx(false), 2600);
+    playSe("comeback");
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comebackWin]);
+
+  // インストラクター撃破の認定証（勝利の少し後に出す）
+  const [certShown, setCertShown] = useState(false);
+  useEffect(() => {
+    if (finishedOutcome === "win" && kyokanId) {
+      const t = setTimeout(() => setCertShown(true), 1600);
+      return () => clearTimeout(t);
+    }
+    setCertShown(false);
+  }, [finishedOutcome, kyokanId]);
+
   // 決着時のCPUのひとこと（勝てば称賛、負ければ励まし）＋勝利の3連振動
   useEffect(() => {
     if (!finishedOutcome) return;
@@ -1175,6 +1258,12 @@ export default function BattleScreen() {
           </Pressable>
           <CardFace cardId={cpu.tantou} size="sm" onPress={() => setDetailCardId(cpu.tantou, "cpu")} />
         </View>
+        {/* 相手の接続が切れている間のお知らせ */}
+        {isOnline && !opponentConnected && (
+          <View style={styles.reconnectBand}>
+            <Text style={styles.reconnectText}>📶 相手の接続が切れました…復帰を待っています</Text>
+          </View>
+        )}
         {/* CPUの口上セリフ（吹き出し） */}
         {cpuSpeech && !isOnline && (
           <View style={styles.cpuSpeechBubble} pointerEvents="none">
@@ -1187,6 +1276,7 @@ export default function BattleScreen() {
         <TrackBar label="技能" kind="skill" value={shownTracks?.os ?? cpu.skill} goal={SKILL_GOAL} color={colors.success} />
         <FieldRow
           flashIds={flashIds}
+          scaredUid={scaredUid}
           view={view}
           player={OPP}
           field={cpu.field}
@@ -1379,6 +1469,7 @@ export default function BattleScreen() {
       <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
         <FieldRow
           flashIds={flashIds}
+          scaredUid={scaredUid}
           view={view}
           player={ME}
           field={me.field}
@@ -1470,6 +1561,7 @@ export default function BattleScreen() {
                 {/* 出せるカードはゆっくり浮き沈みして、目で追えるようにする */}
                 <FloatIdle active={playable} offset={i}>
                   <View style={playable ? styles.playableCard : undefined}>
+                    {playable && <GoldPulseBorder />}
                     <CardFace
                       cardId={cardId}
                       size="md"
@@ -1695,6 +1787,18 @@ export default function BattleScreen() {
       ))}
       {/* 対戦入場の暗転ワイプ */}
       {enterWipe && <BattleEnterWipe onDone={() => setEnterWipe(false)} />}
+      {/* 入場バナー（リベンジ／連勝） */}
+      {entryBanner && <EntryBanner text={entryBanner} />}
+      {/* 大逆転勝利の特別カットイン */}
+      {comebackFx && <ComebackFx />}
+      {/* スタンプの飛翔 */}
+      {flyStamps.map((f) => (
+        <FlyingStamp key={f.key} emoji={f.emoji} up={f.up} />
+      ))}
+      {/* インストラクター撃破の認定証 */}
+      {certShown && kyokanDef && (
+        <CertificateFx name={kyokanDef.name} onClose={() => setCertShown(false)} />
+      )}
       {/* リーチ中は画面のフチが赤く脈動する */}
       {reachOn && view.phase.type !== "finished" && <ReachVignette />}
       {/* 進捗の折返し到達のお祝い */}
@@ -2257,6 +2361,7 @@ function FieldRow({
   selectedUid,
   onPress,
   flashIds,
+  scaredUid,
 }: {
   view: PlayerView;
   player: 0 | 1;
@@ -2267,6 +2372,8 @@ function FieldRow({
   onPress: (uid: string) => void;
   /** 効果を発動して金色に光らせるカードID */
   flashIds?: Set<string>;
+  /** バトルで狙われている（怯えて震える）カードのuid */
+  scaredUid?: string | null;
 }) {
   return (
     <ScrollView
@@ -2303,7 +2410,8 @@ function FieldRow({
               {/* 選べる対象には跳ねる矢印を出して迷わせない */}
               {highlightUids.has(inst.uid) && <TargetArrow color={highlightColor} />}
               <RestRotator rested={inst.rested}>
-                {/* 元気なカードはゆっくり呼吸するように揺れる */}
+                {/* 元気なカードはゆっくり呼吸するように揺れ、狙われていると怯えて震える */}
+                <Tremble active={scaredUid === inst.uid}>
                 <Breathe active={!inst.rested}>
                   <View>
                     <CardFace cardId={inst.cardId} size="sm" dimmed={inst.actedThisTurn && !inst.rested} />
@@ -2311,6 +2419,7 @@ function FieldRow({
                     {flashIds?.has(inst.cardId) && <GoldFlash key={inst.uid + "f"} />}
                   </View>
                 </Breathe>
+                </Tremble>
               </RestRotator>
               <Text style={styles.fieldCaption}>
                 {inst.rested ? "休憩 " : ""}
@@ -3885,6 +3994,161 @@ function BattleEnterWipe({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** 大逆転勝利の特別カットイン */
+function ComebackFx() {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withSequence(
+      withTiming(1.2, { duration: 260, easing: Easing.out(Easing.cubic) }),
+      withTiming(1, { duration: 180 })
+    );
+  }, [t]);
+  const style = useAnimatedStyle(() => ({
+    transform: [{ scale: t.value }],
+    opacity: Math.min(1, t.value * 2),
+  }));
+  return (
+    <View style={styles.reachLayer} pointerEvents="none">
+      <Image
+        source={require("../../assets/images/fx/fx_victory.webp")}
+        style={[StyleSheet.absoluteFill, { opacity: 0.9 }]}
+        contentFit="cover"
+      />
+      <Animated.View style={[styles.reachBox, style]}>
+        <Text style={[styles.reachTitle, styles.reachTitleLong, { color: "#ffd54d" }]} numberOfLines={1} allowFontScaling={false}>
+          🔥 大逆転勝利！！
+        </Text>
+        <Text style={styles.reachSub}>崖っぷちからの見事な卒業！</Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** 入場バナー（リベンジマッチ／連勝の勢い） */
+function EntryBanner({ text }: { text: string }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withSequence(
+      withTiming(1, { duration: 260, easing: Easing.out(Easing.cubic) }),
+      withDelay(1200, withTiming(2, { duration: 260 }))
+    );
+  }, [t]);
+  const w = Dimensions.get("window").width;
+  const style = useAnimatedStyle(() => {
+    const p = t.value;
+    return {
+      transform: [{ translateX: p <= 1 ? -w * (1 - p) : w * (p - 1) }],
+      opacity: p <= 1 ? p : 2 - p,
+    };
+  });
+  return (
+    <View style={styles.entryBannerLayer} pointerEvents="none">
+      <Animated.View style={[styles.entryBanner, style]}>
+        <Text style={styles.entryBannerText} allowFontScaling={false}>
+          {text}
+        </Text>
+      </Animated.View>
+    </View>
+  );
+}
+
+/** インストラクター撃破の認定証（ハンコがドンと押される） */
+function CertificateFx({ name, onClose }: { name: string; onClose: () => void }) {
+  const inAnim = useSharedValue(0);
+  const stamp = useSharedValue(0);
+  useEffect(() => {
+    inAnim.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.cubic) });
+    stamp.value = withDelay(
+      700,
+      withSequence(withTiming(1.25, { duration: 140 }), withTiming(1, { duration: 120 }))
+    );
+    const t = setTimeout(() => {
+      playSe("hit");
+      haptic("heavy");
+    }, 760);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const boxStyle = useAnimatedStyle(() => ({
+    opacity: inAnim.value,
+    transform: [{ scale: 0.8 + inAnim.value * 0.2 }],
+  }));
+  const stampStyle = useAnimatedStyle(() => ({
+    opacity: stamp.value === 0 ? 0 : 1,
+    transform: [{ scale: stamp.value }, { rotate: "-12deg" }],
+  }));
+  return (
+    <Pressable style={styles.certLayer} onPress={onClose}>
+      <Animated.View style={[styles.certBox, boxStyle]}>
+        <Text style={styles.certTitle}>認　定　証</Text>
+        <Text style={styles.certBody}>{name}インストラクター 撃破</Text>
+        <Text style={styles.certDate}>{new Date().toLocaleDateString("ja-JP")}</Text>
+        <Text style={styles.certNote}>KDSトレーディングカードゲーム</Text>
+        <Animated.View style={[styles.certStamp, stampStyle]}>
+          <Text style={styles.certStampText}>認</Text>
+        </Animated.View>
+        <Text style={styles.certClose}>タップで閉じる</Text>
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+/** スタンプが相手側／自分側へ弧を描いて飛ぶ */
+function FlyingStamp({ emoji, up }: { emoji: string; up: boolean }) {
+  const t = useSharedValue(0);
+  useEffect(() => {
+    t.value = withTiming(1, { duration: 850, easing: Easing.inOut(Easing.quad) });
+  }, [t]);
+  const style = useAnimatedStyle(() => {
+    const p = t.value;
+    return {
+      transform: [
+        { translateY: up ? 260 - 520 * p : -260 + 520 * p },
+        { translateX: Math.sin(p * Math.PI) * 60 },
+        { scale: 0.8 + Math.sin(p * Math.PI) * 0.5 },
+      ],
+      opacity: p < 0.1 ? p * 10 : p > 0.9 ? (1 - p) * 10 : 1,
+    };
+  });
+  return (
+    <View style={styles.flyLayer} pointerEvents="none">
+      <Animated.Text style={[{ fontSize: 44 }, style]} allowFontScaling={false}>
+        {emoji}
+      </Animated.Text>
+    </View>
+  );
+}
+
+/** バトルで狙われているカードの怯え（小刻みな震え） */
+function Tremble({ active, children }: { active: boolean; children: React.ReactNode }) {
+  const x = useSharedValue(0);
+  useEffect(() => {
+    if (active) {
+      x.value = withRepeat(
+        withSequence(withTiming(-1.6, { duration: 55 }), withTiming(1.6, { duration: 55 })),
+        -1
+      );
+    } else {
+      x.value = withTiming(0, { duration: 80 });
+    }
+  }, [active, x]);
+  const style = useAnimatedStyle(() => ({ transform: [{ translateX: x.value }] }));
+  return <Animated.View style={style}>{children}</Animated.View>;
+}
+
+/** 出せる手札カードの金縁パルス */
+function GoldPulseBorder() {
+  const glow = useSharedValue(0.25);
+  useEffect(() => {
+    glow.value = withRepeat(
+      withSequence(withTiming(0.9, { duration: 700 }), withTiming(0.25, { duration: 700 })),
+      -1
+    );
+  }, [glow]);
+  const style = useAnimatedStyle(() => ({ opacity: glow.value }));
+  return <Animated.View style={[styles.goldPulseBorder, style]} pointerEvents="none" />;
+}
+
 /** 拡大表示の上部に出す「あなた」「CPU」バッジ */
 function OwnerBadge({ owner }: { owner: Owner }) {
   const isSelf = owner === "self";
@@ -4281,6 +4545,73 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff30",
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
+  entryBannerLayer: {
+    ...StyleSheet.absoluteFill,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 60,
+  },
+  entryBanner: {
+    alignSelf: "stretch",
+    backgroundColor: "#0b1226ee",
+    paddingVertical: 14,
+    alignItems: "center",
+    borderTopWidth: 2,
+    borderBottomWidth: 2,
+    borderColor: "#ffd54d",
+  },
+  entryBannerText: { color: "#ffd54d", fontSize: 24, fontWeight: "900", letterSpacing: 1 },
+  certLayer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#000000aa",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 80,
+  },
+  certBox: {
+    backgroundColor: "#fffdf4",
+    borderWidth: 4,
+    borderColor: "#b8973a",
+    borderRadius: 6,
+    paddingVertical: 28,
+    paddingHorizontal: 30,
+    alignItems: "center",
+    gap: 10,
+    width: 320,
+  },
+  certTitle: { fontSize: 26, fontWeight: "900", color: "#5a4a1a", letterSpacing: 8 },
+  certBody: { fontSize: 17, fontWeight: "800", color: "#333" },
+  certDate: { fontSize: 13, color: "#666" },
+  certNote: { fontSize: 11, color: "#999" },
+  certStamp: {
+    position: "absolute",
+    right: 18,
+    bottom: 34,
+    width: 62,
+    height: 62,
+    borderRadius: 31,
+    borderWidth: 3,
+    borderColor: "#d83030",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  certStampText: { fontSize: 30, fontWeight: "900", color: "#d83030" },
+  certClose: { fontSize: 11, color: "#999", marginTop: 4 },
+  reconnectBand: {
+    backgroundColor: "#d83030",
+    paddingVertical: 6,
+    alignItems: "center",
+    borderRadius: 8,
+    marginTop: 4,
+  },
+  reconnectText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  goldPulseBorder: {
+    ...StyleSheet.absoluteFill,
+    borderWidth: 2.5,
+    borderColor: "#ffd54d",
+    borderRadius: 8,
+    zIndex: 2,
+  },
   flyLayer: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",
