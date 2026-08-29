@@ -449,6 +449,8 @@ export default function BattleScreen() {
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
+  // バトル相手を選ぶとき、いきなり決定せず詳細を確認してから仕掛ける
+  const [targetPreview, setTargetPreview] = useState<{ uid: string; cardId: string } | null>(null);
   const [previewHandIndex, setPreviewHandIndex] = useState<number | null>(null);
   const [revealedHand, setRevealedHand] = useState<string[] | null>(null);
   const [detail, setDetail] = useState<{ cardId: string; owner?: Owner } | null>(null);
@@ -1330,6 +1332,7 @@ export default function BattleScreen() {
   const doAction = (action: GameAction) => {
     setSelectedUid(null);
     setTargetingUid(null);
+    setTargetPreview(null);
     setPreviewHandIndex(null);
     setChoicePreview(null);
     dispatch(action);
@@ -1548,12 +1551,12 @@ export default function BattleScreen() {
           highlightColor={colors.target}
           onPress={(uid) => {
             if (targetingUid && battleTargets(targetingUid).has(uid)) {
-              doAction({
-                type: "declareBattle",
-                player: ME,
-                attackerUid: targetingUid,
-                defenderUid: uid,
-              });
+              // いきなり決定せず、カードの詳細と戦闘力の比較を見せてから仕掛ける
+              const inst = cpu.field.find((f) => f.uid === uid);
+              if (inst) {
+                haptic("light");
+                setTargetPreview({ uid, cardId: inst.cardId });
+              }
             } else if (!targetingUid) {
               const inst = cpu.field.find((f) => f.uid === uid);
               if (inst) setDetailCardId(inst.cardId, "cpu");
@@ -1697,7 +1700,9 @@ export default function BattleScreen() {
         )}
         {targetingUid && (
           <View style={styles.battleBanner}>
-            <Text style={styles.battleText}>バトルする相手（休憩中）を選んでください</Text>
+            <Text style={styles.battleText}>
+              バトルする相手（休憩中）を選んでください{"\n"}タップすると詳細を確認してから仕掛けられます
+            </Text>
             <ActionButton
               label="キャンセル"
               color={colors.textMuted}
@@ -2493,6 +2498,62 @@ export default function BattleScreen() {
       })()}
 
       {/* カード詳細は他のオーバーレイの上に重ねる（最後に描画する） */}
+      {targetPreview && targetingUid && (
+        <Overlay
+          title={`${getCard(targetPreview.cardId).name} にバトル？`}
+          onClose={() => setTargetPreview(null)}
+        >
+          <OwnerBadge owner="cpu" />
+          <CardDetail cardId={targetPreview.cardId} />
+          {/* 戦闘力の比較（いまの修正値込み） */}
+          {(() => {
+            const atkInst = me.field.find((f) => f.uid === targetingUid);
+            const defInst = cpu.field.find((f) => f.uid === targetPreview.uid);
+            if (!atkInst || !defInst) return null;
+            const atkPow = effectiveCombatFromView(ctx, view, ME, atkInst);
+            const defPow = effectiveCombatFromView(ctx, view, OPP, defInst);
+            return (
+              <View style={styles.targetCompareRow}>
+                <Text style={styles.targetCompareText} allowFontScaling={false}>
+                  ⚔️ あなたの「{getCard(atkInst.cardId).name}」 戦闘力{" "}
+                  <Text style={styles.targetCompareNum}>{atkPow}</Text>
+                  {"  vs  "}
+                  <Text style={styles.targetCompareNum}>{defPow}</Text>
+                  {" 相手"}
+                </Text>
+                <Text style={styles.targetCompareHint} allowFontScaling={false}>
+                  {atkPow > defPow
+                    ? "このままなら勝てる！（サポートで逆転されることもあります）"
+                    : atkPow === defPow
+                      ? "同じ戦闘力。このままだと相打ちに！"
+                      : "このままだと負ける…サポートカードでの上乗せが必要かも"}
+                </Text>
+              </View>
+            );
+          })()}
+          <ActionButton
+            label="⚔️ このカードにバトルを仕掛ける！"
+            color={colors.danger}
+            onPress={() => {
+              const uid = targetPreview.uid;
+              const atk = targetingUid;
+              if (!atk) return;
+              doAction({
+                type: "declareBattle",
+                player: ME,
+                attackerUid: atk,
+                defenderUid: uid,
+              });
+            }}
+          />
+          <ActionButton
+            label="やめておく（ほかのカードも見られます）"
+            color={colors.textMuted}
+            onPress={() => setTargetPreview(null)}
+          />
+        </Overlay>
+      )}
+
       {detailCardId && (
         <Overlay title={getCard(detailCardId).name} onClose={() => setDetailCardId(null)}>
           {detail?.owner && <OwnerBadge owner={detail.owner} />}
@@ -5580,6 +5641,18 @@ const styles = StyleSheet.create({
     padding: 0,
     alignItems: "stretch",
   },
+  targetCompareRow: {
+    alignSelf: "stretch",
+    backgroundColor: "#f4f0e6",
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    gap: 4,
+    alignItems: "center",
+  },
+  targetCompareText: { color: "#3a3a3a", fontSize: 13, fontWeight: "800", textAlign: "center" },
+  targetCompareNum: { color: "#c22525", fontSize: 17, fontWeight: "900" },
+  targetCompareHint: { color: "#7a6a4a", fontSize: 11, fontWeight: "700", textAlign: "center" },
   chainBadge: {
     position: "absolute",
     top: "16%",
