@@ -1788,7 +1788,16 @@ export default function BattleScreen() {
                 { backgroundColor: currentAnn.mine ? colors.success : colors.danger },
               ]}
             >
-              <Text style={styles.turnFxText}>{currentAnn.text}</Text>
+              <Text
+                style={[
+                  styles.turnFxText,
+                  // 「◯◯インストラクターのターン」など長い名前でも1行に収める
+                  currentAnn.text.length > 9 && styles.turnFxTextLong,
+                ]}
+                numberOfLines={1}
+              >
+                {currentAnn.text}
+              </Text>
               <TurnCar mine={currentAnn.mine ?? false} />
             </Animated.View>
           ) : currentAnn.cardId ? (
@@ -4669,6 +4678,8 @@ const styles = StyleSheet.create({
     fontSize: 32,
     fontWeight: "900",
     letterSpacing: 2,
+    maxWidth: "94%",
+    textAlign: "center",
     textShadowColor: "#0006",
     textShadowRadius: 6,
   },
@@ -4860,6 +4871,7 @@ const styles = StyleSheet.create({
   },
   certStampText: { fontSize: 30, fontWeight: "900", color: "#d83030" },
   certClose: { fontSize: 11, color: "#999", marginTop: 4 },
+  turnFxTextLong: { fontSize: 21, letterSpacing: 0.5 },
   turnCounter: {
     position: "absolute",
     top: 2,
