@@ -452,6 +452,19 @@ function StatsPanel() {
     };
     scans: { total: number; topCards: { cardId: string; count: number }[] };
     hourly?: { cpu: number[]; online: number[] };
+    line?: {
+      linkedDevices: number;
+      knownStateDevices: number;
+      totalDevices: number;
+      rate: number | null;
+      active7: { linked: number; known: number };
+      rate7: number | null;
+      active30: { linked: number; known: number };
+      rate30: number | null;
+      linkActionsTotal: number;
+      linkActionsToday: number;
+      daily: { date: string; links: number }[];
+    };
     cardUsage?: { cardId: string; matches: number; wins: number }[];
     bestPairs?: { pair: string[]; matches: number; wins: number }[];
     env: Record<string, { opens: number; matches: number }>;
@@ -578,6 +591,49 @@ function StatsPanel() {
               {i + 1}. {allCards.find((x) => x.id === c.cardId)?.name ?? c.cardId}（{c.count}回）
             </Text>
           ))}
+
+          <Text style={styles.sectionTitle}>💚 LINE連携の分析</Text>
+          {stats.line ? (
+            <>
+              <Text style={styles.statLine}>
+                連携済み端末: {stats.line.linkedDevices} / 状態が分かる端末 {stats.line.knownStateDevices}
+                {stats.line.rate !== null ? `（連携率 ${Math.round(stats.line.rate * 100)}%）` : ""}
+              </Text>
+              <Text style={styles.statLine}>
+                未連携端末: {Math.max(0, stats.line.knownStateDevices - stats.line.linkedDevices)}
+                ／ 状態不明（古い版のまま）: {Math.max(0, stats.line.totalDevices - stats.line.knownStateDevices)}
+              </Text>
+              <Text style={styles.statLine}>
+                直近7日のアクティブ: 連携 {stats.line.active7.linked} / {stats.line.active7.known}
+                {stats.line.rate7 !== null ? `（${Math.round(stats.line.rate7 * 100)}%）` : ""}
+              </Text>
+              <Text style={styles.statLine}>
+                直近30日のアクティブ: 連携 {stats.line.active30.linked} / {stats.line.active30.known}
+                {stats.line.rate30 !== null ? `（${Math.round(stats.line.rate30 * 100)}%）` : ""}
+              </Text>
+              <Text style={styles.statLine}>
+                連携アクション（コード入力等の実行数）: 累計 {stats.line.linkActionsTotal} ／ 今日 {stats.line.linkActionsToday}
+              </Text>
+              {stats.line.daily.some((d) => d.links > 0) && (
+                <>
+                  <Text style={styles.note}>日別の新規連携（直近14日）</Text>
+                  {stats.line.daily
+                    .filter((d) => d.links > 0)
+                    .map((d) => (
+                      <Text key={d.date} style={styles.statLine}>
+                        {d.date.slice(5)}: {d.links}件
+                      </Text>
+                    ))}
+                </>
+              )}
+              <Text style={styles.note}>
+                連携率は「連携状態を送ってきた端末」のうち連携済みの割合です。
+                現在は全員が既定で連携済みのため、ロック運用を始めると実際の連携率になります。
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.note}>まだデータがありません（アプリの起動が集まると表示されます）</Text>
+          )}
 
           <Text style={styles.sectionTitle}>⏰ 時間帯別の対戦数（日本時間）</Text>
           <Text style={styles.note}>

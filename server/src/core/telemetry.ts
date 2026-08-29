@@ -11,7 +11,9 @@ import path from "node:path";
  */
 
 export interface TrackEvent {
-  type: "appOpen" | "match" | "scan";
+  type: "appOpen" | "match" | "scan" | "lineLink";
+  /** appOpen に添付されるLINE連携状態 */
+  line?: boolean;
   deviceId: string;
   env: string; // prod / dev / app など
   platform?: string;
@@ -33,6 +35,8 @@ interface DailyStat {
   scans: number;
   devices: string[];
 }
+
+interface DeviceExtra { line?: boolean }
 
 interface Aggregates {
   devices: Record<string, { first: string; last: string; env: string }>;
@@ -60,6 +64,8 @@ interface Aggregates {
   envTotals: Record<string, { opens: number; matches: number }>;
   /** 時間帯別（日本時間0〜23時）の対戦数 */
   hourly: { cpu: number[]; online: number[] };
+  /** LINE連携の実行数（累計と日別） */
+  lineLinks?: { total: number; daily: Record<string, number> };
 }
 
 const MAX_DEVICES = 20000;
@@ -90,6 +96,7 @@ function emptyAggregates(): Aggregates {
     pairUsage: {},
     envTotals: {},
     hourly: { cpu: new Array(24).fill(0), online: new Array(24).fill(0) },
+    lineLinks: { total: 0, daily: {} },
   };
 }
 
@@ -138,7 +145,7 @@ export class Telemetry {
   track(raw: unknown): boolean {
     const e = raw as TrackEvent;
     if (!e || typeof e !== "object") return false;
-    if (e.type !== "appOpen" && e.type !== "match" && e.type !== "scan") return false;
+    if (e.type !== "appOpen" && e.type !== "match" && e.type !== "scan" && e.type !== "lineLink") return false;
     const deviceId = String(e.deviceId ?? "").slice(0, 64);
     if (!deviceId) return false;
     const env = String(e.env ?? "prod").slice(0, 16);
@@ -150,8 +157,11 @@ export class Telemetry {
     const known = this.agg.devices[deviceId];
     if (known) {
       known.last = nowIso;
+      if (typeof e.line === "boolean") (known as unknown as DeviceExtra).line = e.line;
     } else if (Object.keys(this.agg.devices).length < MAX_DEVICES) {
-      this.agg.devices[deviceId] = { first: nowIso, last: nowIso, env };
+      const rec = { first: nowIso, last: nowIso, env } as (typeof this.agg.devices)[string];
+      if (typeof e.line === "boolean") (rec as unknown as DeviceExtra).line = e.line;
+      this.agg.devices[deviceId] = rec;
     }
     if (day.devices.length < MAX_DAILY_DEVICES && !day.devices.includes(deviceId)) {
       day.devices.push(deviceId);
@@ -162,6 +172,13 @@ export class Telemetry {
       this.agg.totals.appOpens++;
       day.opens++;
       envT.opens++;
+    } else if (e.type === "lineLink") {
+      // LINE連携の実行（コード入力やログインの成功）
+      this.agg.lineLinks ??= { total: 0, daily: {} };
+      this.agg.lineLinks.total++;
+      this.agg.lineLinks.daily[date] = (this.agg.lineLinks.daily[date] ?? 0) + 1;
+      const dev = this.agg.devices[deviceId] as unknown as DeviceExtra | undefined;
+      if (dev) dev.line = true;
     } else if (e.type === "match") {
       this.agg.totals.matches++;
       day.matches++;
@@ -282,8 +299,50 @@ export class Telemetry {
       .sort((x, y) => y[1] - x[1])
       .slice(0, 10)
       .map(([cardId, count]) => ({ cardId, count }));
+    // LINE連携の集計（端末のline状態はappOpenごとに更新されている）
+    const allDevices = Object.entries(a.devices);
+    const linkedDevices = allDevices.filter(([, d]) => (d as unknown as DeviceExtra).line === true).length;
+    const knownStateDevices = allDevices.filter(
+      ([, d]) => typeof (d as unknown as DeviceExtra).line === "boolean"
+    ).length;
+    const activeIds = (n: number) => {
+      const set = new Set<string>();
+      for (const date of lastNDates(n)) for (const id of a.daily[date]?.devices ?? []) set.add(id);
+      return set;
+    };
+    const linkedIn = (n: number) => {
+      let linked = 0;
+      let known = 0;
+      for (const id of activeIds(n)) {
+        const d = a.devices[id] as unknown as DeviceExtra | undefined;
+        if (!d || typeof d.line !== "boolean") continue;
+        known++;
+        if (d.line) linked++;
+      }
+      return { linked, known };
+    };
+    const l7 = linkedIn(7);
+    const l30 = linkedIn(30);
+    const lineDaily = lastNDates(14).map((date) => ({
+      date,
+      links: a.lineLinks?.daily?.[date] ?? 0,
+    }));
+
     return {
       generatedAt: this.now().toISOString(),
+      line: {
+        linkedDevices,
+        knownStateDevices,
+        totalDevices: allDevices.length,
+        rate: knownStateDevices > 0 ? linkedDevices / knownStateDevices : null,
+        active7: l7,
+        rate7: l7.known > 0 ? l7.linked / l7.known : null,
+        active30: l30,
+        rate30: l30.known > 0 ? l30.linked / l30.known : null,
+        linkActionsTotal: a.lineLinks?.total ?? 0,
+        linkActionsToday: a.lineLinks?.daily?.[today] ?? 0,
+        daily: lineDaily,
+      },
       hourly: {
         cpu: a.hourly?.cpu ?? new Array(24).fill(0),
         online: a.hourly?.online ?? new Array(24).fill(0),

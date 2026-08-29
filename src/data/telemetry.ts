@@ -54,7 +54,7 @@ function envName(): string | null {
 
 /** イベントを1件送る（失敗してもアプリの動作には影響させない） */
 export function trackEvent(
-  type: "appOpen" | "match" | "scan",
+  type: "appOpen" | "match" | "scan" | "lineLink",
   payload: Record<string, unknown> = {}
 ): void {
   const env = envName();
