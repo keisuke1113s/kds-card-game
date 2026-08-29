@@ -14,6 +14,9 @@ import React from "react";
 const BASE = (process.env.EXPO_BASE_URL ?? "").replace(/\/$/, "");
 const asset = (path: string) => `${BASE}/${path}`;
 
+// 起動画面で回すカード裏面（assets/cards_small/cardback.webp を埋め込み）
+const CARDBACK_DATA_URI = "data:image/webp;base64,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";
+
 const APP_NAME = "KDSトレーディングカードゲーム";
 // ホーム画面のアイコン下に出る名前（アプリ名と同じにそろえる）
 const HOME_SCREEN_NAME = APP_NAME;
@@ -109,16 +112,14 @@ window.addEventListener('appinstalled', function () {
   to   { transform: scale(1);   opacity: 1; }
 }
 #kds-boot .kds-sub { font-size: 13px; font-weight: 700; color: #4a5b7a; }
-/* カード裏面がクルクル回るローディング */
+/* カード裏面がクルクル回るローディング。
+ * 画像は data URI で HTML に埋め込んであるため、通信状態に関係なく必ず出る */
 #kds-boot .kds-spinner {
-  width: 44px; height: 62px; border-radius: 6px;
+  width: 46px; height: 64px; border-radius: 6px;
   background: linear-gradient(150deg, #1e5aa8 0%, #123c78 100%);
-  border: 2px solid #e4a018;
-  display: flex; align-items: center; justify-content: center;
-  color: #fff; font-size: 11px; font-weight: 900; letter-spacing: 1px;
+  box-shadow: 0 4px 14px rgba(20, 50, 100, .3);
   animation: kds-cardflip 1.6s ease-in-out infinite;
 }
-#kds-boot .kds-spinner::after { content: "KDS"; }
 /* 3D回転（rotateY）だと真横を向いた瞬間や描画の相性でカードが
  * 見えなくなる端末があるため、常に見えている2D回転にしている */
 @keyframes kds-cardflip {
@@ -156,7 +157,7 @@ window.addEventListener('appinstalled', function () {
             <span style={{ color: "#d83030" }}>楽しく</span>
             <span style={{ color: "#16283c" }}>なる!!</span>
           </div>
-          <div className="kds-spinner" />
+          <img className="kds-spinner" src={CARDBACK_DATA_URI} alt="" />
           <div className="kds-sub">読み込んでいます…</div>
         </div>
         {children}
