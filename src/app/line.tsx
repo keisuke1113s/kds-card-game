@@ -6,7 +6,8 @@ import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { AppButton } from "@/components/AppButton";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { LINE_FRIEND_URL, isValidLinkCode } from "@/data/lineConfig";
+import { LINE_FRIEND_URL, LINE_LINK_CODES, isValidLinkCode } from "@/data/lineConfig";
+import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { useLineStore } from "@/store/lineStore";
 import { colors, radius, spacing } from "@/theme";
@@ -124,6 +125,12 @@ export default function LineScreen() {
                 友だち追加すると、LINEに「連携コード」が届きます。
                 届かないときはトークで「トレカ連携」と送ってみてね。
               </Text>
+              {/* テスト期間中だけ、動作チェック用にコードをそのまま見せる */}
+              {ALL_CARDS_OPEN_FOR_TESTING && (
+                <Text style={styles.testCode} selectable>
+                  🔧 動作チェック用コード: <Text style={{ fontWeight: "900" }}>{LINE_LINK_CODES[0]}</Text>
+                </Text>
+              )}
               <TextInput
                 style={styles.codeInput}
                 value={code}
@@ -204,4 +211,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
   },
   error: { fontSize: 12, color: colors.danger, fontWeight: "700" },
+  testCode: {
+    fontSize: 12,
+    color: "#8a6d00",
+    backgroundColor: "#fff7e0",
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    overflow: "hidden",
+  },
 });

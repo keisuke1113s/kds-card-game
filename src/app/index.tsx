@@ -1235,6 +1235,7 @@ const styles = StyleSheet.create({
   dailyQButtonDone: { backgroundColor: "#e9f5e2", borderColor: "#78b424" },
   dailyQButtonTextDone: { color: "#4e7d16" },
   lineBanner: {
+    marginTop: 10,
     backgroundColor: "#06C755",
     borderRadius: radius.md,
     paddingVertical: 10,

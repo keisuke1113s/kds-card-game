@@ -15,12 +15,25 @@ interface LineState {
 export const useLineStore = create<LineState>()(
   persist(
     (set) => ({
-      linked: false,
-      linkedAt: "",
+      // いまは全員「連携済み」から始める（ロックなしで全機能が使える）。
+      // 本格運用でロックを効かせるときは false に変えて migrate を上げる
+      linked: true,
+      linkedAt: new Date().toISOString().slice(0, 10),
       setLinked: () => set({ linked: true, linkedAt: new Date().toISOString().slice(0, 10) }),
       unlink: () => set({ linked: false, linkedAt: "" }),
     }),
-    { name: "kds-line", storage: createJSONStorage(() => AsyncStorage), version: 1 }
+    {
+      name: "kds-line",
+      storage: createJSONStorage(() => AsyncStorage),
+      version: 2,
+      // v1→v2: 既存端末（テストで未連携にした端末も含む）を連携済みに揃える
+      migrate: (persisted) => {
+        const s = persisted as Partial<LineState>;
+        s.linked = true;
+        if (!s.linkedAt) s.linkedAt = new Date().toISOString().slice(0, 10);
+        return s as LineState;
+      },
+    }
   )
 );
 
