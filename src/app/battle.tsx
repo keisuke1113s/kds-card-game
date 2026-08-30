@@ -6272,18 +6272,15 @@ function Overlay({
         entering={entering === "bounce" ? BounceIn.duration(500) : ZoomIn.duration(200)}
       >
         <Text style={styles.overlayTitle}>{title}</Text>
-        {translucent ? (
-          // 中身が画面より長いときは箱の中でスクロールさせ、箱の外へはみ出させない
-          <ScrollView
-            style={styles.overlayScroll}
-            contentContainerStyle={styles.overlayScrollInner}
-            showsVerticalScrollIndicator={false}
-          >
-            {children}
-          </ScrollView>
-        ) : (
-          children
-        )}
+        {/* 中身が画面より長いときは箱の中でスクロールさせ、
+            途中で切れたり箱の外へはみ出したりしないようにする */}
+        <ScrollView
+          style={styles.overlayScroll}
+          contentContainerStyle={styles.overlayScrollInner}
+          showsVerticalScrollIndicator={true}
+        >
+          {children}
+        </ScrollView>
       </Animated.View>
     </Animated.View>
   );
@@ -7472,6 +7469,7 @@ const styles = StyleSheet.create({
     maxHeight: "100%",
     gap: 14,
     alignItems: "center",
+    overflow: "hidden",
   },
   overlayBgLight: { backgroundColor: "#00000026" },
   overlayBoxTranslucent: { backgroundColor: colors.surface + "80", overflow: "hidden" },
