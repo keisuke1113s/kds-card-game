@@ -86,7 +86,7 @@ import { useRankStore } from "@/store/rankStore";
 import { DEFAULT_SERVER_URL } from "@/app/online";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTournamentStore } from "@/store/tournamentStore";
-import { startFrameWatch, usePerfStore } from "@/perf";
+import { setPerfScene, startFrameWatch, usePerfStore } from "@/perf";
 import { colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
@@ -1576,6 +1576,31 @@ export default function BattleScreen() {
 
   // 開幕（と引き直し）に、山札から手札を配る演出
   const [dealing, setDealing] = useState<{ key: number; cards: string[] } | null>(null);
+
+  // 遅延ログ用: いま画面に出ている演出の名前を perf に知らせる
+  useEffect(() => {
+    setPerfScene(
+      finishedOutcome
+        ? resultShown
+          ? "結果画面"
+          : "決着演出"
+        : dealing
+          ? "配り"
+          : vsIntro
+            ? "VS"
+            : jankenActive
+              ? "じゃんけん"
+              : outFx
+                ? "場外"
+                : drawFx
+                  ? "ドロー"
+                  : currentAnn
+                    ? `実況:${currentAnn.finalBlow ? "決着の一手" : currentAnn.kind}`
+                    : flyFx.length > 0
+                      ? "カード移動"
+                      : "待機"
+    );
+  }, [finishedOutcome, resultShown, dealing, vsIntro, jankenActive, outFx, drawFx, currentAnn, flyFx.length]);
   const dealtRef = useRef("");
   useEffect(() => {
     if (!view || view.phase.type !== "mulligan") return;
