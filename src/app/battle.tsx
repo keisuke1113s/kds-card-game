@@ -729,8 +729,6 @@ function BattleInner() {
   const wipeDoneRef = useRef(false);
   const dealDoneRef = useRef(false);
   const vsShownRef = useRef(false);
-  // 検定開始アナウンス（VSの後に「準備はいいですか？…始め！」）
-  const [examBand, setExamBand] = useState(false);
   const showVsIntro = useCallback(() => {
     if (vsShownRef.current || replayActive) return;
     vsShownRef.current = true;
@@ -2550,22 +2548,13 @@ function BattleInner() {
           }}
         />
       )}
-      {examBand && (
-        <ExamStartBand
-          final={tournamentMatch && useTournamentStore.getState().stage >= 3}
-          onDone={() => {
-            setExamBand(false);
-            fireEntryBanner();
-          }}
-        />
-      )}
       {vsIntro && (
         <VsIntro
           oppName={oppLabel}
           kyokanCardId={kyokanDef?.cardId}
           onDone={() => {
             setVsIntro(false);
-            setExamBand(true);
+            fireEntryBanner();
           }}
         />
       )}
@@ -6190,48 +6179,6 @@ function KenteiHanko({ pass }: { pass: boolean }) {
   );
 }
 
-/** 検定員のアナウンス帯。「準備はいいですか？ → 始めてください！」の2段階 */
-function ExamStartBand({ final, onDone }: { final: boolean; onDone: () => void }) {
-  const [step, setStep] = useState(0);
-  useEffect(() => {
-    playSe("janken");
-    if (final) playVoice("voice_kentei");
-    const t1 = setTimeout(() => {
-      setStep(1);
-      playSe("battle");
-      haptic("medium");
-    }, 900);
-    const t2 = setTimeout(onDone, 1900);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return (
-    <View style={styles.examLayer} pointerEvents="none">
-      <Animated.View
-        key={step}
-        entering={step === 0 ? SlideInLeft.duration(260) : ZoomIn.springify().damping(11)}
-        style={[styles.examBand, final && styles.examBandFinal]}
-      >
-        <Text style={styles.examBandText} allowFontScaling={false}>
-          {final
-            ? step === 0
-              ? "🎓 卒業検定"
-              : "始めてください！"
-            : step === 0
-              ? "準備はいいですか？"
-              : "始めてください！"}
-        </Text>
-        {final && step === 0 && (
-          <Text style={styles.examBandSub} allowFontScaling={false}>トーナメント決勝戦</Text>
-        )}
-      </Animated.View>
-    </View>
-  );
-}
-
 function VsIntro({
   oppName,
   kyokanCardId,
@@ -6890,25 +6837,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff30",
   },
   restedCard: { transform: [{ rotate: "90deg" }] },
-  examLayer: {
-    ...StyleSheet.absoluteFill,
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 60,
-  },
-  examBand: {
-    backgroundColor: "#1c3a5ee8",
-    paddingVertical: 14,
-    paddingHorizontal: 30,
-    borderRadius: 14,
-    alignItems: "center",
-    gap: 2,
-    borderWidth: 2,
-    borderColor: "#ffffff55",
-  },
-  examBandFinal: { backgroundColor: "#7a5a00e8", borderColor: "#ffd54d" },
-  examBandText: { color: "#fff", fontSize: 24, fontWeight: "900", letterSpacing: 2 },
-  examBandSub: { color: "#ffd54d", fontSize: 12, fontWeight: "800" },
   entryBannerLayer: {
     ...StyleSheet.absoluteFill,
     alignItems: "center",
