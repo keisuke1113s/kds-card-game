@@ -45,7 +45,7 @@ import {
   pauseBgm,
   playBgm,
   playSe,
-  playVoice,
+  hasCardVoice, playCardVoice, playVoice,
   stopBgm,
   warmVoices,
   type VoiceKey,
@@ -58,6 +58,10 @@ import { allCards, cardRegistry, getCard } from "@/data/cards";
 const MAX_COMBAT = Math.max(...allCards.map((c) => c.combat ?? 0));
 /** 全カード中の最高教習力（「教え上手の登場」ボイスの基準） */
 const MAX_LESSON = Math.max(...allCards.map((c) => c.lesson ?? 0));
+/** カード個別実況を「登場時」ではなく効果の瞬間に鳴らす特例
+ *  （台詞が退場時・起動効果の文脈になっているカード） */
+const CARD_VOICE_ON_REMOVE = new Set(["i_sasaki", "i_umemoto"]);
+const CARD_VOICE_ON_ABILITY = new Set(["i_kuji"]);
 import { GameEvent, PlayerView, Track } from "@/engine/types";
 
 import {
@@ -769,10 +773,19 @@ function BattleInner() {
       }
     }
     if (adds.length > 0 && fxScaleRef.current > 0.6) setFlyFx((q) => [...q.slice(-4), ...adds]);
-    // 自分のサポート発動・担当の力のひとこと（実況チャンネルが重なりを防ぐ）
-    if (lastEvents.some((e) => e.type === "supportPlayed" && e.player === ME)) {
+    // 自分のサポート発動・担当の力のひとこと（実況チャンネルが重なりを防ぐ）。
+    // カード個別の専用実況があるカードはそちらに譲る
+    if (
+      lastEvents.some(
+        (e) => e.type === "supportPlayed" && e.player === ME && !hasCardVoice(e.cardId)
+      )
+    ) {
       playVoice("voice_support");
-    } else if (lastEvents.some((e) => e.type === "abilityActivated" && e.player === ME)) {
+    } else if (
+      lastEvents.some(
+        (e) => e.type === "abilityActivated" && e.player === ME && !hasCardVoice(e.cardId)
+      )
+    ) {
       playVoice("voice_ability");
     }
     // 効果発動カードの金フラッシュ。連鎖したときは順番に1枚ずつ光らせる
@@ -1224,6 +1237,8 @@ function BattleInner() {
     pursuitArmed: false,
     pursuitFired: false,
     chanceOn: false,
+    /** カード個別実況を鳴らしたカード（1対戦1回まで） */
+    cardVoicePlayed: new Set<string>(),
     // ---- 第1・4・5弾 ----
     firstBattleSeen: false,
     straightTurn: 0,
@@ -1254,22 +1269,55 @@ function BattleInner() {
           if (e.player === ME && e.cardId) R.drawnThisTurn.push(e.cardId);
           break;
         case "instructorPlayed": {
+          // カード個別実況（両者の登場が対象・1対戦1回・汎用ボイスより優先）
+          let cardVoiced = false;
+          if (
+            !R.cardVoicePlayed.has(e.cardId) &&
+            !CARD_VOICE_ON_REMOVE.has(e.cardId) &&
+            !CARD_VOICE_ON_ABILITY.has(e.cardId) &&
+            playCardVoice(e.cardId)
+          ) {
+            R.cardVoicePlayed.add(e.cardId);
+            cardVoiced = true;
+          }
           if (e.player !== ME) break;
           // 開幕ダッシュ（自分の最初の手番でいきなり配置）
           if (!R.openingFired && view.turnNumber <= 2) {
             R.openingFired = true;
-            playVoice("voice_opening");
+            if (!cardVoiced) playVoice("voice_opening");
           }
-          // エース登場（最高戦闘力）／教え上手（最高教習力）
-          if ((getCard(e.cardId).combat ?? 0) >= MAX_COMBAT) playVoice("voice_ace");
-          else if ((getCard(e.cardId).lesson ?? 0) >= MAX_LESSON) playVoice("voice_teacher");
-          // 引いたカードを同じターンに即投入
-          if (R.drawnThisTurn.includes(e.cardId)) playVoice("voice_topdeck");
+          // エース登場（最高戦闘力）／教え上手（最高教習力）。専用実況があれば譲る
+          if (!cardVoiced) {
+            if ((getCard(e.cardId).combat ?? 0) >= MAX_COMBAT) playVoice("voice_ace");
+            else if ((getCard(e.cardId).lesson ?? 0) >= MAX_LESSON) playVoice("voice_teacher");
+            // 引いたカードを同じターンに即投入
+            if (R.drawnThisTurn.includes(e.cardId)) playVoice("voice_topdeck");
+          }
           // 怒涛の増援（1ターンに2枚出し）
           R.playedThisTurn++;
           if (R.playedThisTurn === 2) playVoice("voice_reinforce");
           break;
         }
+        case "instructorRemoved":
+          // 退場時効果カードの専用実況（佐々木・梅本など）
+          if (
+            CARD_VOICE_ON_REMOVE.has(e.cardId) &&
+            !R.cardVoicePlayed.has(e.cardId) &&
+            playCardVoice(e.cardId)
+          ) {
+            R.cardVoicePlayed.add(e.cardId);
+          }
+          break;
+        case "abilityActivated":
+          // 起動効果カードの専用実況（久慈など）
+          if (
+            CARD_VOICE_ON_ABILITY.has(e.cardId) &&
+            !R.cardVoicePlayed.has(e.cardId) &&
+            playCardVoice(e.cardId)
+          ) {
+            R.cardVoicePlayed.add(e.cardId);
+          }
+          break;
         case "jankenPlayed":
           // カード効果のじゃんけん（小田など）: 運のドラマに声を付ける
           if (e.owner === ME) playVoice(e.won ? "voice_lucky" : "voice_unlucky");
@@ -1304,6 +1352,10 @@ function BattleInner() {
           break;
         }
         case "supportPlayed":
+          // サポートカードの個別実況（両者・1対戦1回）
+          if (!R.cardVoicePlayed.has(e.cardId) && playCardVoice(e.cardId)) {
+            R.cardVoicePlayed.add(e.cardId);
+          }
           if (R.battle) {
             R.battle.supportTotal++;
             if (e.player === ME) R.battle.mySupport++;
@@ -1500,6 +1552,7 @@ function BattleInner() {
       pursuitArmed: false,
       pursuitFired: false,
       chanceOn: false,
+      cardVoicePlayed: new Set<string>(),
       firstBattleSeen: false,
       straightTurn: 0,
       straightTracks: new Set<string>(),

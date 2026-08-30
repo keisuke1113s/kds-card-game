@@ -377,8 +377,9 @@ export function warmVoices(): void {
   if (!st.seEnabled || !st.voiceEnabled) return;
   voicesWarmed = true;
   const keys = Object.keys(seAssets).filter((k) => k.startsWith("voice_"));
+  // カード個別実況も含めて本数が多いので、間隔は短めに刻む。
   // 読み込み中はカクつき計測から外すため、終わる見込み時刻を控えておく
-  voicesWarmingUntil = Date.now() + keys.length * 250 + 2000;
+  voicesWarmingUntil = Date.now() + keys.length * 120 + 2000;
   const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => void })
     .requestIdleCallback;
   keys.forEach((key, i) => {
@@ -399,8 +400,23 @@ export function warmVoices(): void {
       };
       if (ric) ric(load);
       else load();
-    }, 250 * i);
+    }, 120 * i);
   });
+}
+
+/** カード個別実況（voice_c_<カードID>.wav）が用意されているか */
+export function hasCardVoice(cardId: string): boolean {
+  return seAssets[`voice_c_${cardId}`] !== undefined;
+}
+
+/**
+ * カード個別実況を鳴らす。音声が用意されているカードだけ true を返す
+ * （鳴らすかどうかの判定と、汎用ボイスを譲るかの判定に使う）
+ */
+export function playCardVoice(cardId: string): boolean {
+  if (!hasCardVoice(cardId)) return false;
+  playVoice(`voice_c_${cardId}` as VoiceKey);
+  return true;
 }
 
 /** 実況が重ならないための1チャンネル制。再生が終わる見込み時刻まで次を断る */
