@@ -14,6 +14,7 @@ import { evaluateAchievements, useAchievementStore } from "@/store/achievementSt
 import { ReplayData, useRecordStore } from "@/store/recordStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
+import { noteCommitMs } from "@/perf";
 import { getDeviceId, trackEvent } from "@/data/telemetry";
 import { useRankStore } from "@/store/rankStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -541,6 +542,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
   function applyAndContinue(action: GameAction) {
     const prev = get().state;
     if (!prev) return;
+    // 1手の適用〜画面反映までの時間を計測する（性能ログ用）
+    const commitStart =
+      typeof performance !== "undefined" && typeof requestAnimationFrame === "function"
+        ? performance.now()
+        : 0;
+    if (commitStart) {
+      requestAnimationFrame(() => noteCommitMs(performance.now() - commitStart));
+    }
     // リプレイ用に全アクションを順番どおり控える（CPU対戦のみ）
     if (matchMeta?.mode === "cpu" && !get().replayActive) {
       matchMeta.replayActions.push(action);
