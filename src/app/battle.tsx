@@ -56,6 +56,8 @@ import { allCards, cardRegistry, getCard } from "@/data/cards";
 
 /** 全カード中の最高戦闘力（「エース登場」ボイスの基準） */
 const MAX_COMBAT = Math.max(...allCards.map((c) => c.combat ?? 0));
+/** 全カード中の最高教習力（「教え上手の登場」ボイスの基準） */
+const MAX_LESSON = Math.max(...allCards.map((c) => c.lesson ?? 0));
 import { GameEvent, PlayerView, Track } from "@/engine/types";
 
 import {
@@ -609,7 +611,11 @@ function BattleInner() {
   }));
 
   // リーチ演出（学科技能の残りが合計2時限以下になった瞬間）
-  const [reachFx, setReachFx] = useState<{ mine: boolean; double?: boolean } | null>(null);
+  const [reachFx, setReachFx] = useState<{
+    mine: boolean;
+    double?: boolean;
+    variant?: "rush" | "perfect";
+  } | null>(null);
   // 両者リーチ（運命の最終局面）
   const [doubleReachOn, setDoubleReachOn] = useState(false);
   const doubleReachShown = useRef(false);
@@ -838,7 +844,11 @@ function BattleInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [guideActive, view?.phase.type, view?.self.field.length]);
   // 実況が流れている間は待ち、捌けてから表示する（演出の重なり防止）
-  const [pendingReach, setPendingReach] = useState<{ mine: boolean; double?: boolean } | null>(null);
+  const [pendingReach, setPendingReach] = useState<{
+    mine: boolean;
+    double?: boolean;
+    variant?: "rush" | "perfect";
+  } | null>(null);
   const reachShown = useRef({ me: false, opp: false });
 
   // 進捗バーの表示値。学科技能の全画面演出が終わってから動かす
@@ -965,7 +975,17 @@ function BattleInner() {
       say(mineCaught ? CPU_LINES.playerReach : CPU_LINES.cpuReach, mineCaught ? "playerReach" : "cpuReach");
     } else if (meReach && !reachShown.current.me) {
       reachShown.current.me = true;
-      setPendingReach({ mine: true });
+      // 序盤の到達は「速攻」、バトル無敗なら「危なげない試合運び」の実況に変える
+      setPendingReach({
+        mine: true,
+        variant:
+          view.turnNumber <= 8
+            ? "rush"
+            : extraVoiceRef.current.myBattleLossTotal === 0 &&
+                extraVoiceRef.current.firstBattleSeen
+              ? "perfect"
+              : undefined,
+      });
       say(CPU_LINES.playerReach, "playerReach");
     } else if (oppReach && !reachShown.current.opp) {
       reachShown.current.opp = true;
@@ -1204,6 +1224,21 @@ function BattleInner() {
     pursuitArmed: false,
     pursuitFired: false,
     chanceOn: false,
+    // ---- 第1・4・5弾 ----
+    firstBattleSeen: false,
+    straightTurn: 0,
+    straightTracks: new Set<string>(),
+    myBattleLossStreak: 0,
+    myBattleLossTotal: 0,
+    wallFired: false,
+    breakawayArmed: false,
+    breakawayFired: false,
+    openingFired: false,
+    slowstartFired: false,
+    fullhouseOn: false,
+    graveyardFired: false,
+    lastcardFired: false,
+    crowdFired: false,
   });
   useEffect(() => {
     if (!view || replayActive) return;
@@ -1220,8 +1255,14 @@ function BattleInner() {
           break;
         case "instructorPlayed": {
           if (e.player !== ME) break;
-          // エース登場（最高戦闘力のカード）
+          // 開幕ダッシュ（自分の最初の手番でいきなり配置）
+          if (!R.openingFired && view.turnNumber <= 2) {
+            R.openingFired = true;
+            playVoice("voice_opening");
+          }
+          // エース登場（最高戦闘力）／教え上手（最高教習力）
           if ((getCard(e.cardId).combat ?? 0) >= MAX_COMBAT) playVoice("voice_ace");
+          else if ((getCard(e.cardId).lesson ?? 0) >= MAX_LESSON) playVoice("voice_teacher");
           // 引いたカードを同じターンに即投入
           if (R.drawnThisTurn.includes(e.cardId)) playVoice("voice_topdeck");
           // 怒涛の増援（1ターンに2枚出し）
@@ -1229,6 +1270,20 @@ function BattleInner() {
           if (R.playedThisTurn === 2) playVoice("voice_reinforce");
           break;
         }
+        case "jankenPlayed":
+          // カード効果のじゃんけん（小田など）: 運のドラマに声を付ける
+          if (e.owner === ME) playVoice(e.won ? "voice_lucky" : "voice_unlucky");
+          break;
+        case "cardSalvaged":
+          if (e.player === ME) playVoice("voice_encore");
+          break;
+        case "handRevealed":
+          // player = 手札を見られた側。相手の手の内を見たのは自分
+          if (e.player !== ME) playVoice("voice_peek");
+          break;
+        case "supportsRecycled":
+          if (e.player === ME) playVoice("voice_recycle");
+          break;
         case "battleDeclared": {
           const all = [...view.self.field, ...view.opponent.field];
           const atkId = all.find((f) => f.uid === e.attackerUid)?.cardId ?? null;
@@ -1242,8 +1297,10 @@ function BattleInner() {
             supportTotal: 0,
             mySupport: 0,
           };
-          // 同門対決（同じインストラクター同士）
+          // 同門対決（同じインストラクター同士）／先制攻撃（この対戦最初のバトル）
           if (atkId && defId && atkId === defId) playVoice("voice_mirror");
+          else if (!R.firstBattleSeen && e.attackerPlayer === ME) playVoice("voice_firstblood");
+          R.firstBattleSeen = true;
           break;
         }
         case "supportPlayed":
@@ -1270,13 +1327,22 @@ function BattleInner() {
             if (R.tieCount === 3) playVoice("voice_tripledraw");
           } else if (winner === ME) {
             R.myBattleWinStreak++;
+            R.myBattleLossStreak = 0;
+            // 執念のディフェンス（相手がリーチ中の防衛勝ち）
+            const oppRemain =
+              Math.max(0, ACADEMIC_GOAL - view.opponent.academic) +
+              Math.max(0, SKILL_GOAL - view.opponent.skill);
             if (b) {
               const myCombat = b.meAttacker ? b.atkCombat : b.defCombat;
               const opCombat = b.meAttacker ? b.defCombat : b.atkCombat;
               // ジャイアントキリング（3以上格上に勝つ）
               if (opCombat - myCombat >= 3) playVoice("voice_giantkill");
-              // カウンター（防御側がサポートを使って勝ち）／守り切り（素のまま勝ち）
-              if (!b.meAttacker && b.mySupport > 0) playVoice("voice_counter");
+              // 圧勝バトル（合計パワー差5以上）
+              if (e.attackerTotal - e.defenderTotal >= 5 || e.defenderTotal - e.attackerTotal >= 5)
+                playVoice("voice_overwhelm");
+              // カウンター（防御側がサポートを使って勝ち）／執念・守り切り
+              if (!b.meAttacker && oppRemain <= 2) playVoice("voice_defense");
+              else if (!b.meAttacker && b.mySupport > 0) playVoice("voice_counter");
               else if (!b.meAttacker) playVoice("voice_holdout");
               // 孤軍奮闘（場の人数で2人以上少ない側の勝利）
               if (b.oppFieldN - b.meFieldN >= 2) playVoice("voice_solo");
@@ -1284,14 +1350,33 @@ function BattleInner() {
             if (R.myBattleWinStreak === 3) playVoice("voice_battlestreak");
           } else {
             R.myBattleWinStreak = 0;
+            R.myBattleLossStreak++;
+            R.myBattleLossTotal++;
+            // 厚い壁（バトル3連敗。1対戦1回だけ）
+            if (!R.wallFired && R.myBattleLossStreak === 3) {
+              R.wallFired = true;
+              playVoice("voice_wall");
+            }
           }
-          // 死闘（サポート5枚以上）／真っ向勝負（両者サポート無し）
+          // 死闘（サポート5枚以上）／サポート合戦（3〜4枚）／真っ向勝負（無し）
           if (b && b.supportTotal >= 5) playVoice("voice_deathmatch");
+          else if (b && b.supportTotal >= 3) playVoice("voice_supportwar");
           else if (b && b.supportTotal === 0 && winner !== null) playVoice("voice_purebattle");
           break;
         }
         case "trackAdvanced": {
           if (e.player === ME && e.amount > 0) {
+            // ダブル前進（同じターンに学科と技能の両方が進んだ。1ターン1回）
+            if (R.straightTurn !== view.turnNumber) {
+              R.straightTurn = view.turnNumber;
+              R.straightTracks.clear();
+            }
+            R.straightTracks.add(e.track);
+            if (R.straightTracks.size === 2) {
+              R.straightTracks.clear();
+              R.straightTracks.add("済");
+              playVoice("voice_straight");
+            }
             // 修了の節目（もう片方が残っているときだけ。両方完了は勝利演出に譲る）
             if (
               e.track === "academic" &&
@@ -1325,13 +1410,28 @@ function BattleInner() {
           break;
         }
         case "turnStarted":
+          // 慎重な立ち上がり（5ターン目=自分の3手番目でまだ場が0人）
+          if (
+            !R.slowstartFired &&
+            e.player === ME &&
+            e.turnNumber >= 5 &&
+            view.self.field.length === 0
+          ) {
+            R.slowstartFired = true;
+            playVoice("voice_slowstart");
+          }
           // 作戦タイム（自分が手番を終えた=休憩。毎回だとくどいので約1/5の抽選）
-          if (e.player !== ME && e.turnNumber > 2 && Math.random() < 0.2) {
+          else if (e.player !== ME && e.turnNumber > 2 && Math.random() < 0.2) {
             playVoice("voice_pitstop");
           }
           break;
       }
     }
+    // まとめて場外（相手のインストラクターが一度に2枚以上退場）
+    const removedOpp = lastEvents.filter(
+      (e) => e.type === "instructorRemoved" && e.player !== ME
+    ).length;
+    if (removedOpp >= 2) playVoice("voice_doublekill");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
   // 盤面の状態で決まる実況（攻め時・猛追）
@@ -1351,8 +1451,38 @@ function BattleInner() {
       R.pursuitFired = true;
       playVoice("voice_pursuit");
     }
+    // 突き放す: リード中に2差以内まで迫られてから、再び4以上引き離した（1対戦1回）
+    if (diff <= -1 && diff >= -2) R.breakawayArmed = true;
+    if (R.breakawayArmed && !R.breakawayFired && diff <= -4) {
+      R.breakawayFired = true;
+      playVoice("voice_breakaway");
+    }
+    // 最強の布陣（自分の場に4人そろった瞬間。5人はvoice_fullline）
+    const meN = view.self.field.length;
+    if (meN === 4 && !R.fullhouseOn) playVoice("voice_fullhouse");
+    R.fullhouseOn = meN >= 4;
+    // 壮絶な削り合い（両者の場外が合計6枚を超えた。1対戦1回）
+    const outTotal = view.self.outOfPlay.length + view.opponent.outOfPlay.length;
+    if (!R.graveyardFired && outTotal > 6) {
+      R.graveyardFired = true;
+      playVoice("voice_graveyard");
+    }
+    // 山札ラスト1枚（切れたら敗北の崖っぷち。1対戦1回）
+    if (!R.lastcardFired && view.self.deckCount === 1) {
+      R.lastcardFired = true;
+      playVoice("voice_lastcard");
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+  // 観客が集まってきた（オンライン観戦3人以上。1対戦1回）
+  useEffect(() => {
+    const R = extraVoiceRef.current;
+    if (isOnline && spectatorCount >= 3 && !R.crowdFired) {
+      R.crowdFired = true;
+      playVoice("voice_crowd");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [spectatorCount]);
 
   // 🥋 昇段・降段のかかった一戦と、挑戦状の「因縁の再戦」は開始時に知らせる
   useEffect(() => {
@@ -1370,6 +1500,20 @@ function BattleInner() {
       pursuitArmed: false,
       pursuitFired: false,
       chanceOn: false,
+      firstBattleSeen: false,
+      straightTurn: 0,
+      straightTracks: new Set<string>(),
+      myBattleLossStreak: 0,
+      myBattleLossTotal: 0,
+      wallFired: false,
+      breakawayArmed: false,
+      breakawayFired: false,
+      openingFired: false,
+      slowstartFired: false,
+      fullhouseOn: false,
+      graveyardFired: false,
+      lastcardFired: false,
+      crowdFired: false,
     };
     if (replayActive || autoPlay || tutorial) return;
     const adds: Announcement[] = [];
@@ -1387,7 +1531,12 @@ function BattleInner() {
 
   // 観戦者の応援が届いたら小さく音を鳴らす
   useEffect(() => {
-    if (cheers.length > 0) playSe("tap", 1.5);
+    if (cheers.length > 0) {
+      playSe("tap", 1.5);
+      // 声援が届く（毎回だとくどいので約3割の抽選）
+      if (Math.random() < 0.3) playVoice("voice_cheerup");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cheers.length]);
 
   // オンライン対戦: 相手の手番の経過時間を数える
@@ -1717,8 +1866,10 @@ function BattleInner() {
       const perfect =
         view != null &&
         view.opponent.academic + view.opponent.skill <= (ACADEMIC_GOAL + SKILL_GOAL) / 2;
-      // 大逆転勝利は既存の大逆転ボイスに譲る
-      if (!comebackWin) {
+      // 大逆転勝利は既存の大逆転ボイスに譲る。因縁の再戦の勝利はリベンジ達成が最優先
+      if (isOnline && revengeMatch) {
+        seq.push({ key: "voice_revengewin", dur: 2800 });
+      } else if (!comebackWin) {
         seq.push(
           perfect ? { key: "voice_perfect", dur: 2800 } : { key: "voice_result_win", dur: 3000 }
         );
@@ -2734,7 +2885,7 @@ function BattleInner() {
         (reachFx.double ? (
           <DoubleReachCutIn mineCaught={reachFx.mine} oppName={oppLabel} />
         ) : (
-          <ReachCutIn mine={reachFx.mine} oppName={oppLabel} />
+          <ReachCutIn mine={reachFx.mine} oppName={oppLabel} variant={reachFx.variant} />
         ))}
       {/* カードの移動演出（出す・引く・退場・サポート） */}
       {flyFx.map((f) => (
@@ -3973,13 +4124,29 @@ function RecycleCard({ index }: { index: number }) {
  * リーチの全画面カットイン。
  * 自分: 金色に輝く「リーチ！」／相手: 赤い警告「相手がリーチ！」
  */
-function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
+function ReachCutIn({
+  mine,
+  oppName,
+  variant,
+}: {
+  mine: boolean;
+  oppName: string;
+  variant?: "rush" | "perfect";
+}) {
   const scale = useSharedValue(0.5);
   const opacity = useSharedValue(0);
   const glow = useSharedValue(0);
   useEffect(() => {
     playSe(mine ? "janken_win" : "battle");
-    playVoice(mine ? "voice_reach" : "voice_reach_opp");
+    playVoice(
+      mine
+        ? variant === "rush"
+          ? "voice_rush"
+          : variant === "perfect"
+            ? "voice_perfectrun"
+            : "voice_reach"
+        : "voice_reach_opp"
+    );
     // 自分のリーチは「みきわめ 良好」の印が押される頃にひとこと続ける
     const tMiki = mine ? setTimeout(() => playVoice("voice_mikiwame"), 2100) : null;
     scale.value = withSequence(

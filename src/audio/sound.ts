@@ -332,7 +332,31 @@ export type VoiceKey =
   | "voice_deathmatch"
   | "voice_pursuit"
   | "voice_solo"
-  | "voice_tripledraw";
+  | "voice_tripledraw"
+  | "voice_overwhelm"
+  | "voice_supportwar"
+  | "voice_rush"
+  | "voice_defense"
+  | "voice_straight"
+  | "voice_firstblood"
+  | "voice_fullhouse"
+  | "voice_graveyard"
+  | "voice_lucky"
+  | "voice_unlucky"
+  | "voice_encore"
+  | "voice_peek"
+  | "voice_recycle"
+  | "voice_breakaway"
+  | "voice_wall"
+  | "voice_perfectrun"
+  | "voice_opening"
+  | "voice_lastcard"
+  | "voice_doublekill"
+  | "voice_teacher"
+  | "voice_slowstart"
+  | "voice_revengewin"
+  | "voice_crowd"
+  | "voice_cheerup";
 
 /**
  * 実況ボイスを裏で少しずつ読み込んでおく（初回再生時のカクつき防止）。
