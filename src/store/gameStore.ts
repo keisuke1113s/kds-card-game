@@ -928,7 +928,7 @@ export const useGameStore = create<GameStore>()((set, get) => {
 
         ws.onopen = () => {
           reconnectAttempt = 0;
-          if (isReconnect && onlineSession) {
+          if (isReconnect && onlineSession && onlineSession.code) {
             ws.send(
               JSON.stringify({
                 type: "reattach",
@@ -982,7 +982,14 @@ export const useGameStore = create<GameStore>()((set, get) => {
               if (msg.sessionToken) {
                 onlineSession = {
                   serverUrl,
-                  code: onlineSession?.code ?? get().roomCode ?? code ?? "",
+                  // ランダムマッチでは部屋コードを知らないままだったため、
+                  // joined がサーバーから部屋コードを教えてくれる（切断復帰用）
+                  code:
+                    (msg as { code?: string }).code ??
+                    onlineSession?.code ??
+                    get().roomCode ??
+                    code ??
+                    "",
                   sessionToken: msg.sessionToken,
                 };
               }
@@ -1100,6 +1107,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
               const view = msg.view ?? null;
               const events = msg.events ?? [];
               if (!view) break;
+              // 盤面が届いた＝接続は生きている。切断表示が残っていれば消す
+              if (get().onlineError) set({ onlineError: null });
               // 秘匿はサーバー側で済んでいる。演出中はためて順に流す
               pendingUpdates.push({ view, events });
               drainUpdates();

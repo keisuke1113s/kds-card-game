@@ -539,6 +539,7 @@ function BattleInner() {
   const jankenActive = useGameStore((s) => s.jankenActive);
   const kyokanId = useGameStore((s) => s.kyokanId);
   const tournamentMatch = useGameStore((s) => s.tournamentMatch);
+  const onlineError = useGameStore((s) => s.onlineError);
   const onlineTourneyActive = useTourneyStore((s) => s.active);
   const tourneyWatching = useTourneyStore((s) => s.watching);
   const tourneyMatchReady = useTourneyStore((s) => s.matchReady);
@@ -2523,6 +2524,22 @@ function BattleInner() {
           <View style={styles.queueBadge} pointerEvents="none">
             <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
           </View>
+        )}
+        {/* オンライン対戦の接続トラブル。復帰できないときの脱出路も添える */}
+        {isOnline && onlineError && view.phase.type !== "finished" && (
+          <Pressable
+            style={styles.connTroubleBanner}
+            onPress={() => {
+              haptic("light");
+              quitGame();
+              router.replace("/");
+            }}
+          >
+            <Text style={styles.connTroubleText}>⚠ {onlineError}</Text>
+            <Text style={styles.connTroubleSub}>
+              しばらく直らないときは、ここをタップしてホームへ戻れます
+            </Text>
+          </Pressable>
         )}
         {/* トーナメントの人数待ちでCPU対戦しているときの目印 */}
         {tourneyWatching && !tourneyMatchReady && !isOnline && (
@@ -7738,6 +7755,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  connTroubleBanner: {
+    position: "absolute",
+    top: 4,
+    alignSelf: "center",
+    zIndex: 70,
+    backgroundColor: "#7f1d1df2",
+    borderWidth: 2,
+    borderColor: "#fca5a5",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    maxWidth: "92%",
+  },
+  connTroubleText: { color: "#fff", fontSize: 13, fontWeight: "900", textAlign: "center" },
+  connTroubleSub: {
+    color: "#fecaca",
+    fontSize: 11,
+    fontWeight: "700",
+    textAlign: "center",
+    marginTop: 2,
+  },
   tourneyReadyBanner: {
     position: "absolute",
     top: 4,
