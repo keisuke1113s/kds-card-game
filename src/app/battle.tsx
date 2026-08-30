@@ -2249,22 +2249,6 @@ export default function BattleScreen() {
         />
       )}
 
-      {/* 演出用カード大画像の先読み（画面の隅・ほぼ不可視） */}
-      {Platform.OS === "web" && (
-        <BattleWarmLayer
-          cardIds={[
-            ...me.deckContents,
-            ...me.hand,
-            ...me.field.map((f) => f.cardId),
-            ...me.outOfPlay,
-            me.tantou,
-            ...cpu.field.map((f) => f.cardId),
-            ...cpu.outOfPlay,
-            cpu.tantou,
-          ]}
-        />
-      )}
-
       {/* 観戦者数と応援（オンライン対戦） */}
       {isOnline && spectatorCount > 0 && view.phase.type !== "finished" && (
         <View style={styles.specChip} pointerEvents="none">
@@ -4241,41 +4225,6 @@ function CheerFloat({ emoji }: { emoji: string }) {
     <Animated.View style={[styles.cheerFloat, st]} pointerEvents="none">
       <Text style={{ fontSize: 34 }}>{emoji}</Text>
     </Animated.View>
-  );
-}
-
-/**
- * 対戦中に演出（カットイン・詳細表示）で使うカードの大画像を、
- * 画面の隅に極小で描いたままにして先に読み込んでおく（Webのみ）。
- * 初回表示の瞬間の画像展開によるカクつきを防ぐ
- */
-function BattleWarmLayer({ cardIds }: { cardIds: string[] }) {
-  // 一度に全部並べると読み込みが集中してそれ自体がカクつくため、
-  // 開幕2秒後から1枚ずつ（0.4秒間隔）増やして読み込みを分散する
-  const [count, setCount] = useState(0);
-  const total = Math.min(26, new Set(cardIds).size);
-  useEffect(() => {
-    const start = setTimeout(() => {
-      const timer = setInterval(() => {
-        setCount((c) => {
-          if (c + 1 >= total) clearInterval(timer);
-          return c + 1;
-        });
-      }, 400);
-    }, 2000);
-    return () => clearTimeout(start);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  if (Platform.OS !== "web" || count === 0) return null;
-  const ids = [...new Set(cardIds)].slice(0, count);
-  return (
-    <View style={styles.battleWarm} pointerEvents="none">
-      {ids.map((id) => (
-        <View key={id} style={styles.battleWarmItem}>
-          <CardFace cardId={id} size="lg" />
-        </View>
-      ))}
-    </View>
   );
 }
 
@@ -6786,22 +6735,6 @@ const styles = StyleSheet.create({
   battleRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   battleSide: { alignItems: "center", gap: 3 },
   battleSideLabel: { fontSize: 10, color: colors.textMuted, fontWeight: "700" },
-  battleWarm: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    width: 30,
-    height: 42,
-    opacity: 0.02,
-    zIndex: -1,
-    overflow: "visible",
-  },
-  battleWarmItem: {
-    position: "absolute",
-    right: 0,
-    bottom: 0,
-    transform: [{ scale: 0.14 }],
-  },
   battleTotal: { fontSize: 26, fontWeight: "900" },
   vsText: { fontSize: 20, fontWeight: "900", color: colors.accent },
   logButton: { fontSize: 11, color: colors.primary, fontWeight: "800" },
