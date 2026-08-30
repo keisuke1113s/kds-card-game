@@ -197,6 +197,27 @@ export type VoiceKey =
   | "voice_longgame"
   | "voice_mikiwame";
 
+/**
+ * 実況ボイスを裏で少しずつ読み込んでおく（初回再生時のカクつき防止）。
+ * 対戦の準備画面や対戦画面のマウント時に呼ぶ。2回目以降は何もしない
+ */
+let voicesWarmed = false;
+export function warmVoices(): void {
+  if (voicesWarmed) return;
+  voicesWarmed = true;
+  const keys = Object.keys(seAssets).filter((k) => k.startsWith("voice_"));
+  keys.forEach((key, i) => {
+    // 一気に読むとそれ自体がカクつくので、150msずつずらして読み込む
+    setTimeout(() => {
+      try {
+        if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+      } catch {
+        // 読み込めなくても、再生時にあらためて試される
+      }
+    }, 150 * i);
+  });
+}
+
 /** 実況が重ならないための1チャンネル制。再生が終わる見込み時刻まで次を断る */
 let voiceBusyUntil = 0;
 
