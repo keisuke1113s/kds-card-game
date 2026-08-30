@@ -7106,6 +7106,8 @@ const styles = StyleSheet.create({
     padding: 20,
     width: "100%",
     maxWidth: 400,
+    // 小さい画面でもボタンが画面外に出ないよう、箱自体は画面内に収める
+    maxHeight: "100%",
     gap: 14,
     alignItems: "center",
   },
