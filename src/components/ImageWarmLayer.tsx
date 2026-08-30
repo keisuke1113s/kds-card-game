@@ -1,4 +1,5 @@
 import { Asset } from "expo-asset";
+import { usePathname } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Platform } from "react-native";
 import { cardSmalls, cardThumbs } from "@/data/images";
@@ -66,6 +67,11 @@ export function ImageWarmLayer() {
     }
     return out;
   }, []);
+
+  // 対戦中は外す: 常駐画像128枚が毎回のスタイル計算を重くし、
+  // 対戦のカクつきの一因になるため（ホーム・図鑑では白カード対策として維持）
+  const pathname = usePathname();
+  if (pathname.startsWith("/battle")) return null;
 
   if (Platform.OS !== "web" || !ready || uris.length === 0) return null;
   return (
