@@ -51,6 +51,8 @@ interface Props {
   fullWidth?: boolean;
   /** tone の代わりにブランドカラー等を直接指定したいとき（bg 必須・fg 省略時は白） */
   custom?: { bg: string; fg?: string; border?: string };
+  /** ラベルの下に小さく添える1行（お知らせなど） */
+  subLabel?: string;
 }
 
 export function AppButton({
@@ -65,6 +67,7 @@ export function AppButton({
   iconNode,
   fullWidth,
   custom,
+  subLabel,
 }: Props) {
   const press = useSharedValue(0);
   const c = custom
@@ -159,6 +162,14 @@ export function AppButton({
             {label}
           </Text>
         </View>
+        {!!subLabel && (
+          <Text
+            style={[styles.subLabel, { color: disabled ? colors.textMuted : c.fg }]}
+            numberOfLines={1}
+          >
+            {subLabel}
+          </Text>
+        )}
       </Pressable>
     </Animated.View>
   );
@@ -211,6 +222,13 @@ const styles = StyleSheet.create({
   inner: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   icon: { color: "#fff" },
   label: { fontWeight: "800", textAlign: "center", letterSpacing: 0.3 },
+  subLabel: {
+    fontWeight: "800",
+    textAlign: "center",
+    fontSize: 12,
+    marginTop: 3,
+    opacity: 0.95,
+  },
   fullWidth: { alignSelf: "stretch" },
   ripple: { position: "absolute", width: 180, height: 180, borderRadius: 90 },
   fillHeight: { height: "100%", paddingVertical: 0 },
