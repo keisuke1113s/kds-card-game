@@ -56,6 +56,17 @@ function report(msg: string, stack?: string): void {
 }
 
 /**
+ * 性能診断の自動報告（自動軽量化が発動したときの詳細）。
+ * どのタイミングでどれくらい重かったかを調査するために送る。
+ * 公開ページ以外（localhost等）では送らない
+ */
+export function reportPerf(detail: string): void {
+  const loc = (globalThis as { location?: { hostname: string } }).location;
+  if (!loc || !loc.hostname.endsWith("github.io")) return;
+  report(`[性能診断] ${detail.slice(0, 400)}`);
+}
+
+/**
  * ユーザーが設定画面から手で送る不具合報告。
  * 自動報告と同じ /errlog に「[ユーザー報告]」の印を付けて送る。
  * 端末情報（機種・画面URL）は自動で添える。成功したら true

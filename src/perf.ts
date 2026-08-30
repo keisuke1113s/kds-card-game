@@ -1,12 +1,15 @@
 import { Platform } from "react-native";
 import { create } from "zustand";
 import { voicesWarming } from "@/audio/sound";
+import { reportPerf } from "@/data/errlog";
 
 /**
  * 演出の自動軽量化。
- * 対戦中のフレーム間隔を監視し、カクつき（20fps未満のフレーム）が
- * 5秒間に8回以上起きたら autoLight を立てる。battle 側はこれを見て
+ * 対戦中のフレーム間隔を監視し、はっきりしたカクつき（70ms超のフレーム）が
+ * 5秒間に10回以上起きたら autoLight を立てる。battle 側はこれを見て
  * その対戦の間だけ演出を「ひかえめ」相当に落とす。
+ * 対戦開始直後は開幕演出（配り・VS・検定開始）の読み込みで必ず乱れるため、
+ * 最初の8秒は数えない。
  */
 
 interface PerfState {
@@ -51,19 +54,27 @@ export function startFrameWatch(): () => void {
   cancelAnimationFrame(raf);
   let last = 0;
   let longFrames: number[] = [];
+  let longDts: number[] = [];
   const startedAt = performance.now();
   const tick = (t: number) => {
     if (my !== session) return;
     if (last > 0) {
       const dt = t - last;
-      // 50ms超 = 20fps未満のフレーム。1秒超はタブ非表示や休止なので数えない。
-      // 開始直後2秒と、実況ボイスの先読み中は読み込みで乱れるため対象外
-      if (dt > 50 && dt < 1000 && t - startedAt > 2000 && !voicesWarming()) {
+      // 70ms超 = はっきり分かるカクつきだけを数える。1秒超はタブ非表示や休止。
+      // 開始直後8秒（開幕演出の読み込み）と、実況ボイスの先読み中は対象外
+      if (dt > 70 && dt < 1000 && t - startedAt > 8000 && !voicesWarming()) {
         longCount++;
         longFrames.push(t);
+        longDts.push(Math.round(dt));
         longFrames = longFrames.filter((x) => t - x < 5000);
-        if (longFrames.length >= 8) {
+        longDts = longDts.slice(-10);
+        if (longFrames.length >= 10) {
           usePerfStore.getState().setAutoLight(true);
+          // どんな重さだったかを調査用に報告する（何秒地点で・各フレーム何ms）
+          reportPerf(
+            `自動軽量化が発動: 開始${Math.round((t - startedAt) / 1000)}秒地点 ` +
+              `直近の重いフレーム(ms)=[${longDts.join(",")}]`
+          );
           session++;
           return;
         }
