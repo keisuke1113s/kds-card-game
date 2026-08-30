@@ -53,6 +53,7 @@ import {
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { allCards, cardRegistry, getCard } from "@/data/cards";
+import { currentWeather } from "@/data/weather";
 
 /** 全カード中の最高戦闘力（「エース登場」ボイスの基準） */
 const MAX_COMBAT = Math.max(...allCards.map((c) => c.combat ?? 0));
@@ -97,7 +98,7 @@ import { DEFAULT_SERVER_URL } from "@/app/online";
 import { useSettingsStore } from "@/store/settingsStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 import { setPerfScene, startFrameWatch, usePerfStore } from "@/perf";
-import { colors } from "@/theme";
+import { DARK_MODE, colors } from "@/theme";
 
 const ctx = { defs: cardRegistry };
 
@@ -588,14 +589,27 @@ function BattleInner() {
   const autoLight = usePerfStore((s) => s.autoLight);
   const effFxLevel = autoLight ? "light" : fxLevel;
   const fxScale = effFxLevel === "light" ? 0.6 : effFxLevel === "normal" ? 0.85 : 1;
-  // 日替わりの天気。雨・雪の日は対戦画面にうっすら天気演出（豆知識の季節感と連動）
-  const weather = useMemo<"sunny" | "rain" | "snow">(() => {
-    const d = new Date();
-    const month = d.getMonth() + 1;
-    const h = (((d.getFullYear() * 10000 + month * 100 + d.getDate()) * 2654435761) >>> 0) % 5;
-    if (h === 0) return "rain";
-    if ((month === 12 || month <= 2) && h === 1) return "snow";
-    return "sunny";
+  // 実際の天気と連動する天気演出（現在地→取得できなければ釧路の天気）。
+  // 雨の日は雨天教習、雪の日は雪道教習
+  const [weather, setWeather] = useState<"sunny" | "rain" | "snow">("sunny");
+  useEffect(() => {
+    let alive = true;
+    void currentWeather().then((w) => {
+      if (alive) setWeather(w);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  // 時間帯のトーン（朝・夕・夜で画面全体をほんのり染める）。ダーク設定では
+  // 夜色が重なってうるさいため出さない
+  const daypartTint = useMemo<string | null>(() => {
+    if (DARK_MODE) return null;
+    const h = new Date().getHours();
+    if (h >= 16 && h < 19) return "#ff8c4216"; // 夕焼け
+    if (h >= 19 || h < 5) return "#12245c1f"; // 夜
+    if (h >= 5 && h < 8) return "#ffd9a012"; // 朝
+    return null;
   }, []);
   // 自動軽量化のお知らせ（1回だけ数秒表示）
   const [autoLightNote, setAutoLightNote] = useState(false);
@@ -2764,7 +2778,14 @@ function BattleInner() {
       )}
       {isOnline && cheers.map((c) => <CheerFloat key={c.key} emoji={c.emoji} />)}
 
-      {/* 日替わりの天気（雨・雪）。軽量モード中は出さない */}
+      {/* 時間帯のトーン（朝・夕・夜）。結果画面では消す */}
+      {daypartTint && view.phase.type !== "finished" && (
+        <View
+          style={[StyleSheet.absoluteFill, { backgroundColor: daypartTint, zIndex: 1 }]}
+          pointerEvents="none"
+        />
+      )}
+      {/* 実際の天気と連動（雨・雪）。軽量モード中は出さない */}
       {weather !== "sunny" && effFxLevel !== "light" && view.phase.type !== "finished" && (
         <WeatherLayer kind={weather} />
       )}
