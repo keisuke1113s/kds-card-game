@@ -23,7 +23,7 @@ OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 ENGINE = "eleven"
 
 # ElevenLabs eleven-v3 の声（実況らしい元気な男性声）
-ELEVEN_VOICE = "Charlie"
+ELEVEN_VOICE = "Sarah"
 
 VOICE_ID = "Japanese_KindLady"  # minimax用
 FALLBACK_VOICE_ID = "Japanese_KindLady"
