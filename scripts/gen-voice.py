@@ -20,24 +20,24 @@ import urllib.request
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "assets", "audio")
 
-ENGINE = "eleven"
+ENGINE = "minimax_hd"
 
 # ElevenLabs eleven-v3 の声（実況らしい元気な男性声）
 ELEVEN_VOICE = "Sarah"
 
-VOICE_ID = "Japanese_KindLady"  # minimax用
+VOICE_ID = "Japanese_KindLady"  # minimax用（日本語ネイティブ女性）
 FALLBACK_VOICE_ID = "Japanese_KindLady"
 
 # テンションを上げたいボイスの追加設定（minimax用: 感情・声の高さ）
 EXTRA = {
-    "voice_reach": {"emotion": "surprised", "pitch": 2},
-    "voice_reach_opp": {"emotion": "surprised", "pitch": 2},
-    "voice_double": {"emotion": "surprised", "pitch": 2},
-    "voice_lastbattle": {"emotion": "surprised", "pitch": 2},
-    "voice_kessyaku": {"emotion": "surprised", "pitch": 2},
-    "voice_comeback": {"emotion": "surprised", "pitch": 2},
-    "voice_fullline": {"emotion": "surprised", "pitch": 2},
-    "voice_start": {"emotion": "surprised", "pitch": 2},
+    "voice_reach": {"emotion": "happy"},
+    "voice_reach_opp": {"emotion": "happy"},
+    "voice_double": {"emotion": "surprised"},
+    "voice_lastbattle": {"emotion": "surprised"},
+    "voice_kessyaku": {"emotion": "happy"},
+    "voice_comeback": {"emotion": "surprised"},
+    "voice_fullline": {"emotion": "happy"},
+    "voice_start": {"emotion": "happy"},
 }
 
 # ElevenLabs用のセリフ（[excited]/[shouting] は感情タグ。漢字OK・language_code=ja）
@@ -54,14 +54,14 @@ ELEVEN_LINES = {
 
 # 名前: (minimax用セリフ, 話速, 最大秒数)
 LINES = {
-    "voice_reach": ("リーチ！！", 1.2, 2.0),
-    "voice_reach_opp": ("あいてがリーチ！！", 1.2, 2.4),
-    "voice_double": ("りょうしゃリーチ！うんめいの、さいしゅうきょくめん！！", 1.2, 4.5),
-    "voice_lastbattle": ("ラストバトルーー！！", 1.2, 2.4),
-    "voice_kessyaku": ("けっちゃくううーーー！！", 1.2, 2.8),
-    "voice_comeback": ("だいぎゃくてんだあーーー！！", 1.2, 3.2),
-    "voice_fullline": ("フルライーン！！", 1.2, 2.2),
-    "voice_start": ("たいせん、かいしー！！", 1.1, 2.4),
+    "voice_reach": ("リーチ！！", 1.15, 2.0),
+    "voice_reach_opp": ("あいてが、リーチ！！", 1.15, 2.4),
+    "voice_double": ("りょうしゃリーチ！うんめいの、さいしゅうきょくめん！！", 1.15, 4.5),
+    "voice_lastbattle": ("ラストバトル！！", 1.15, 2.4),
+    "voice_kessyaku": ("けっちゃく！！", 1.1, 2.8),
+    "voice_comeback": ("だいぎゃくてん！！", 1.1, 3.2),
+    "voice_fullline": ("フルライン！！", 1.15, 2.2),
+    "voice_start": ("たいせん、かいし！！", 1.1, 2.4),
 }
 
 
@@ -78,7 +78,8 @@ def tts_request(name: str, text: str, speed: float, key: str, voice_id: str) -> 
         body = json.dumps(
             {"text": text, "language_boost": "Japanese", "voice_setting": voice_setting}
         ).encode()
-        url = "https://fal.run/fal-ai/minimax/speech-02-turbo"
+        model = "speech-02-hd" if ENGINE == "minimax_hd" else "speech-02-turbo"
+        url = f"https://fal.run/fal-ai/minimax/{model}"
     req = urllib.request.Request(
         url,
         data=body,
