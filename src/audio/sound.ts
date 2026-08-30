@@ -356,7 +356,13 @@ export type VoiceKey =
   | "voice_slowstart"
   | "voice_revengewin"
   | "voice_crowd"
-  | "voice_cheerup";
+  | "voice_cheerup"
+  | "voice_greet_morning"
+  | "voice_greet_day"
+  | "voice_greet_evening"
+  | "voice_greet_night"
+  | "voice_rainy"
+  | "voice_snowy";
 
 /**
  * 実況ボイスを裏で少しずつ読み込んでおく（初回再生時のカクつき防止）。

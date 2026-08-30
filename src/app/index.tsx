@@ -39,6 +39,7 @@ import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { DEFAULT_SERVER_URL } from "@/app/online";
 import { useTourneyStore } from "@/store/tourneyStore";
+import { currentWeather } from "@/data/weather";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -293,11 +294,13 @@ export default function HomeScreen() {
   }));
 
   // BGMは対戦中のみ。ホームに戻ったら止める。
-  // トーナメントの人数待ち（CPU対戦しながら）もホームに戻ったら取りやめる
+  // トーナメントの人数待ち（CPU対戦しながら）もホームに戻ったら取りやめる。
+  // 天気もここで先に取得しておく（対戦開始のあいさつ実況に間に合わせる）
   useFocusEffect(
     useCallback(() => {
       stopBgm();
       useTourneyStore.getState().stopLobbyWatch({ leave: true });
+      void currentWeather();
     }, [])
   );
 
