@@ -277,3 +277,95 @@ export function partnerTypeOf(key: string): ShindanType | null {
     .join("");
   return SHINDAN_TYPES.find((t) => t.key === opp) ?? null;
 }
+
+// ============================================================
+// セーフティチェック（安全運転の6観点）
+// 実際の運転適性検査（OD式等）が測る観点になぞらえた自己診断。
+// 質問紙＋ゲーム内の実測データ（動体視力・KYT・学科・対戦傾向）を
+// 突き合わせて表示する。あくまで学習用の簡易版であり、
+// 本格的な適性検査は入校後に受けられる旨を画面に明記する。
+// ============================================================
+
+export type SafetyAxis =
+  | "accuracy" // 操作・正確さ
+  | "attention" // 注意力
+  | "judgment" // 判断・自制
+  | "stability" // 情緒安定
+  | "cooperation" // 協調性
+  | "humility"; // 慎重さ（過信しない）
+
+export const SAFETY_AXES: { key: SafetyAxis; label: string; emoji: string; desc: string }[] = [
+  { key: "accuracy", label: "操作・正確さ", emoji: "🎯", desc: "落ち着いて正確に操作できる力" },
+  { key: "attention", label: "注意力", emoji: "👀", desc: "周囲の変化にいち早く気づく力" },
+  { key: "judgment", label: "判断・自制", emoji: "🧠", desc: "冷静に判断し、衝動を抑える力" },
+  { key: "stability", label: "情緒安定", emoji: "🧘", desc: "イライラせず平常心を保つ力" },
+  { key: "cooperation", label: "協調性", emoji: "🤝", desc: "譲り合い・思いやりの心" },
+  { key: "humility", label: "慎重さ", emoji: "🔍", desc: "過信せず、確認を怠らない姿勢" },
+];
+
+export interface SafetyQuestion {
+  text: string;
+  axis: SafetyAxis | "lie";
+  /** 「そう思う」ほどスコアが下がる逆転項目 */
+  reverse?: boolean;
+}
+
+/** 各観点2問＋正直度チェック（ライスケール）2問。場面を思い浮かべて答える形式 */
+export const SAFETY_QUESTIONS: SafetyQuestion[] = [
+  { text: "ゲームや細かい作業では、焦っているときほど操作ミスが増える", axis: "accuracy", reverse: true },
+  { text: "歩いていて、飛び出しそうな子どもや自転車に早めに気づくほうだ", axis: "attention" },
+  { text: "「たぶん大丈夫」で行動して、ヒヤッとした経験がある", axis: "humility", reverse: true },
+  { text: "予定が急に変わっても、気持ちの切り替えは早いほうだ", axis: "stability" },
+  { text: "行列に割り込まれたら、しばらくイライラを引きずってしまう", axis: "stability", reverse: true },
+  { text: "混んでいる場所では、自分から道を譲ることが多い", axis: "cooperation" },
+  { text: "今まで一度もうそをついたことがない", axis: "lie" },
+  { text: "急いでいるときでも、いったん立ち止まって考えることができる", axis: "judgment" },
+  { text: "慣れてきた作業ほど、確認を省略しがちだ", axis: "humility", reverse: true },
+  { text: "ふたつのことを同時にやると、どちらかがおろそかになりやすい", axis: "attention", reverse: true },
+  { text: "初めて使う道具や機械でも、すぐに使いこなせるほうだ", axis: "accuracy" },
+  { text: "人にイライラしたことは一度もない", axis: "lie" },
+  { text: "勝負事で負けが続くと、つい無茶な賭けに出たくなる", axis: "judgment", reverse: true },
+  { text: "自分のペースを乱されても、相手に合わせられるほうだ", axis: "cooperation" },
+];
+
+/** 回答（0=そう思わない〜3=そう思う）から観点スコア（0〜100）と正直度を出す */
+export function scoreSafety(answers: number[]): {
+  scores: Record<SafetyAxis, number>;
+  lie: number;
+} {
+  const sums: Record<string, { sum: number; n: number }> = {};
+  let lie = 0;
+  SAFETY_QUESTIONS.forEach((q, i) => {
+    const raw = Math.max(0, Math.min(3, answers[i] ?? 0));
+    if (q.axis === "lie") {
+      lie += raw;
+      return;
+    }
+    const v = q.reverse ? 3 - raw : raw;
+    const s = (sums[q.axis] ??= { sum: 0, n: 0 });
+    s.sum += v;
+    s.n++;
+  });
+  const scores = {} as Record<SafetyAxis, number>;
+  for (const a of SAFETY_AXES) {
+    const s = sums[a.key] ?? { sum: 0, n: 1 };
+    scores[a.key] = Math.round((s.sum / (s.n * 3)) * 100);
+  }
+  return { scores, lie };
+}
+
+/** 観点別のワンポイント（スコアの低い観点に出す教習アドバイス） */
+export const SAFETY_ADVICE: Record<SafetyAxis, string> = {
+  accuracy:
+    "焦ったときほど操作は「ゆっくり・大きく」。乗車前のミラー・シート合わせを毎回の儀式にすると、操作全体が落ち着きます。",
+  attention:
+    "「車の陰・木の陰に人がいるかも」と探す癖をつけましょう。KYT（危険予測）トレーニングで実際に鍛えられます。",
+  judgment:
+    "迷ったら「止まる・待つ・譲る」。黄信号は「急いで通過する合図」ではなく「止まる準備の合図」と覚えましょう。",
+  stability:
+    "イラッとしたら深呼吸1回＋車間距離を1秒プラス。感情はそのままスピードに乗り移ります。",
+  cooperation:
+    "「お先にどうぞ」は最強の安全装備。譲った数だけ事故は遠ざかります。",
+  humility:
+    "「だろう」ではなく「かもしれない」。慣れた道こそ、確認をひとつ増やしましょう。",
+};

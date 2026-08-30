@@ -11,13 +11,24 @@ import { getCard } from "@/data/cards";
 import {
   Axis,
   POLE_TRAITS,
+  SAFETY_ADVICE,
+  SAFETY_AXES,
+  SAFETY_QUESTIONS,
   SHINDAN_QUESTIONS,
+  SafetyAxis,
   axisBreakdown,
   computeShindanType,
   dominantPoles,
   partnerTypeOf,
+  scoreSafety,
   shindanTypeOf,
 } from "@/data/shindan";
+import Svg, { Line, Polygon, Text as SvgText } from "react-native-svg";
+import { useVisionStore } from "@/store/visionStore";
+import { useKytStore } from "@/store/kytStore";
+import { useQuizStore } from "@/store/quizStore";
+import { useRecordStore } from "@/store/recordStore";
+import { KYT_SCENES } from "@/data/kytScenes";
 import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { useRankStore } from "@/store/rankStore";
@@ -35,17 +46,26 @@ export default function ShindanScreen() {
   const setShindanAnswers = useRankStore((s) => s.setShindanAnswers);
   const saved = shindanTypeOf(savedKey);
 
-  const [phase, setPhase] = useState<"start" | "play" | "result">("start");
+  const savedSafety = useRankStore((s) => s.shindanSafety);
+  const setShindanSafety = useRankStore((s) => s.setShindanSafety);
+
+  const [phase, setPhase] = useState<"start" | "play" | "safety" | "liar" | "result">("start");
   const [index, setIndex] = useState(0);
   const [axes, setAxes] = useState<Axis[]>([]);
   const [result, setResult] = useState<ReturnType<typeof computeShindanType> | null>(null);
   const [resultAxes, setResultAxes] = useState<Axis[]>([]);
+  const [safetyIndex, setSafetyIndex] = useState(0);
+  const [safetyAnswers, setSafetyAnswers] = useState<number[]>([]);
+  const [safetyScores, setSafetyScores] = useState<Record<SafetyAxis, number> | null>(null);
 
   const q = SHINDAN_QUESTIONS[index];
+  const sq = SAFETY_QUESTIONS[safetyIndex];
 
   const start = () => {
     setIndex(0);
     setAxes([]);
+    setSafetyIndex(0);
+    setSafetyAnswers([]);
     setPhase("play");
   };
 
@@ -60,18 +80,44 @@ export default function ShindanScreen() {
       setShindanAnswers(nextAxes.join(""));
       setResult(t);
       setResultAxes(nextAxes);
-      playSe("achievement");
-      setPhase("result");
+      // 続けてセーフティチェックへ
+      setSafetyIndex(0);
+      setSafetyAnswers([]);
+      setPhase("safety");
       return;
     }
     setAxes(nextAxes);
     setIndex((i) => i + 1);
   };
 
+  /** セーフティチェックの回答（0=そう思わない〜3=そう思う） */
+  const chooseSafety = (v: number) => {
+    haptic("light");
+    playSe("tap");
+    const next = [...safetyAnswers, v];
+    if (safetyIndex + 1 >= SAFETY_QUESTIONS.length) {
+      setSafetyAnswers(next);
+      const { scores, lie } = scoreSafety(next);
+      setSafetyScores(scores);
+      setShindanSafety(scores);
+      if (lie >= 5) {
+        // 正直度チェックに引っかかった（全部「完璧な人」の回答）
+        setPhase("liar");
+        return;
+      }
+      playSe("achievement");
+      setPhase("result");
+      return;
+    }
+    setSafetyAnswers(next);
+    setSafetyIndex((i) => i + 1);
+  };
+
   const showSaved = () => {
     if (!saved) return;
     setResult(saved);
     setResultAxes((savedAnswers ?? "").split("") as Axis[]);
+    setSafetyScores((savedSafety as Record<SafetyAxis, number> | null) ?? null);
     setPhase("result");
   };
 
@@ -128,6 +174,69 @@ export default function ShindanScreen() {
           </Animated.View>
         )}
 
+        {phase === "safety" && sq && (
+          <Animated.View key={`s${safetyIndex}`} entering={FadeIn.duration(220)} style={styles.card}>
+            <Text style={styles.progress}>
+              セーフティチェック {safetyIndex + 1} / {SAFETY_QUESTIONS.length}
+            </Text>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${(safetyIndex / SAFETY_QUESTIONS.length) * 100}%`, backgroundColor: "#1a5fb4" },
+                ]}
+              />
+            </View>
+            <Text style={styles.safetyIntro}>ふだんの自分に、どのくらい当てはまりますか？</Text>
+            <Text style={styles.question}>{sq.text}</Text>
+            {[
+              { v: 3, label: "そう思う" },
+              { v: 2, label: "ややそう思う" },
+              { v: 1, label: "あまり思わない" },
+              { v: 0, label: "そう思わない" },
+            ].map((o) => (
+              <Pressable
+                key={o.v}
+                style={[styles.choice, styles.safetyChoice]}
+                onPress={() => chooseSafety(o.v)}
+              >
+                <Text style={[styles.choiceText, styles.safetyChoiceText]}>{o.label}</Text>
+              </Pressable>
+            ))}
+          </Animated.View>
+        )}
+
+        {phase === "liar" && (
+          <Animated.View entering={ZoomIn.springify().damping(13)} style={styles.card}>
+            <Text style={styles.resultEmoji}>😉</Text>
+            <Text style={styles.resultName}>ちょっと待って！</Text>
+            <Text style={styles.note}>
+              回答が「今まで一度もうそをついたことがない」など、完璧すぎる人になっています。
+              本物の適性検査にもある「正直度チェック」に引っかかりました。
+              正直に答え直すと、もっと当たる結果になりますよ。
+            </Text>
+            <AppButton
+              label="正直モードでやり直す"
+              custom={{ bg: "#1a5fb4" }}
+              fullWidth
+              onPress={() => {
+                setSafetyIndex(0);
+                setSafetyAnswers([]);
+                setPhase("safety");
+              }}
+            />
+            <AppButton
+              label="このまま結果を見る"
+              tone="ghost"
+              fullWidth
+              onPress={() => {
+                playSe("achievement");
+                setPhase("result");
+              }}
+            />
+          </Animated.View>
+        )}
+
         {phase === "result" && result && (
           <Animated.View entering={ZoomIn.springify().damping(13)} style={styles.card}>
             <Text style={styles.resultLabel}>あなたの運転タイプは…</Text>
@@ -162,6 +271,49 @@ export default function ShindanScreen() {
             ) : (
               <Text style={styles.record}>（メーター表示はもう一度診断すると出ます）</Text>
             )}
+
+            {/* 安全運転の6観点（セーフティチェックの結果） */}
+            {safetyScores && (
+              <View style={styles.meterBox}>
+                <Text style={styles.sectionLabel}>🛞 安全運転セーフティチェック</Text>
+                <SafetyRadar scores={safetyScores} />
+                {SAFETY_AXES.map((a) => (
+                  <View key={a.key} style={styles.meterRow}>
+                    <Text style={[styles.meterLabel, { width: 96 }]}>
+                      {a.emoji} {a.label}
+                    </Text>
+                    <View style={styles.meterTrack}>
+                      <View
+                        style={[
+                          styles.meterLeft,
+                          {
+                            width: `${safetyScores[a.key]}%`,
+                            backgroundColor: safetyScores[a.key] >= 60 ? "#2f9e44" : "#e8890c",
+                          },
+                        ]}
+                      />
+                    </View>
+                    <Text style={styles.safetyPct}>{safetyScores[a.key]}</Text>
+                  </View>
+                ))}
+                {(() => {
+                  const low = [...SAFETY_AXES].sort(
+                    (x, y) => safetyScores[x.key] - safetyScores[y.key]
+                  )[0];
+                  return (
+                    <View style={[styles.adviceBox, { borderLeftColor: "#e8890c" }]}>
+                      <Text style={styles.sectionLabel}>
+                        📚 教習ワンポイント（{low.emoji} {low.label}）
+                      </Text>
+                      <Text style={styles.adviceText}>{SAFETY_ADVICE[low.key]}</Text>
+                    </View>
+                  );
+                })()}
+              </View>
+            )}
+
+            {/* ゲーム内の実測データとの照合 */}
+            {safetyScores && <RealDataPanel scores={safetyScores} />}
 
             {/* 強みと注意（傾きの強い2軸から） */}
             {poles.length > 0 && (
@@ -221,6 +373,10 @@ export default function ShindanScreen() {
               </View>
             )}
 
+            <Text style={styles.disclaimer}>
+              ※ これは学習用の簡易診断です。本格的な運転適性検査（OD式など）は、
+              KDS釧路自動車学校に入校すると受けられます。
+            </Text>
             <AppButton label="もう一度診断する" tone="ghost" fullWidth onPress={start} />
             <AppButton
               label="診断トップへ戻る"
@@ -238,6 +394,148 @@ export default function ShindanScreen() {
         )}
       </ScrollView>
     </ScreenEnter>
+  );
+}
+
+/** 6観点のレーダーチャート（六角形） */
+function SafetyRadar({ scores }: { scores: Record<SafetyAxis, number> }) {
+  const SIZE = 300;
+  const C = SIZE / 2;
+  const R = 92;
+  const pt = (i: number, ratio: number) => {
+    const ang = (Math.PI * 2 * i) / 6 - Math.PI / 2;
+    return `${C + Math.cos(ang) * R * ratio},${C + Math.sin(ang) * R * ratio}`;
+  };
+  const ring = (ratio: number) =>
+    [0, 1, 2, 3, 4, 5].map((i) => pt(i, ratio)).join(" ");
+  const data = SAFETY_AXES.map((a, i) => pt(i, Math.max(0.08, scores[a.key] / 100))).join(" ");
+  return (
+    <View style={{ alignItems: "center" }}>
+      <Svg width={SIZE} height={SIZE}>
+        {[0.33, 0.66, 1].map((r) => (
+          <Polygon key={r} points={ring(r)} fill="none" stroke="#9aa7b855" strokeWidth={1} />
+        ))}
+        {[0, 1, 2, 3, 4, 5].map((i) => {
+          const [x, y] = pt(i, 1).split(",").map(Number);
+          return <Line key={i} x1={C} y1={C} x2={x} y2={y} stroke="#9aa7b855" strokeWidth={1} />;
+        })}
+        <Polygon points={data} fill="#1a5fb44d" stroke="#1a5fb4" strokeWidth={2} />
+        {SAFETY_AXES.map((a, i) => {
+          const [x, y] = pt(i, 1.28).split(",").map(Number);
+          return (
+            <SvgText
+              key={a.key}
+              x={x}
+              y={y + 4}
+              fontSize={11}
+              fontWeight="bold"
+              fill={colors.text}
+              textAnchor="middle"
+            >
+              {a.emoji} {a.label.replace("・正確さ", "")}
+            </SvgText>
+          );
+        })}
+      </Svg>
+    </View>
+  );
+}
+
+/** ゲーム内の実測データと自己評価の照合パネル */
+function RealDataPanel({ scores }: { scores: Record<SafetyAxis, number> }) {
+  const visionBest = useVisionStore((s) => s.best);
+  const kytMastered = useKytStore((s) => s.masteredIds.length);
+  const quizPlays = useQuizStore((s) => s.plays);
+  const quizPerfects = useQuizStore((s) => s.perfects);
+  const kenteiPassed = useQuizStore((s) => s.kenteiPassed);
+  const history = useRecordStore((s) => s.history);
+
+  const rows: { emoji: string; label: string; value: string; comment: string }[] = [];
+
+  // 認知（動体視力）
+  const visionLv = visionBest >= 15 ? 2 : visionBest >= 8 ? 1 : 0;
+  rows.push({
+    emoji: "👁",
+    label: "動体視力チェック",
+    value: visionBest > 0 ? `最高 ${visionBest}点` : "未計測",
+    comment:
+      visionBest === 0
+        ? "「動体視力」で実測してみよう"
+        : visionLv === 2
+          ? "実測でも認知力はトップクラス！"
+          : scores.attention >= 60 && visionLv === 0
+            ? "自己評価より実測が控えめ。動体視力チェックで鍛えよう"
+            : "続けるほど伸びます",
+  });
+  // 予測（KYT）
+  const kytLv = kytMastered >= 30 ? 2 : kytMastered >= 10 ? 1 : 0;
+  rows.push({
+    emoji: "⚠️",
+    label: "危険予測（KYT）",
+    value: kytMastered > 0 ? `${kytMastered}/${KYT_SCENES.length}場面クリア` : "未挑戦",
+    comment:
+      kytLv === 2
+        ? "実測でも危険予測力は折り紙つき！"
+        : scores.attention >= 60 && kytLv === 0
+          ? "注意力の自己評価は高め。KYTで実力も証明しよう"
+          : "KYTで予測力はどんどん伸びます",
+  });
+  // 知識（学科）
+  rows.push({
+    emoji: "📝",
+    label: "学科の知識",
+    value:
+      kenteiPassed > 0
+        ? `効果測定 合格${kenteiPassed}回`
+        : quizPerfects > 0
+          ? `クイズ全問正解${quizPerfects}回`
+          : quizPlays > 0
+            ? `クイズ挑戦${quizPlays}回`
+            : "未挑戦",
+    comment:
+      kenteiPassed > 0
+        ? "知識は本試験レベル。自信を持ってOK！"
+        : "学科クイズと効果測定で積み上げよう",
+  });
+  // 対戦スタイル（判断の傾向）
+  const turns = history.filter((h) => h.turns > 0).map((h) => h.turns);
+  const avgTurns = turns.length >= 3 ? turns.reduce((a, b) => a + b, 0) / turns.length : null;
+  rows.push({
+    emoji: "🎮",
+    label: "対戦スタイル",
+    value:
+      avgTurns === null
+        ? "データ不足（3戦以上で判定）"
+        : avgTurns <= 8
+          ? `速攻型（平均${avgTurns.toFixed(1)}ターン）`
+          : avgTurns >= 13
+            ? `じっくり型（平均${avgTurns.toFixed(1)}ターン)`
+            : `バランス型（平均${avgTurns.toFixed(1)}ターン）`,
+    comment:
+      avgTurns === null
+        ? ""
+        : avgTurns <= 8 && scores.judgment < 60
+          ? "決断が早い勝負師タイプ。運転では「1テンポ待つ」を意識すると鬼に金棒"
+          : avgTurns >= 13 && scores.judgment >= 60
+            ? "熟考型の判断は運転向き。自信を持って"
+            : "判断の傾向は安定しています",
+  });
+
+  return (
+    <View style={styles.meterBox}>
+      <Text style={styles.sectionLabel}>🔬 ゲーム内の実測データと照合</Text>
+      <Text style={styles.adviceText}>
+        アンケート（自己評価）と、アプリで実際に遊んだ記録を突き合わせました。
+      </Text>
+      {rows.map((r) => (
+        <View key={r.label} style={styles.realRow}>
+          <Text style={styles.realLabel}>
+            {r.emoji} {r.label}: <Text style={styles.realValue}>{r.value}</Text>
+          </Text>
+          {!!r.comment && <Text style={styles.realComment}>{r.comment}</Text>}
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -304,6 +602,15 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   adviceText: { fontSize: 13, lineHeight: 21, color: colors.text },
+  safetyIntro: { fontSize: 12, fontWeight: "700", color: colors.textMuted },
+  safetyChoice: { borderColor: "#1a5fb4", paddingVertical: 12 },
+  safetyChoiceText: { color: "#1a5fb4", textAlign: "center" },
+  safetyPct: { width: 30, fontSize: 11, fontWeight: "800", color: colors.textMuted, textAlign: "right" },
+  disclaimer: { fontSize: 11, lineHeight: 17, color: colors.textMuted },
+  realRow: { gap: 2 },
+  realLabel: { fontSize: 13, fontWeight: "700", color: colors.text },
+  realValue: { fontWeight: "900", color: "#1a5fb4" },
+  realComment: { fontSize: 12, color: colors.textMuted, paddingLeft: 18 },
   partnerRow: { flexDirection: "row", gap: 12, alignItems: "center" },
   partnerName: { fontSize: 16, fontWeight: "900", color: colors.text },
 });
