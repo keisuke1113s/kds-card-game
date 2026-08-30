@@ -44,6 +44,7 @@ if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__kdsPerf = {
     store: usePerfStore,
     info: () => ({ session, longCount }),
+    commits: () => commitSamples.slice(),
   };
 }
 

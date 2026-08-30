@@ -1279,6 +1279,10 @@ function BattleInner() {
             ? 900
             : next.kind === "battleResult" && reachOnRef.current
               ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
+              : next.kind === "battleResult" &&
+                  !next.resTie &&
+                  Math.abs((next.resAtk ?? 0) - (next.resDef ?? 0)) <= 1
+                ? 4400 // 接戦バトルは「大接戦…！！」のためをしっかり見せる
               : next.kind === "battle" || next.kind === "battleResult"
               ? 3200 // いざ勝負！と勝敗はしっかり見せる
               : next.kind === "trackComplete"
@@ -1899,10 +1903,11 @@ function BattleInner() {
     });
   };
 
-  return (
-    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
-      <Animated.View style={[styles.shakeWrap, shakeStyle]}>
-      {/* ===== 相手エリア ===== */}
+  // ===== 盤面領域の要素メモ化 =====
+  // 実況・演出のこまかい状態変化では、この領域のJSXを作り直さない。
+  // 依存に入っている値が変わったときだけ再構築される
+  const cpuZoneEl = useMemo(
+    () => (
       <View style={[styles.zone, { backgroundColor: colors.boardOpponent, borderBottomColor: colors.boardOpponentEdge }]}>
         <View style={styles.infoRow}>
           <Text style={styles.playerLabel}>
@@ -1954,6 +1959,103 @@ function BattleInner() {
           onPress={onPressCpuField}
         />
       </View>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      view,
+      isOnline,
+      opponentName,
+      opponentTitle,
+      opponentConnected,
+      aiThinking,
+      cpuSpeech,
+      shownTracks,
+      flashIds,
+      scaredUid,
+      cpuHighlights,
+      onPressCpuField,
+    ]
+  );
+  const selfZoneEl = useMemo(
+    () => (
+      <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
+        <FieldRow
+          flashIds={flashIds}
+          scaredUid={scaredUid}
+          view={view}
+          player={ME}
+          field={me.field}
+          highlightUids={myHighlights}
+          highlightColor={colors.highlight}
+          selectedUid={selectedUid}
+          onPress={onPressMyField}
+        />
+        <TrackBar label="学科" kind="academic" value={shownTracks?.ma ?? me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
+        <TrackBar label="技能" kind="skill" value={shownTracks?.ms ?? me.skill} goal={SKILL_GOAL} color={colors.success} />
+        <View style={styles.infoRow}>
+          <Text style={styles.playerLabel}>あなた</Text>
+          {/* 山札・場外はタップで中身を確認できる */}
+          <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
+            <DeckCount count={me.deckCount} baseStyle={styles.infoLink} suffix=" ▸" />
+          </Pressable>
+          <Pressable
+            ref={myOutRef}
+            onPress={() => setPileView("outOfPlay")}
+            hitSlop={6}
+            onLayout={measureOutLinks}
+          >
+            <Text style={styles.infoLink}>場外 {me.outOfPlay.length} ▸</Text>
+          </Pressable>
+          <PulseRing active={tantouUsable} style={tantouUsable ? styles.tantouUsable : undefined}>
+            {/* 担当カードはタップすると拡大表示。そこから力を使う。
+                決着時は勝てば跳ねて喜び、負ければしゅんと沈む */}
+            <TantouMood mood={finishedOutcome}>
+              <CardFace
+                cardId={me.tantou}
+                size="sm"
+                onPress={() => setDetailCardId(me.tantou, "self")}
+              />
+            </TantouMood>
+          </PulseRing>
+          <View style={{ flex: 1 }} />
+          {battleInfo?.myPriority && (
+            <ActionButton
+              label="パス"
+              color={colors.textMuted}
+              onPress={() => doAction({ type: "passSupport", player: ME })}
+            />
+          )}
+          <ActionButton
+            label="ターン終了"
+            color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
+            onPress={() =>
+              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: ME })
+            }
+          />
+        </View>
+      </View>
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      view,
+      shownTracks,
+      flashIds,
+      scaredUid,
+      myHighlights,
+      selectedUid,
+      onPressMyField,
+      tantouUsable,
+      finishedOutcome,
+      battleInfo,
+      legal,
+    ]
+  );
+
+  return (
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
+      <Animated.View style={[styles.shakeWrap, shakeStyle]}>
+      {/* ===== 相手エリア ===== */}
+      {cpuZoneEl}
 
       {/* ===== 中央: 状況とログ ===== */}
       <View style={styles.middle}>
@@ -2153,62 +2255,7 @@ function BattleInner() {
       </View>
 
       {/* ===== 自分エリア ===== */}
-      <View style={[styles.zone, { backgroundColor: colors.boardSelf, borderTopColor: colors.boardSelfEdge }]}>
-        <FieldRow
-          flashIds={flashIds}
-          scaredUid={scaredUid}
-          view={view}
-          player={ME}
-          field={me.field}
-          highlightUids={myHighlights}
-          highlightColor={colors.highlight}
-          selectedUid={selectedUid}
-          onPress={onPressMyField}
-        />
-        <TrackBar label="学科" kind="academic" value={shownTracks?.ma ?? me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
-        <TrackBar label="技能" kind="skill" value={shownTracks?.ms ?? me.skill} goal={SKILL_GOAL} color={colors.success} />
-        <View style={styles.infoRow}>
-          <Text style={styles.playerLabel}>あなた</Text>
-          {/* 山札・場外はタップで中身を確認できる */}
-          <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
-            <DeckCount count={me.deckCount} baseStyle={styles.infoLink} suffix=" ▸" />
-          </Pressable>
-          <Pressable
-            ref={myOutRef}
-            onPress={() => setPileView("outOfPlay")}
-            hitSlop={6}
-            onLayout={measureOutLinks}
-          >
-            <Text style={styles.infoLink}>場外 {me.outOfPlay.length} ▸</Text>
-          </Pressable>
-          <PulseRing active={tantouUsable} style={tantouUsable ? styles.tantouUsable : undefined}>
-            {/* 担当カードはタップすると拡大表示。そこから力を使う。
-                決着時は勝てば跳ねて喜び、負ければしゅんと沈む */}
-            <TantouMood mood={finishedOutcome}>
-              <CardFace
-                cardId={me.tantou}
-                size="sm"
-                onPress={() => setDetailCardId(me.tantou, "self")}
-              />
-            </TantouMood>
-          </PulseRing>
-          <View style={{ flex: 1 }} />
-          {battleInfo?.myPriority && (
-            <ActionButton
-              label="パス"
-              color={colors.textMuted}
-              onPress={() => doAction({ type: "passSupport", player: ME })}
-            />
-          )}
-          <ActionButton
-            label="ターン終了"
-            color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
-            onPress={() =>
-              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: ME })
-            }
-          />
-        </View>
-      </View>
+      {selfZoneEl}
 
       {/* ===== 手札 ===== */}
       <View style={styles.handArea}>
@@ -3459,16 +3506,26 @@ export function BattleResultCutIn({
       );
     };
     if (close) {
-      // 接戦: 「大接戦…！」と見せて一拍ためる
+      // 接戦: 「大接戦…！！」をしっかり見せて、鼓動のように脈打ちながらためる
       playSe("battle");
       playVoice("voice_close");
       haptic("medium");
-      scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
+      scale.value = withSequence(
+        withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) }),
+        withRepeat(
+          withSequence(withTiming(1.06, { duration: 320 }), withTiming(1, { duration: 320 })),
+          2
+        )
+      );
+      const beat = setTimeout(() => haptic("light"), 800);
       const t = setTimeout(() => {
         setReveal(true);
         revealFx();
-      }, 900);
-      return () => clearTimeout(t);
+      }, 1600);
+      return () => {
+        clearTimeout(beat);
+        clearTimeout(t);
+      };
     }
     if (!deciding) {
       revealFx();
