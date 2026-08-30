@@ -567,7 +567,7 @@ export default function HomeScreen() {
                 <Text style={[styles.lineBannerText, lineLinked && styles.lineBannerTextDone]}>
                   {lineLinked
                     ? "💚 LINE連携ずみ（すべての機能が使えます）"
-                    : "💚 LINE連携（無料）で 対戦・自動車学校メニューなど全てを解放！"}
+                    : "💚 LINE連携（無料）で\n対戦・自動車学校メニューなど全てを解放！"}
                 </Text>
               </Pressable>
             )}
@@ -702,13 +702,6 @@ export default function HomeScreen() {
               onPress={() => router.push(lineLock ? "/line" : "/tournament")}
             />
           </View>
-          {lobbyWaiting > 0 && !lineLock && (
-            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.lobbyBadge}>
-              <Text style={styles.lobbyBadgeText}>
-                🟢 いま対戦相手を待っている人がいます！
-              </Text>
-            </Animated.View>
-          )}
           <AppButton
             label={lineLock ? "🔒 オンライン対戦" : "オンライン対戦"}
             icon="🌐"
@@ -716,6 +709,11 @@ export default function HomeScreen() {
             size="lg"
             feel="medium"
             fullWidth
+            subLabel={
+              !lineLock && lobbyWaiting > 0
+                ? "🟢 いま対戦相手を待っている人がいます！"
+                : undefined
+            }
             onPress={() => router.push(lineLock ? "/line" : "/online")}
           />
           <AppButton
@@ -1335,17 +1333,6 @@ const styles = StyleSheet.create({
   dailyQButtonText: { fontSize: 12, fontWeight: "800", color: "#8a6d00" },
   dailyQButtonDone: { backgroundColor: "#e9f5e2", borderColor: "#78b424" },
   dailyQButtonTextDone: { color: "#4e7d16" },
-  lobbyBadge: {
-    alignSelf: "center",
-    backgroundColor: "#e9f9ef",
-    borderWidth: 1.5,
-    borderColor: "#2e9e5b",
-    borderRadius: 999,
-    paddingVertical: 5,
-    paddingHorizontal: 14,
-    marginBottom: -4,
-  },
-  lobbyBadgeText: { color: "#1d7a44", fontSize: 12, fontWeight: "800" },
   lineBanner: {
     marginTop: 10,
     backgroundColor: "#06C755",
@@ -1360,7 +1347,7 @@ const styles = StyleSheet.create({
     borderColor: "#06C755",
     paddingVertical: 6,
   },
-  lineBannerText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  lineBannerText: { color: "#fff", fontSize: 13, fontWeight: "800", textAlign: "center" },
   lineBannerTextDone: { color: "#04833a" },
   missionCard: {
     backgroundColor: colors.surface,
