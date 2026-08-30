@@ -37,6 +37,7 @@ import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
 import { useQuizStore } from "@/store/quizStore";
 import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED } from "@/data/lineConfig";
+import { DEFAULT_SERVER_URL } from "@/app/online";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -294,6 +295,31 @@ export default function HomeScreen() {
   useFocusEffect(
     useCallback(() => {
       stopBgm();
+    }, [])
+  );
+
+  // オンライン対戦で相手を待っている人がいるか（ボタン上のお知らせ表示用）。
+  // ホームを見ている間だけ20秒おきに確認する
+  const [lobbyWaiting, setLobbyWaiting] = useState(0);
+  useFocusEffect(
+    useCallback(() => {
+      let alive = true;
+      const httpUrl = DEFAULT_SERVER_URL.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
+      const check = async () => {
+        try {
+          const res = await fetch(`${httpUrl}/lobby`);
+          const d = (await res.json()) as { waiting?: number };
+          if (alive) setLobbyWaiting(d.waiting ?? 0);
+        } catch {
+          if (alive) setLobbyWaiting(0);
+        }
+      };
+      void check();
+      const timer = setInterval(() => void check(), 20000);
+      return () => {
+        alive = false;
+        clearInterval(timer);
+      };
     }, [])
   );
 
@@ -676,6 +702,13 @@ export default function HomeScreen() {
               onPress={() => router.push(lineLock ? "/line" : "/tournament")}
             />
           </View>
+          {lobbyWaiting > 0 && !lineLock && (
+            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.lobbyBadge}>
+              <Text style={styles.lobbyBadgeText}>
+                🟢 いま対戦相手を待っている人がいます！
+              </Text>
+            </Animated.View>
+          )}
           <AppButton
             label={lineLock ? "🔒 オンライン対戦" : "オンライン対戦"}
             icon="🌐"
@@ -1302,6 +1335,17 @@ const styles = StyleSheet.create({
   dailyQButtonText: { fontSize: 12, fontWeight: "800", color: "#8a6d00" },
   dailyQButtonDone: { backgroundColor: "#e9f5e2", borderColor: "#78b424" },
   dailyQButtonTextDone: { color: "#4e7d16" },
+  lobbyBadge: {
+    alignSelf: "center",
+    backgroundColor: "#e9f9ef",
+    borderWidth: 1.5,
+    borderColor: "#2e9e5b",
+    borderRadius: 999,
+    paddingVertical: 5,
+    paddingHorizontal: 14,
+    marginBottom: -4,
+  },
+  lobbyBadgeText: { color: "#1d7a44", fontSize: 12, fontWeight: "800" },
   lineBanner: {
     marginTop: 10,
     backgroundColor: "#06C755",
