@@ -3585,7 +3585,7 @@ export function BattleResultCutIn({
         : require("../../assets/images/fx/fx_down.webp");
   const title = !reveal
     ? deciding
-      ? "🏁 ラストバトル！！"
+      ? "🏁 リーチバトル！！"
       : "⚡ 大接戦…！！"
     : tie
       ? "⚡ 相打ち！！"
