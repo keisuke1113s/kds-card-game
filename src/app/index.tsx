@@ -298,9 +298,9 @@ export default function HomeScreen() {
     }, [])
   );
 
-  // オンライン対戦で相手を待っている人がいるか（ボタン上のお知らせ表示用）。
-  // ホームを見ている間だけ20秒おきに確認する
-  const [lobbyWaiting, setLobbyWaiting] = useState(0);
+  // オンライン対戦で相手を待っている人・トーナメントのエントリー人数
+  // （ボタン内のお知らせ表示用）。ホームを見ている間だけ20秒おきに確認する
+  const [lobbyWaiting, setLobbyWaiting] = useState({ waiting: 0, tourney: 0 });
   useFocusEffect(
     useCallback(() => {
       let alive = true;
@@ -308,10 +308,10 @@ export default function HomeScreen() {
       const check = async () => {
         try {
           const res = await fetch(`${httpUrl}/lobby`);
-          const d = (await res.json()) as { waiting?: number };
-          if (alive) setLobbyWaiting(d.waiting ?? 0);
+          const d = (await res.json()) as { waiting?: number; tourney?: number };
+          if (alive) setLobbyWaiting({ waiting: d.waiting ?? 0, tourney: d.tourney ?? 0 });
         } catch {
-          if (alive) setLobbyWaiting(0);
+          if (alive) setLobbyWaiting({ waiting: 0, tourney: 0 });
         }
       };
       void check();
@@ -322,6 +322,15 @@ export default function HomeScreen() {
       };
     }, [])
   );
+  // ボタン内に添えるお知らせ（両方あるときはランダムマッチ待ちを優先しつつ併記）
+  const lobbyNote =
+    lobbyWaiting.waiting > 0 && lobbyWaiting.tourney > 0
+      ? `🟢 対戦相手を待っている人がいます！ 🏆 大会${lobbyWaiting.tourney}/4人`
+      : lobbyWaiting.waiting > 0
+        ? "🟢 いま対戦相手を待っている人がいます！"
+        : lobbyWaiting.tourney > 0
+          ? `🏆 トーナメント参加待ち ${lobbyWaiting.tourney}/4人！`
+          : undefined;
 
   // ランダムマッチの相手待ちを解除して戻ってきたときのお知らせ。数秒で自動的に消す
   useEffect(() => {
@@ -709,11 +718,7 @@ export default function HomeScreen() {
             size="lg"
             feel="medium"
             fullWidth
-            subLabel={
-              !lineLock && lobbyWaiting > 0
-                ? "🟢 いま対戦相手を待っている人がいます！"
-                : undefined
-            }
+            subLabel={lineLock ? undefined : lobbyNote}
             onPress={() => router.push(lineLock ? "/line" : "/online")}
           />
           <AppButton
