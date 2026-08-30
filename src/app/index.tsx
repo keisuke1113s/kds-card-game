@@ -302,12 +302,14 @@ export default function HomeScreen() {
   );
 
   // オンライン対戦で相手を待っている人・トーナメントのエントリー人数
-  // （ボタン内のお知らせ表示用）。ホームを見ている間だけ5秒おきに確認する
-  // （応答は数十バイトの軽いJSONなので、この間隔でも負荷はほぼない）
+  // （ボタン内のお知らせ表示用）。ホームを見ている間、WebSocketで購読して
+  // 人数が変わった瞬間に受け取る。つながらないときは5秒ポーリングに切り替える
   const [lobbyWaiting, setLobbyWaiting] = useState({ waiting: 0, tourney: 0 });
   useFocusEffect(
     useCallback(() => {
       let alive = true;
+      let ws: WebSocket | null = null;
+      let pollTimer: ReturnType<typeof setInterval> | null = null;
       const httpUrl = DEFAULT_SERVER_URL.replace(/^wss:/, "https:").replace(/^ws:/, "http:");
       const check = async () => {
         try {
@@ -318,11 +320,44 @@ export default function HomeScreen() {
           if (alive) setLobbyWaiting({ waiting: 0, tourney: 0 });
         }
       };
-      void check();
-      const timer = setInterval(() => void check(), 5000);
+      const startPolling = () => {
+        if (pollTimer || !alive) return;
+        void check();
+        pollTimer = setInterval(() => void check(), 5000);
+      };
+      try {
+        ws = new WebSocket(DEFAULT_SERVER_URL);
+        ws.onopen = () => ws?.send(JSON.stringify({ type: "watchLobby" }));
+        ws.onmessage = (ev) => {
+          try {
+            const d = JSON.parse(String(ev.data)) as {
+              type?: string;
+              waiting?: number;
+              tourney?: number;
+            };
+            if (d.type === "lobbyUpdate" && alive) {
+              setLobbyWaiting({ waiting: d.waiting ?? 0, tourney: d.tourney ?? 0 });
+            } else if (d.type === "error") {
+              // 旧サーバーが watchLobby を知らない場合はポーリングで代用
+              startPolling();
+            }
+          } catch {
+            // 読めないメッセージは無視
+          }
+        };
+        ws.onerror = () => startPolling();
+        ws.onclose = () => startPolling();
+      } catch {
+        startPolling();
+      }
       return () => {
         alive = false;
-        clearInterval(timer);
+        if (pollTimer) clearInterval(pollTimer);
+        try {
+          ws?.close();
+        } catch {
+          // 既に閉じていれば何もしない
+        }
       };
     }, [])
   );

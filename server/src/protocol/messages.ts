@@ -67,6 +67,8 @@ export const clientMessageSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("leave") }),
   z.object({ type: z.literal("ping") }),
+  // ホーム画面の待ち人数のリアルタイム購読
+  z.object({ type: z.literal("watchLobby") }),
 ]);
 
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
