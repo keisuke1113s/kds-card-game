@@ -52,7 +52,10 @@ import {
 } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
-import { cardRegistry, getCard } from "@/data/cards";
+import { allCards, cardRegistry, getCard } from "@/data/cards";
+
+/** 全カード中の最高戦闘力（「エース登場」ボイスの基準） */
+const MAX_COMBAT = Math.max(...allCards.map((c) => c.combat ?? 0));
 import { GameEvent, PlayerView, Track } from "@/engine/types";
 
 import {
@@ -1178,10 +1181,196 @@ function BattleInner() {
     if (doubleReachOn) heatRef.current.doubleReach = true;
   }, [doubleReachOn]);
 
+  // ---- 追加実況ボイス（第2弾・第3弾）の発動判定 ----
+  // 1チャンネル制（playVoice側）が重なりを防ぐため、ここでは条件を満たしたら
+  // 呼ぶだけでよい。同時に複数条件が立った場合は先に呼んだものが優先される
+  const extraVoiceRef = useRef({
+    battle: null as null | {
+      atkCombat: number;
+      defCombat: number;
+      meAttacker: boolean;
+      meFieldN: number;
+      oppFieldN: number;
+      supportTotal: number;
+      mySupport: number;
+    },
+    tieCount: 0,
+    myBattleWinStreak: 0,
+    playedThisTurn: 0,
+    turnNo: 0,
+    drawnThisTurn: [] as string[],
+    advanceTurns: [] as number[],
+    momentumFired: false,
+    pursuitArmed: false,
+    pursuitFired: false,
+    chanceOn: false,
+  });
+  useEffect(() => {
+    if (!view || replayActive) return;
+    const R = extraVoiceRef.current;
+    if (view.turnNumber !== R.turnNo) {
+      R.turnNo = view.turnNumber;
+      R.playedThisTurn = 0;
+      R.drawnThisTurn = [];
+    }
+    for (const e of lastEvents) {
+      switch (e.type) {
+        case "cardDrawn":
+          if (e.player === ME && e.cardId) R.drawnThisTurn.push(e.cardId);
+          break;
+        case "instructorPlayed": {
+          if (e.player !== ME) break;
+          // エース登場（最高戦闘力のカード）
+          if ((getCard(e.cardId).combat ?? 0) >= MAX_COMBAT) playVoice("voice_ace");
+          // 引いたカードを同じターンに即投入
+          if (R.drawnThisTurn.includes(e.cardId)) playVoice("voice_topdeck");
+          // 怒涛の増援（1ターンに2枚出し）
+          R.playedThisTurn++;
+          if (R.playedThisTurn === 2) playVoice("voice_reinforce");
+          break;
+        }
+        case "battleDeclared": {
+          const all = [...view.self.field, ...view.opponent.field];
+          const atkId = all.find((f) => f.uid === e.attackerUid)?.cardId ?? null;
+          const defId = all.find((f) => f.uid === e.defenderUid)?.cardId ?? null;
+          R.battle = {
+            atkCombat: atkId ? (getCard(atkId).combat ?? 0) : 0,
+            defCombat: defId ? (getCard(defId).combat ?? 0) : 0,
+            meAttacker: e.attackerPlayer === ME,
+            meFieldN: view.self.field.length,
+            oppFieldN: view.opponent.field.length,
+            supportTotal: 0,
+            mySupport: 0,
+          };
+          // 同門対決（同じインストラクター同士）
+          if (atkId && defId && atkId === defId) playVoice("voice_mirror");
+          break;
+        }
+        case "supportPlayed":
+          if (R.battle) {
+            R.battle.supportTotal++;
+            if (e.player === ME) R.battle.mySupport++;
+          }
+          break;
+        case "battleBuffApplied":
+          // 強烈なサポート（1回で+3以上）
+          if (e.player === ME && e.amount >= 3) playVoice("voice_bigsupport");
+          break;
+        case "battleResolved": {
+          const b = R.battle;
+          R.battle = null;
+          const winner =
+            e.attackerTotal > e.defenderTotal
+              ? e.attackerPlayer
+              : e.defenderTotal > e.attackerTotal
+                ? 1 - e.attackerPlayer
+                : null;
+          if (winner === null) {
+            R.tieCount++;
+            if (R.tieCount === 3) playVoice("voice_tripledraw");
+          } else if (winner === ME) {
+            R.myBattleWinStreak++;
+            if (b) {
+              const myCombat = b.meAttacker ? b.atkCombat : b.defCombat;
+              const opCombat = b.meAttacker ? b.defCombat : b.atkCombat;
+              // ジャイアントキリング（3以上格上に勝つ）
+              if (opCombat - myCombat >= 3) playVoice("voice_giantkill");
+              // カウンター（防御側がサポートを使って勝ち）／守り切り（素のまま勝ち）
+              if (!b.meAttacker && b.mySupport > 0) playVoice("voice_counter");
+              else if (!b.meAttacker) playVoice("voice_holdout");
+              // 孤軍奮闘（場の人数で2人以上少ない側の勝利）
+              if (b.oppFieldN - b.meFieldN >= 2) playVoice("voice_solo");
+            }
+            if (R.myBattleWinStreak === 3) playVoice("voice_battlestreak");
+          } else {
+            R.myBattleWinStreak = 0;
+          }
+          // 死闘（サポート5枚以上）／真っ向勝負（両者サポート無し）
+          if (b && b.supportTotal >= 5) playVoice("voice_deathmatch");
+          else if (b && b.supportTotal === 0 && winner !== null) playVoice("voice_purebattle");
+          break;
+        }
+        case "trackAdvanced": {
+          if (e.player === ME && e.amount > 0) {
+            // 修了の節目（もう片方が残っているときだけ。両方完了は勝利演出に譲る）
+            if (
+              e.track === "academic" &&
+              e.newValue >= ACADEMIC_GOAL &&
+              view.self.skill < SKILL_GOAL
+            ) {
+              playVoice("voice_gakka");
+            }
+            if (
+              e.track === "skill" &&
+              e.newValue >= SKILL_GOAL &&
+              view.self.academic < ACADEMIC_GOAL
+            ) {
+              playVoice("voice_ginou");
+            }
+            // 波に乗る: 直近の自分の手番3回ぶん（5ターン以内）で毎回前進（1対戦1回）
+            const t = view.turnNumber;
+            if (!R.advanceTurns.includes(t)) R.advanceTurns.push(t);
+            const n = R.advanceTurns.length;
+            if (
+              !R.momentumFired &&
+              n >= 3 &&
+              R.advanceTurns[n - 1] - R.advanceTurns[n - 3] <= 4
+            ) {
+              R.momentumFired = true;
+              playVoice("voice_momentum");
+            }
+          }
+          // 妨害成功（相手の教習を2以上後退させた）
+          if (e.player !== ME && e.amount <= -2) playVoice("voice_sabotage");
+          break;
+        }
+        case "turnStarted":
+          // 作戦タイム（自分が手番を終えた=休憩。毎回だとくどいので約1/5の抽選）
+          if (e.player !== ME && e.turnNumber > 2 && Math.random() < 0.2) {
+            playVoice("voice_pitstop");
+          }
+          break;
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEvents]);
+  // 盤面の状態で決まる実況（攻め時・猛追）
+  useEffect(() => {
+    if (!view || replayActive || view.phase.type === "finished") return;
+    const R = extraVoiceRef.current;
+    // 攻め時到来: 相手のインストラクター2人以上が全員休憩中になった瞬間
+    const opp = view.opponent.field;
+    const allRested = opp.length >= 2 && opp.every((f) => f.rested);
+    if (allRested && !R.chanceOn && view.turnPlayer === ME) playVoice("voice_chance");
+    R.chanceOn = allRested;
+    // 猛追: 合計4以上離されてから2差以内まで詰めた（1対戦1回。逆転そのものはvoice_flip）
+    const diff =
+      view.opponent.academic + view.opponent.skill - (view.self.academic + view.self.skill);
+    if (diff >= 4) R.pursuitArmed = true;
+    if (R.pursuitArmed && !R.pursuitFired && diff >= 0 && diff <= 2) {
+      R.pursuitFired = true;
+      playVoice("voice_pursuit");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
   // 🥋 昇段・降段のかかった一戦と、挑戦状の「因縁の再戦」は開始時に知らせる
   useEffect(() => {
     if (!lastEvents.some((e) => e.type === "gameStarted")) return;
     heatRef.current = { flips: 0, maxChain: 0, closeBattles: 0, doubleReach: false, prevSign: 0 };
+    extraVoiceRef.current = {
+      battle: null,
+      tieCount: 0,
+      myBattleWinStreak: 0,
+      playedThisTurn: 0,
+      turnNo: 0,
+      drawnThisTurn: [],
+      advanceTurns: [],
+      momentumFired: false,
+      pursuitArmed: false,
+      pursuitFired: false,
+      chanceOn: false,
+    };
     if (replayActive || autoPlay || tutorial) return;
     const adds: Announcement[] = [];
     if (isOnline && revengeMatch) {
