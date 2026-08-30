@@ -8,7 +8,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
-import { playSe } from "@/audio/sound";
+import { playSe, playVoice } from "@/audio/sound";
 import { JankenHand, useGameStore } from "@/store/gameStore";
 import { colors, radius } from "@/theme";
 
@@ -52,9 +52,21 @@ export function OnlineJanken() {
   useEffect(() => {
     if (tieStreak === 3 || tieStreak === 5) {
       playSe("cheer");
+      playVoice("voice_aiko");
       haptic("heavy");
     }
   }, [tieStreak]);
+
+  // じゃんけんの開始と勝敗のひとこと
+  useEffect(() => {
+    if (jankenActive && !jankenHand && !jankenResult) playVoice("voice_janken");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jankenActive, jankenHand, jankenResult]);
+  useEffect(() => {
+    if (!jankenResult || jankenResult.result === "tie") return;
+    playVoice(jankenResult.result === "win" ? "voice_janken_win" : "voice_janken_lose");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jankenResult]);
 
   if (!jankenActive) return null;
 

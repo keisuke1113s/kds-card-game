@@ -698,6 +698,12 @@ export default function BattleScreen() {
       }
     }
     if (adds.length > 0 && fxScaleRef.current > 0.6) setFlyFx((q) => [...q.slice(-4), ...adds]);
+    // 自分のサポート発動・担当の力のひとこと（実況チャンネルが重なりを防ぐ）
+    if (lastEvents.some((e) => e.type === "supportPlayed" && e.player === ME)) {
+      playVoice("voice_support");
+    } else if (lastEvents.some((e) => e.type === "abilityActivated" && e.player === ME)) {
+      playVoice("voice_ability");
+    }
     // 効果発動カードの金フラッシュ。連鎖したときは順番に1枚ずつ光らせる
     const flashed = lastEvents
       .filter((e) => e.type === "abilityActivated" || e.type === "supportPlayed")
@@ -1023,6 +1029,29 @@ export default function BattleScreen() {
     r.prev = n;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.hand.length, view?.phase.type]);
+  // 相手の場ががら空き／自分の場が全滅／長期戦突入のひとこと
+  const prevFieldsRef = useRef({ me: 0, opp: 0 });
+  useEffect(() => {
+    const meN = view?.self.field.length ?? 0;
+    const opN = view?.opponent.field.length ?? 0;
+    const prev = prevFieldsRef.current;
+    if (view && view.phase.type !== "finished") {
+      if (prev.opp > 0 && opN === 0) playVoice("voice_openfield");
+      else if (prev.me > 0 && meN === 0) playVoice("voice_wipedout");
+    }
+    prevFieldsRef.current = { me: meN, opp: opN };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.field.length, view?.opponent.field.length, view?.phase.type]);
+  const longGameShown = useRef(false);
+  useEffect(() => {
+    const t = view?.turnNumber ?? 0;
+    if (view && view.phase.type !== "finished" && t >= 12 && !longGameShown.current) {
+      longGameShown.current = true;
+      playVoice("voice_longgame");
+    }
+    if (t < 12) longGameShown.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.turnNumber, view?.phase.type]);
   const deckLowShown = useRef(false);
   useEffect(() => {
     const n = view?.self.deckContents.length ?? 99;
@@ -2484,7 +2513,10 @@ export default function BattleScreen() {
             <ActionButton
               label="引き直す（1回だけ）"
               color={colors.accent}
-              onPress={() => doAction({ type: "mulligan", player: ME, redraw: true })}
+              onPress={() => {
+                playVoice("voice_mulligan");
+                doAction({ type: "mulligan", player: ME, redraw: true });
+              }}
             />
           </View>
         </Overlay>
@@ -3537,6 +3569,8 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
   useEffect(() => {
     playSe(mine ? "janken_win" : "battle");
     playVoice(mine ? "voice_reach" : "voice_reach_opp");
+    // 自分のリーチは「みきわめ 良好」の印が押される頃にひとこと続ける
+    const tMiki = mine ? setTimeout(() => playVoice("voice_mikiwame"), 2100) : null;
     scale.value = withSequence(
       withTiming(1.15, { duration: 200, easing: Easing.out(Easing.cubic) }),
       withTiming(1, { duration: 150 })
@@ -3546,6 +3580,9 @@ function ReachCutIn({ mine, oppName }: { mine: boolean; oppName: string }) {
       withSequence(withTiming(1, { duration: 350 }), withTiming(0.4, { duration: 350 })),
       -1
     );
+    return () => {
+      if (tMiki) clearTimeout(tMiki);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const box = useAnimatedStyle(() => ({
@@ -4134,6 +4171,7 @@ function ChainBadge({ n }: { n: number }) {
   const pop = useSharedValue(0);
   useEffect(() => {
     playSe("achievement", Math.min(2, 1 + (n - 2) * 0.16));
+    if (n === 2) playVoice("voice_chain");
     haptic("light");
     pop.value = withSequence(
       withTiming(1.3, { duration: 170, easing: Easing.out(Easing.cubic) }),
@@ -4472,6 +4510,7 @@ function LessonCutIn({
       return () => clearTimeout(t1);
     }
     playSe(gained ? "advance" : "hit");
+    if (gained && mine && amount >= 2) playVoice("voice_bigstep");
     if (!gained && mine && amount <= -3) playVoice("voice_setback");
     run.value = withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) });
     pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
