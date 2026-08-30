@@ -351,6 +351,39 @@ function closeSocket() {
 let aiTimer: ReturnType<typeof setTimeout> | null = null;
 let gameToken = 0; // 対局をまたいだ古いタイマーの発火防止
 
+// ===== CPU思考の別レーン（Web Worker）。画面のアニメーションを止めないため =====
+// 使えない環境・失敗時は従来どおりメインスレッドで考える（挙動は同一）
+let aiWorker: Worker | null = null;
+let aiWorkerBroken = false;
+let aiReqSeq = 0;
+let aiPending: { id: number; token: number; timeout: ReturnType<typeof setTimeout> } | null = null;
+
+function disposeAiWorker() {
+  if (aiPending) {
+    clearTimeout(aiPending.timeout);
+    aiPending = null;
+  }
+  try {
+    aiWorker?.terminate();
+  } catch {
+    // 終了に失敗しても実害なし
+  }
+  aiWorker = null;
+}
+
+/** 行動の一致（キーの並び順に依存しない構造比較。Workerの答えの検証用） */
+function sameAction(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) return false;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  const ka = Object.keys(a as object).filter((k) => (a as Record<string, unknown>)[k] !== undefined);
+  const kb = Object.keys(b as object).filter((k) => (b as Record<string, unknown>)[k] !== undefined);
+  if (ka.length !== kb.length) return false;
+  return ka.every((k) =>
+    sameAction((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k])
+  );
+}
+
 export const useGameStore = create<GameStore>()((set, get) => {
   function clearAiTimer() {
     if (aiTimer !== null) {
@@ -363,6 +396,27 @@ export const useGameStore = create<GameStore>()((set, get) => {
   function aiFor(actor: PlayerId): AIController | null {
     if (actor === CPU) return ai;
     return get().autoPlay ? humanAi : null;
+  }
+
+  /**
+   * Workerの答え（または保険のnull）から着手を確定する。
+   * 適用のタイミング・順序はこれまでの scheduleAI と完全に同じ流れ
+   */
+  function finishAiChoice(action: GameAction | null) {
+    const cur = get().state;
+    if (!cur || cur.phase.type === "finished") return;
+    const curActor = playerToAct(cur);
+    if (curActor === null) return;
+    const controller = aiFor(curActor);
+    if (!controller) return;
+    const legal = getLegalActions(ctx, cur, curActor);
+    if (legal.length === 0) return;
+    if (action && legal.some((l) => sameAction(l, action))) {
+      applyAndContinue(action);
+      return;
+    }
+    // Workerの答えが使えないときは、その場で従来どおり考える（保険）
+    applyAndContinue(controller.chooseAction(viewFor(cur, curActor), legal));
   }
 
   /** AIの手番なら1手ずつ間隔を空けて進める */
@@ -396,6 +450,29 @@ export const useGameStore = create<GameStore>()((set, get) => {
       if (!controller) return;
       const legal = getLegalActions(ctx, cur, curActor);
       if (legal.length === 0) return;
+      // 対応環境ではWorkerに考えさせ、思考中も画面のアニメーションを止めない。
+      // 着手の適用は finishAiChoice（従来と同じ検証と流れ）で行う
+      if (aiWorker && !aiWorkerBroken && !aiPending) {
+        const id = ++aiReqSeq;
+        const timeout = setTimeout(() => {
+          // 返事が来なければWorkerを見限り、従来方式で続行する
+          if (aiPending?.id !== id) return;
+          aiPending = null;
+          aiWorkerBroken = true;
+          disposeAiWorker();
+          if (token !== gameToken) return;
+          finishAiChoice(null);
+        }, 4000);
+        aiPending = { id, token, timeout };
+        aiWorker.postMessage({
+          type: "choose",
+          id,
+          actor: curActor,
+          cpuActor: CPU,
+          view: viewFor(cur, curActor),
+        });
+        return;
+      }
       const action = controller.chooseAction(viewFor(cur, curActor), legal);
       applyAndContinue(action);
     }, get().presentationBusy ? 200 : aiSpeedMs);
@@ -702,6 +779,33 @@ export const useGameStore = create<GameStore>()((set, get) => {
       );
       // 自動プレイ用。自分側は常に最強設定で打つ
       humanAi = new HeuristicAI(cardRegistry, DIFFICULTY_PARAMS.hard, realSeed ^ 0x1234);
+      // CPU思考の別レーンを起動（対応環境のみ。失敗したら従来方式のまま）
+      disposeAiWorker();
+      aiWorkerBroken = false;
+      if (typeof Worker !== "undefined") {
+        try {
+          aiWorker = new Worker(new URL("../ai/aiWorker.ts", import.meta.url), {
+            type: "module",
+          });
+          aiWorker.onerror = () => {
+            aiWorkerBroken = true;
+            disposeAiWorker();
+          };
+          aiWorker.onmessage = (ev: MessageEvent) => {
+            const data = ev.data as { id: number; action: GameAction | null };
+            const p = aiPending;
+            if (!p || p.id !== data.id) return;
+            clearTimeout(p.timeout);
+            aiPending = null;
+            if (p.token !== gameToken) return;
+            finishAiChoice(data.action ?? null);
+          };
+          aiWorker.postMessage({ type: "init", difficulty, persona, seed: realSeed });
+        } catch {
+          aiWorkerBroken = true;
+          aiWorker = null;
+        }
+      }
       const { state, events } = createGame(ctx, {
         seed: realSeed,
         decks: [playerDeck, cpuDeck],
