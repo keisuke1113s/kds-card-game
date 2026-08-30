@@ -166,15 +166,39 @@ export type VoiceKey =
   | "voice_kessyaku"
   | "voice_comeback"
   | "voice_fullline"
-  | "voice_start";
+  | "voice_start"
+  | "voice_battle"
+  | "voice_battlewin"
+  | "voice_tie"
+  | "voice_close"
+  | "voice_flip"
+  | "voice_result_win"
+  | "voice_result_lose"
+  | "voice_kentei"
+  | "voice_perfect"
+  | "voice_setback"
+  | "voice_lasthand"
+  | "voice_decklow"
+  | "voice_out"
+  | "voice_streak"
+  | "voice_heat_s"
+  | "voice_revenge";
 
-/** 実況ボイスを1つ鳴らす。効果音設定と実況ボイス設定の両方がONのときだけ */
+/** 実況が重ならないための1チャンネル制。再生が終わる見込み時刻まで次を断る */
+let voiceBusyUntil = 0;
+
+/**
+ * 実況ボイスを1つ鳴らす。効果音設定と実況ボイス設定の両方がONのときだけ。
+ * 別の実況がまだ鳴っている間は重ねずにスキップする
+ */
 export function playVoice(key: VoiceKey): void {
   if (!unlocked) return;
   const s = useSettingsStore.getState();
   if (!s.seEnabled || !s.voiceEnabled) return;
   const asset = seAssets[key];
   if (asset === undefined) return;
+  const now = Date.now();
+  if (now < voiceBusyUntil) return;
   try {
     void ensureAudioMode();
     let p = sePlayers[key];
@@ -182,25 +206,10 @@ export function playVoice(key: VoiceKey): void {
       p = createAudioPlayer(asset);
       sePlayers[key] = p;
     }
-    safeSeek(p, 0);
-    safePlay(p);
-  } catch (e) {
-    console.warn("実況ボイスを再生できませんでした:", e);
-  }
-}
-
-/** 実況ボイスの試聴（設定画面用。ON/OFF設定に関係なく鳴らす） */
-export function playVoicePreview(key: VoiceKey): void {
-  if (!unlocked) return;
-  const asset = seAssets[key];
-  if (asset === undefined) return;
-  try {
-    void ensureAudioMode();
-    let p = sePlayers[key];
-    if (!p) {
-      p = createAudioPlayer(asset);
-      sePlayers[key] = p;
-    }
+    // 長さが取れればその分＋少しの間、取れなければ2.2秒ぶんチャンネルを塞ぐ
+    const durSec = (p as { duration?: number }).duration;
+    const dur = durSec && isFinite(durSec) && durSec > 0.2 ? durSec : 2.2;
+    voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
     safeSeek(p, 0);
     safePlay(p);
   } catch (e) {

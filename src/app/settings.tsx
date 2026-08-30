@@ -6,7 +6,7 @@ import { reportByUser } from "@/data/errlog";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { useSettingsStore } from "@/store/settingsStore";
-import { applyBgmVolume, playVoicePreview } from "@/audio/sound";
+import { applyBgmVolume } from "@/audio/sound";
 import { exportTransferCode, importTransferCode } from "@/data/transfer";
 import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
 import { useLineStore } from "@/store/lineStore";
@@ -133,33 +133,6 @@ export default function SettingsScreen() {
           active={voiceEnabled}
           onPress={() => setVoiceEnabled(!voiceEnabled)}
         />
-      </View>
-
-      {/* 実況ボイスの試聴（タップで再生。ON/OFF設定に関係なく聞ける） */}
-      <Text style={styles.subLabel}>実況ボイスの試聴</Text>
-      <View style={styles.choiceRow}>
-        {(
-          [
-            ["voice_start", "対戦開始！"],
-            ["voice_reach", "リーチ！"],
-            ["voice_reach_opp", "相手がリーチ！"],
-            ["voice_double", "両者リーチ"],
-            ["voice_lastbattle", "ラストバトル！"],
-            ["voice_kessyaku", "決着ー！"],
-            ["voice_comeback", "大逆転ー！"],
-            ["voice_fullline", "フルライン！"],
-          ] as const
-        ).map(([key, label]) => (
-          <Choice
-            key={key}
-            label={`▶ ${label}`}
-            active={false}
-            onPress={() => {
-              haptic("light");
-              playVoicePreview(key);
-            }}
-          />
-        ))}
         <Choice
           label={HAPTICS_AVAILABLE ? `振動 ${hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
           active={HAPTICS_AVAILABLE && hapticsEnabled}

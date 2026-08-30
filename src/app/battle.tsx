@@ -674,8 +674,9 @@ export default function BattleScreen() {
   const showVsIntro = useCallback(() => {
     if (vsShownRef.current || replayActive) return;
     vsShownRef.current = true;
-    playVoice("voice_start");
+    playVoice(isOnline && revengeMatch ? "voice_revenge" : "voice_start");
     setVsIntro(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replayActive]);
   useEffect(() => {
     const adds: FlyItem[] = [];
@@ -1004,6 +1005,35 @@ export default function BattleScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.field.length, view?.phase.type]);
 
+  // 手札が残り1枚になった瞬間・山札が残りわずかになった瞬間のひとこと
+  const lastHandRef = useRef({ prev: 99, at: 0 });
+  useEffect(() => {
+    const n = view?.self.hand.length ?? 99;
+    const r = lastHandRef.current;
+    if (
+      view &&
+      view.phase.type !== "finished" &&
+      n === 1 &&
+      r.prev > 1 &&
+      Date.now() - r.at > 30000
+    ) {
+      r.at = Date.now();
+      playVoice("voice_lasthand");
+    }
+    r.prev = n;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.hand.length, view?.phase.type]);
+  const deckLowShown = useRef(false);
+  useEffect(() => {
+    const n = view?.self.deckContents.length ?? 99;
+    if (view && view.phase.type !== "finished" && n <= 2 && !deckLowShown.current) {
+      deckLowShown.current = true;
+      playVoice("voice_decklow");
+    }
+    if (n > 5) deckLowShown.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view?.self.deckContents.length, view?.phase.type]);
+
   // 🔥 名勝負メーターの材料（逆転・チェイン・接戦・両者リーチ）を数える
   const heatRef = useRef({ flips: 0, maxChain: 0, closeBattles: 0, doubleReach: false, prevSign: 0 });
 
@@ -1033,6 +1063,7 @@ export default function BattleScreen() {
     if (prevLeadRef.current <= -3 && lead >= 1 && !hypeShown.current.flip) {
       hypeShown.current.flip = true;
       playSe("cheer");
+      playVoice("voice_flip");
       pushHype("🎙️ 形勢逆転！！ 会場がどよめいている！");
     }
     if (lead <= -1) hypeShown.current.flip = false;
@@ -1225,7 +1256,12 @@ export default function BattleScreen() {
         cardId: (e as { cardId: string }).cardId,
         mine: (e as { player: number }).player === ME,
       }));
-    if (outs.length > 0) setPendingOuts((q) => [...q, ...outs]);
+    if (outs.length > 0) {
+      setPendingOuts((q) => [...q, ...outs]);
+      // バトル勝利ボイスなどが鳴っていれば1チャンネル制で自動スキップされる
+      playVoice("voice_out");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
   useEffect(() => {
     if (pendingOuts.length === 0 || busy || outFx) return;
@@ -1365,6 +1401,42 @@ export default function BattleScreen() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [comebackWin]);
+
+  // リザルトの実況: 完全勝利or勝利（負けなら敗北）→ 名勝負S → 連勝、を
+  // 決着ボイス・チャイムと重ならないよう一拍おいて順番に流す
+  const resultVoicePlayed = useRef(false);
+  useEffect(() => {
+    if (!resultShown || !finishedOutcome || replayActive) {
+      if (!finishedOutcome) resultVoicePlayed.current = false;
+      return;
+    }
+    if (resultVoicePlayed.current) return;
+    resultVoicePlayed.current = true;
+    const seq: { key: Parameters<typeof playVoice>[0]; dur: number }[] = [];
+    if (finishedOutcome === "win") {
+      const perfect =
+        view != null &&
+        view.opponent.academic + view.opponent.skill <= (ACADEMIC_GOAL + SKILL_GOAL) / 2;
+      // 大逆転勝利は既存の大逆転ボイスに譲る
+      if (!comebackWin) {
+        seq.push(
+          perfect ? { key: "voice_perfect", dur: 2800 } : { key: "voice_result_win", dur: 3000 }
+        );
+      }
+      if (heatRef.current && heat?.rank === "S") seq.push({ key: "voice_heat_s", dur: 2400 });
+      if (record.streak >= 5) seq.push({ key: "voice_streak", dur: 2600 });
+    } else {
+      seq.push({ key: "voice_result_lose", dur: 3000 });
+    }
+    let delay = 1500;
+    const timers = seq.slice(0, 3).map((v) => {
+      const t = setTimeout(() => playVoice(v.key), delay);
+      delay += v.dur;
+      return t;
+    });
+    return () => timers.forEach((t) => clearTimeout(t));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultShown, finishedOutcome, replayActive]);
 
   // 🔥 名勝負度: 逆転・チェイン・接戦・両者リーチ・大逆転・決着の一手から採点
   const heat = useMemo(() => {
@@ -3179,6 +3251,8 @@ export function BattleResultCutIn({
     opacity.value = withTiming(1, { duration: 140 });
     const revealFx = () => {
       playSe(tie ? "battle_tie" : mine ? "battle_win" : "battle_lose");
+      if (tie) playVoice("voice_tie");
+      else if (mine) playVoice("voice_battlewin");
       haptic(tie ? "heavy" : mine ? "success" : "warning");
       if (tie) {
         // 相打ちは白い閃光と衝撃の揺れ
@@ -3202,6 +3276,7 @@ export function BattleResultCutIn({
     if (close) {
       // 接戦: 「大接戦…！」と見せて一拍ためる
       playSe("battle");
+      playVoice("voice_close");
       haptic("medium");
       scale.value = withTiming(1, { duration: 200, easing: Easing.out(Easing.cubic) });
       const t = setTimeout(() => {
@@ -4243,6 +4318,7 @@ export function BattleCutIn({
 
   useEffect(() => {
     playSe("battle");
+    playVoice("voice_battle");
     slashA.value = withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) });
     slashB.value = withDelay(90, withTiming(1, { duration: 280, easing: Easing.out(Easing.cubic) }));
     // カードが左右から飛び込む
@@ -4396,6 +4472,7 @@ function LessonCutIn({
       return () => clearTimeout(t1);
     }
     playSe(gained ? "advance" : "hit");
+    if (!gained && mine && amount <= -3) playVoice("voice_setback");
     run.value = withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) });
     pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
     if (!gained) {
@@ -5699,6 +5776,7 @@ function ExamStartBand({ final, onDone }: { final: boolean; onDone: () => void }
   const [step, setStep] = useState(0);
   useEffect(() => {
     playSe("janken");
+    if (final) playVoice("voice_kentei");
     const t1 = setTimeout(() => {
       setStep(1);
       playSe("battle");
