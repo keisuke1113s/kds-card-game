@@ -202,19 +202,38 @@ export type VoiceKey =
  * 対戦の準備画面や対戦画面のマウント時に呼ぶ。2回目以降は何もしない
  */
 let voicesWarmed = false;
+let voicesWarmingUntil = 0;
+
+/** ボイスの先読みが進行中か（この間は自動軽量化のカクつき計測から除外する） */
+export function voicesWarming(): boolean {
+  return voicesWarmingUntil !== 0 && Date.now() < voicesWarmingUntil;
+}
+
 export function warmVoices(): void {
   if (voicesWarmed) return;
+  // 実況ボイスがOFFなら読み込み自体を行わない（あとでONにしたら次の機会に読む）
+  const st = useSettingsStore.getState();
+  if (!st.seEnabled || !st.voiceEnabled) return;
   voicesWarmed = true;
   const keys = Object.keys(seAssets).filter((k) => k.startsWith("voice_"));
+  // 読み込み中はカクつき計測から外すため、終わる見込み時刻を控えておく
+  voicesWarmingUntil = Date.now() + keys.length * 250 + 2000;
+  const ric = (globalThis as { requestIdleCallback?: (cb: () => void) => void })
+    .requestIdleCallback;
   keys.forEach((key, i) => {
-    // 一気に読むとそれ自体がカクつくので、150msずつずらして読み込む
+    // 一気に読むとそれ自体がカクつくので、250msずつずらし、
+    // ブラウザが暇なタイミング（requestIdleCallback）があればそこで読む
     setTimeout(() => {
-      try {
-        if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
-      } catch {
-        // 読み込めなくても、再生時にあらためて試される
-      }
-    }, 150 * i);
+      const load = () => {
+        try {
+          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+        } catch {
+          // 読み込めなくても、再生時にあらためて試される
+        }
+      };
+      if (ric) ric(load);
+      else load();
+    }, 250 * i);
   });
 }
 

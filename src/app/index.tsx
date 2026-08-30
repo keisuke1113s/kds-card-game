@@ -16,7 +16,7 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import { useEffect } from "react";
-import { stopBgm } from "@/audio/sound";
+import { stopBgm, warmVoices } from "@/audio/sound";
 import { AppButton } from "@/components/AppButton";
 import { CardFace } from "@/components/CardFace";
 import { Image } from "expo-image";
@@ -361,6 +361,12 @@ export default function HomeScreen() {
   const [dailyQOpen, setDailyQOpen] = useState(false);
   const [dailyQAnswer, setDailyQAnswer] = useState<boolean | null>(null);
   const opponentDeck = cpuDeckFor(activeDeck, deckState.builtinOverrides);
+
+  // 実況ボイスはホーム表示の少し後に裏読みしておく（対戦中の読み込みカクつき防止）
+  useEffect(() => {
+    const t = setTimeout(() => warmVoices(), 2500);
+    return () => clearTimeout(t);
+  }, []);
 
   // コレクション達成ランク（22/44/64枚の節目で記章がグレードアップ）
   const unlockState = useUnlockStore();
