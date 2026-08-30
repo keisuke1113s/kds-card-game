@@ -27,6 +27,12 @@ let session = 0;
 let raf = 0;
 let longCount = 0;
 
+/** いま画面で何の演出が出ているか（対戦画面が更新する。ログのラベルに使う） */
+let scene = "idle";
+export function setPerfScene(label: string): void {
+  scene = label;
+}
+
 // 動作確認用（ブラウザのコンソールから状態を見られるようにしておく）
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__kdsPerf = {
@@ -54,29 +60,32 @@ export function startFrameWatch(): () => void {
   cancelAnimationFrame(raf);
   let last = 0;
   let longFrames: number[] = [];
-  let longDts: number[] = [];
+  let triggered = false;
+  /** この対戦で起きた重いフレームの全記録（シーン付き・最大80件） */
+  const collected: { dt: number; sec: number; scene: string }[] = [];
   const startedAt = performance.now();
   const tick = (t: number) => {
     if (my !== session) return;
     if (last > 0) {
       const dt = t - last;
-      // 70ms超 = はっきり分かるカクつきだけを数える。1秒超はタブ非表示や休止。
-      // 開始直後8秒（開幕演出の読み込み）と、実況ボイスの先読み中は対象外
-      if (dt > 70 && dt < 1000 && t - startedAt > 8000 && !voicesWarming()) {
-        longCount++;
-        longFrames.push(t);
-        longDts.push(Math.round(dt));
-        longFrames = longFrames.filter((x) => t - x < 5000);
-        longDts = longDts.slice(-10);
-        if (longFrames.length >= 10) {
-          usePerfStore.getState().setAutoLight(true);
-          // どんな重さだったかを調査用に報告する（何秒地点で・各フレーム何ms）
-          reportPerf(
-            `自動軽量化が発動: 開始${Math.round((t - startedAt) / 1000)}秒地点 ` +
-              `直近の重いフレーム(ms)=[${longDts.join(",")}]`
-          );
-          session++;
-          return;
+      if (dt > 70 && dt < 1000) {
+        // 全件をシーン付きで記録する（対戦終了時にまとめて報告）
+        if (collected.length < 80) {
+          collected.push({
+            dt: Math.round(dt),
+            sec: Math.round((t - startedAt) / 1000),
+            scene: voicesWarming() ? `${scene}+読込` : scene,
+          });
+        }
+        // 自動軽量化の判定は従来どおり（開始8秒と先読み中は対象外）
+        if (!triggered && t - startedAt > 8000 && !voicesWarming()) {
+          longCount++;
+          longFrames.push(t);
+          longFrames = longFrames.filter((x) => t - x < 5000);
+          if (longFrames.length >= 10) {
+            triggered = true;
+            usePerfStore.getState().setAutoLight(true);
+          }
         }
       }
     }
@@ -89,6 +98,29 @@ export function startFrameWatch(): () => void {
     if (my === session) {
       session++;
       cancelAnimationFrame(raf);
+      // 対戦を離れるとき、重いフレームの内訳をまとめて報告する
+      if (collected.length >= 3) {
+        const bySc: Record<string, { n: number; max: number }> = {};
+        for (const f of collected) {
+          const b = (bySc[f.scene] ??= { n: 0, max: 0 });
+          b.n++;
+          b.max = Math.max(b.max, f.dt);
+        }
+        const parts = Object.entries(bySc)
+          .sort((a, b) => b[1].n - a[1].n)
+          .slice(0, 6)
+          .map(([k, v]) => `${k}×${v.n}(最大${v.max}ms)`)
+          .join(" ");
+        const worst = [...collected]
+          .sort((a, b) => b.dt - a.dt)
+          .slice(0, 5)
+          .map((f) => `${f.dt}ms@${f.scene}@${f.sec}秒`)
+          .join(", ");
+        reportPerf(
+          `対戦ログ: ${Math.round((performance.now() - startedAt) / 1000)}秒間に重いフレーム${collected.length}件` +
+            `${triggered ? "（自動軽量化 発動）" : ""} 内訳: ${parts} 最悪: ${worst}`
+        );
+      }
     }
   };
 }
