@@ -444,6 +444,7 @@ function SafetyRadar({ scores }: { scores: Record<SafetyAxis, number> }) {
 /** ゲーム内の実測データと自己評価の照合パネル */
 function RealDataPanel({ scores }: { scores: Record<SafetyAxis, number> }) {
   const visionBest = useVisionStore((s) => s.best);
+  const bestReaction = useVisionStore((s) => s.bestReaction);
   const kytMastered = useKytStore((s) => s.masteredIds.length);
   const quizPlays = useQuizStore((s) => s.plays);
   const quizPerfects = useQuizStore((s) => s.perfects);
@@ -457,7 +458,12 @@ function RealDataPanel({ scores }: { scores: Record<SafetyAxis, number> }) {
   rows.push({
     emoji: "👁",
     label: "動体視力チェック",
-    value: visionBest > 0 ? `最高 ${visionBest}点` : "未計測",
+    value:
+      visionBest > 0
+        ? `最高 ${visionBest}点${bestReaction !== null ? `・反応 平均${bestReaction.toFixed(2)}秒` : ""}`
+        : bestReaction !== null
+          ? `反応 平均${bestReaction.toFixed(2)}秒`
+          : "未計測",
     comment:
       visionBest === 0
         ? "「動体視力」で実測してみよう"

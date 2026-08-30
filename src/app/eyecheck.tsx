@@ -62,6 +62,8 @@ export default function EyeCheckScreen() {
   const router = useRouter();
   const vision = useVisionStore();
   const [phase, setPhase] = useState<"start" | "play" | "result">("start");
+  /** 追加種目（反応速度・周辺視野・選択反応）。null なら種目メニュー */
+  const [mode, setMode] = useState<"reaction" | "periph" | "choice" | null>(null);
   const [dir, setDir] = useState<Dir>("right");
   const [ringKey, setRingKey] = useState(0);
   // 瞬間視: 輪は一瞬しか見えない（正解が増えるほど短くなる）
@@ -149,7 +151,7 @@ export default function EyeCheckScreen() {
   return (
     <ScreenEnter style={styles.root}>
       <ScrollView contentContainerStyle={styles.content}>
-        {phase === "start" && (
+        {phase === "start" && mode === null && (
           <View style={styles.card}>
             <Text style={styles.title}>👁 動体視力チェック</Text>
             <Text style={styles.note}>
@@ -159,13 +161,61 @@ export default function EyeCheckScreen() {
             </Text>
             {vision.plays > 0 && (
               <Text style={styles.record}>
-                これまで {vision.plays}回挑戦 ／ 最高 {vision.best}問正解
+                これまで {vision.plays}回挑戦 ／ 動体視力 最高 {vision.best}問
               </Text>
             )}
-            <AppButton label="スタート！" tone="primary" fullWidth onPress={start} />
+            <AppButton label="👁 動体視力をはじめる" tone="primary" fullWidth onPress={start} />
+
+            {/* 追加種目（実際の適性検査に近い測定を4種そろえた） */}
+            <View style={styles.menuBox}>
+              <Text style={styles.menuTitle}>⚡ 反応速度テスト</Text>
+              <Text style={styles.menuNote}>
+                信号が青に変わったら素早くタップ×5回。フライングは無効！
+                {vision.bestReaction !== null &&
+                  `　自己ベスト: 平均${vision.bestReaction.toFixed(2)}秒`}
+              </Text>
+              <AppButton
+                label="挑戦する"
+                custom={{ bg: "#e8890c" }}
+                fullWidth
+                onPress={() => setMode("reaction")}
+              />
+            </View>
+            <View style={styles.menuBox}>
+              <Text style={styles.menuTitle}>🔭 周辺視野テスト</Text>
+              <Text style={styles.menuNote}>
+                中央の「＋」を見つめたまま、四隅に一瞬光る星の場所を当てる×8回。
+                {vision.bestPeriph > 0 && `　自己ベスト: ${vision.bestPeriph}/8`}
+              </Text>
+              <AppButton
+                label="挑戦する"
+                custom={{ bg: "#3d8fd0" }}
+                fullWidth
+                onPress={() => setMode("periph")}
+              />
+            </View>
+            <View style={styles.menuBox}>
+              <Text style={styles.menuTitle}>🚦 選択反応テスト</Text>
+              <Text style={styles.menuNote}>
+                青は押す・赤は押さない！とっさの判断の正確さを測る×12回。
+                {vision.bestChoice > 0 && `　自己ベスト: ${vision.bestChoice}/12`}
+              </Text>
+              <AppButton
+                label="挑戦する"
+                custom={{ bg: "#b0413e" }}
+                fullWidth
+                onPress={() => setMode("choice")}
+              />
+            </View>
             <AppButton label="ホームへ戻る" tone="ghost" fullWidth onPress={() => router.back()} />
           </View>
         )}
+
+        {phase === "start" && mode === "reaction" && (
+          <ReactionTest onClose={() => setMode(null)} />
+        )}
+        {phase === "start" && mode === "periph" && <PeriphTest onClose={() => setMode(null)} />}
+        {phase === "start" && mode === "choice" && <ChoiceTest onClose={() => setMode(null)} />}
 
         {phase === "play" && (
           <View style={styles.card}>
@@ -246,6 +296,56 @@ function ArrowButton({ d, onPress }: { d: Dir; onPress: (d: Dir) => void }) {
 }
 
 const styles = StyleSheet.create({
+  menuBox: {
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 8,
+  },
+  menuTitle: { fontSize: 15, fontWeight: "900", color: colors.text },
+  menuNote: { fontSize: 12, lineHeight: 18, color: colors.textMuted },
+  bigScore: { fontSize: 40, fontWeight: "900", color: colors.primary, textAlign: "center" },
+  reactionArea: {
+    height: 260,
+    borderRadius: radius.lg,
+    backgroundColor: "#5c6a7a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  reactionText: { color: "#fff", fontSize: 22, fontWeight: "900", textAlign: "center" },
+  periphArea: {
+    height: 320,
+    borderRadius: radius.lg,
+    backgroundColor: "#14202e",
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  periphCross: { color: "#fff", fontSize: 36, fontWeight: "900" },
+  periphCorner: {
+    position: "absolute",
+    width: 110,
+    height: 110,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  periphCornerActive: { backgroundColor: "#ffffff10", borderRadius: 12 },
+  periphStar: { fontSize: 34 },
+  periphAsk: {
+    position: "absolute",
+    bottom: 8,
+    color: "#ffd54d",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  choiceArea: {
+    height: 280,
+    borderRadius: radius.lg,
+    backgroundColor: "#1c2a3a",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  choiceDot: { width: 130, height: 130, borderRadius: 65 },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
   card: {
@@ -286,6 +386,294 @@ const styles = StyleSheet.create({
   resultScore: { fontSize: 40, fontWeight: "900", color: colors.primaryDark, textAlign: "center" },
   resultTotal: { fontSize: 16, color: colors.textMuted },
 });
+
+/** ⚡ 反応速度テスト: 信号が青になったらタップ×5回 */
+function ReactionTest({ onClose }: { onClose: () => void }) {
+  const addReaction = useVisionStore((s) => s.addReaction);
+  const [stage, setStage] = useState<"idle" | "wait" | "go" | "false" | "done">("idle");
+  const [times, setTimes] = useState<number[]>([]);
+  const goAtRef = useRef(0);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const beginTrial = () => {
+    setStage("wait");
+    timerRef.current = setTimeout(() => {
+      goAtRef.current = performance.now();
+      setStage("go");
+      playSe("chime");
+    }, 1000 + Math.random() * 2000);
+  };
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  const tap = () => {
+    if (stage === "idle") {
+      setTimes([]);
+      beginTrial();
+      return;
+    }
+    if (stage === "wait") {
+      // フライング: このトライアルはやり直し
+      if (timerRef.current) clearTimeout(timerRef.current);
+      haptic("warning");
+      playSe("hit");
+      setStage("false");
+      return;
+    }
+    if (stage === "false") {
+      beginTrial();
+      return;
+    }
+    if (stage === "go") {
+      const sec = (performance.now() - goAtRef.current) / 1000;
+      const next = [...times, sec];
+      setTimes(next);
+      playSe("tap", 1.3);
+      haptic("light");
+      if (next.length >= 5) {
+        const avg = next.reduce((a, b) => a + b, 0) / next.length;
+        addReaction(Math.round(avg * 1000) / 1000);
+        playSe("achievement");
+        setStage("done");
+        setTimeout(evaluateAchievements, 400);
+      } else {
+        beginTrial();
+      }
+    }
+  };
+
+  const avg = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0;
+  const fastest = times.length > 0 ? Math.min(...times) : 0;
+  return (
+    <View style={styles.card}>
+      <Text style={styles.title}>⚡ 反応速度テスト</Text>
+      {stage === "done" ? (
+        <>
+          <Text style={styles.bigScore}>平均 {avg.toFixed(2)}秒</Text>
+          <Text style={styles.record}>最速 {fastest.toFixed(2)}秒</Text>
+          <Text style={styles.note}>
+            {avg <= 0.35
+              ? "🏆 素早い！プロ級の反応です"
+              : avg <= 0.5
+                ? "✅ 標準的な反応速度です"
+                : "🐢 ゆっくりめ。繰り返すと速くなります"}
+            {" "}※ 画面タッチの目安: 0.3〜0.5秒（疲れや睡眠不足で遅くなります）
+          </Text>
+          <AppButton label="もう一度" tone="primary" fullWidth onPress={() => { setTimes([]); setStage("idle"); }} />
+          <AppButton label="種目メニューへ" tone="ghost" fullWidth onPress={onClose} />
+        </>
+      ) : (
+        <>
+          <Text style={styles.note}>
+            赤の間は待って、青になった瞬間にタップ！（{times.length}/5回）
+          </Text>
+          <Pressable
+            style={[
+              styles.reactionArea,
+              stage === "go" && { backgroundColor: "#2f9e44" },
+              stage === "wait" && { backgroundColor: "#c62828" },
+              stage === "false" && { backgroundColor: "#8a5bb8" },
+            ]}
+            onPress={tap}
+          >
+            <Text style={styles.reactionText}>
+              {stage === "idle"
+                ? "タップしてスタート"
+                : stage === "wait"
+                  ? "待て…"
+                  : stage === "false"
+                    ? "フライング！ タップしてやり直し"
+                    : "今だ！タップ！！"}
+            </Text>
+          </Pressable>
+          <AppButton label="やめる" tone="ghost" fullWidth onPress={onClose} />
+        </>
+      )}
+    </View>
+  );
+}
+
+/** 🔭 周辺視野テスト: 中央を見たまま、四隅に一瞬光る星の場所を当てる×8回 */
+function PeriphTest({ onClose }: { onClose: () => void }) {
+  const addPeriph = useVisionStore((s) => s.addPeriph);
+  const [trial, setTrial] = useState(-1); // -1=説明
+  const [starCorner, setStarCorner] = useState<number | null>(null); // 0..3
+  const [answerCorner, setAnswerCorner] = useState<number | null>(null); // 出題済み・回答待ち
+  const [score, setScore] = useState(0);
+  const [done, setDone] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  const nextTrial = (t: number, sc: number) => {
+    if (t >= 8) {
+      addPeriph(sc);
+      playSe("achievement");
+      setDone(true);
+      setTimeout(evaluateAchievements, 400);
+      return;
+    }
+    setTrial(t);
+    setStarCorner(null);
+    setAnswerCorner(null);
+    timerRef.current = setTimeout(() => {
+      const c = Math.floor(Math.random() * 4);
+      setStarCorner(c);
+      timerRef.current = setTimeout(() => {
+        setStarCorner(null);
+        setAnswerCorner(c);
+      }, 260);
+    }, 900 + Math.random() * 1200);
+  };
+
+  const pick = (c: number) => {
+    if (answerCorner === null) return;
+    const ok = c === answerCorner;
+    const sc = score + (ok ? 1 : 0);
+    setScore(sc);
+    playSe(ok ? "tap" : "hit", ok ? 1.3 : 1);
+    haptic(ok ? "light" : "warning");
+    nextTrial(trial + 1, sc);
+  };
+
+  if (done) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>🔭 周辺視野テスト</Text>
+        <Text style={styles.bigScore}>{score} / 8</Text>
+        <Text style={styles.note}>
+          {score >= 7
+            ? "🏆 視野が広い！歩行者や自転車にすぐ気づけるタイプ"
+            : score >= 5
+              ? "✅ 標準的な広さです"
+              : "👀 中央に集中しすぎかも。視野は意識すると広がります"}
+        </Text>
+        <AppButton label="もう一度" tone="primary" fullWidth onPress={() => { setScore(0); setDone(false); nextTrial(0, 0); }} />
+        <AppButton label="種目メニューへ" tone="ghost" fullWidth onPress={onClose} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.card}>
+      <Text style={styles.title}>🔭 周辺視野テスト</Text>
+      <Text style={styles.note}>
+        中央の「＋」だけを見つめて！四隅のどこかに星が一瞬光ります。
+        光った場所（角）をタップ（{Math.max(0, trial)}/8回）
+      </Text>
+      {trial < 0 ? (
+        <AppButton label="スタート" tone="primary" fullWidth onPress={() => nextTrial(0, 0)} />
+      ) : (
+        <View style={styles.periphArea}>
+          <Text style={styles.periphCross}>＋</Text>
+          {[0, 1, 2, 3].map((c) => (
+            <Pressable
+              key={c}
+              style={[
+                styles.periphCorner,
+                c === 0 && { top: 0, left: 0 },
+                c === 1 && { top: 0, right: 0 },
+                c === 2 && { bottom: 0, left: 0 },
+                c === 3 && { bottom: 0, right: 0 },
+                answerCorner !== null && styles.periphCornerActive,
+              ]}
+              onPress={() => pick(c)}
+            >
+              {starCorner === c && <Text style={styles.periphStar}>⭐</Text>}
+            </Pressable>
+          ))}
+          {answerCorner !== null && (
+            <Text style={styles.periphAsk}>どこに光った？角をタップ！</Text>
+          )}
+        </View>
+      )}
+      <AppButton label="やめる" tone="ghost" fullWidth onPress={onClose} />
+    </View>
+  );
+}
+
+/** 🚦 選択反応テスト: 青は押す・赤は押さない×12回 */
+function ChoiceTest({ onClose }: { onClose: () => void }) {
+  const addChoice = useVisionStore((s) => s.addChoice);
+  const [idx, setIdx] = useState(-1);
+  const [current, setCurrent] = useState<"blue" | "red" | null>(null);
+  const [score, setScore] = useState(0);
+  const [done, setDone] = useState(false);
+  const tappedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scoreRef = useRef(0);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  const step = (i: number) => {
+    if (i >= 12) {
+      addChoice(scoreRef.current);
+      setScore(scoreRef.current);
+      playSe("achievement");
+      setDone(true);
+      setTimeout(evaluateAchievements, 400);
+      return;
+    }
+    setIdx(i);
+    tappedRef.current = false;
+    const color: "blue" | "red" = Math.random() < 0.55 ? "blue" : "red";
+    setCurrent(color);
+    timerRef.current = setTimeout(() => {
+      // 表示終了時に採点（青=押した？ / 赤=押さなかった？）
+      const ok = color === "blue" ? tappedRef.current : !tappedRef.current;
+      if (ok) scoreRef.current += 1;
+      else {
+        playSe("hit");
+        haptic("warning");
+      }
+      setCurrent(null);
+      timerRef.current = setTimeout(() => step(i + 1), 350);
+    }, 850);
+  };
+
+  const tap = () => {
+    if (current === null || tappedRef.current) return;
+    tappedRef.current = true;
+    playSe("tap", current === "blue" ? 1.3 : 0.8);
+  };
+
+  if (done) {
+    return (
+      <View style={styles.card}>
+        <Text style={styles.title}>🚦 選択反応テスト</Text>
+        <Text style={styles.bigScore}>{score} / 12</Text>
+        <Text style={styles.note}>
+          {score >= 11
+            ? "🏆 とっさの判断が正確！信号の変化にも冷静に対応できるタイプ"
+            : score >= 8
+              ? "✅ 標準的な判断力です"
+              : "🧠 急ぐと押し間違えるタイプかも。ワンテンポ置く癖を"}
+        </Text>
+        <AppButton label="もう一度" tone="primary" fullWidth onPress={() => { scoreRef.current = 0; setScore(0); setDone(false); step(0); }} />
+        <AppButton label="種目メニューへ" tone="ghost" fullWidth onPress={onClose} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.card}>
+      <Text style={styles.title}>🚦 選択反応テスト</Text>
+      <Text style={styles.note}>
+        🔵青い丸が出たらすぐタップ、🔴赤い丸は押しちゃダメ！（{Math.max(0, idx)}/12）
+      </Text>
+      {idx < 0 ? (
+        <AppButton label="スタート" tone="primary" fullWidth onPress={() => { scoreRef.current = 0; step(0); }} />
+      ) : (
+        <Pressable style={styles.choiceArea} onPress={tap}>
+          {current && (
+            <View
+              style={[
+                styles.choiceDot,
+                { backgroundColor: current === "blue" ? "#1a5fb4" : "#c62828" },
+              ]}
+            />
+          )}
+        </Pressable>
+      )}
+      <AppButton label="やめる" tone="ghost" fullWidth onPress={onClose} />
+    </View>
+  );
+}
 
 /** LINE連携が必要な機能のロック画面 */
 function LineGate() {
