@@ -484,6 +484,15 @@ function StatsPanel() {
     };
     cardUsage?: { cardId: string; matches: number; wins: number }[];
     bestPairs?: { pair: string[]; matches: number; wins: number }[];
+    topPairs?: { pair: string[]; matches: number; wins: number }[];
+    platforms?: Record<string, { opens: number; matches: number }>;
+    decks?: { name: string; matches: number; wins: number }[];
+    byMode?: {
+      cpu: { turnsSum: number; turnsCount: number; durSum: number; durCount: number } | null;
+      online: { turnsSum: number; turnsCount: number; durSum: number; durCount: number } | null;
+    };
+    weekday?: number[];
+    retention?: { base: number; kept: number; rate: number | null };
     env: Record<string, { opens: number; matches: number }>;
     daily: {
       date: string;
@@ -707,6 +716,123 @@ function StatsPanel() {
               {p.matches}戦（勝率 {Math.round((p.wins / p.matches) * 100)}%）
             </Text>
           ))}
+
+          <Text style={styles.sectionTitle}>💪 カードの強さランキング（10戦以上・勝率順）</Text>
+          <Text style={styles.note}>
+            強すぎるカード・弱すぎるカードの発見用です。上位は強力、下位は実カード調整の候補になります。
+          </Text>
+          {(() => {
+            const ranked = (stats.cardUsage ?? [])
+              .filter((c) => c.matches >= 10)
+              .sort((a, b) => b.wins / b.matches - a.wins / a.matches);
+            const nameOf = (id: string) => allCards.find((x) => x.id === id)?.name ?? id;
+            if (ranked.length === 0) {
+              return <Text style={styles.note}>データ不足（10戦以上のカードが出ると表示されます）</Text>;
+            }
+            return (
+              <>
+                {ranked.slice(0, 10).map((c, i) => (
+                  <Text key={c.cardId} style={styles.statLine}>
+                    {i + 1}. {nameOf(c.cardId)}: 勝率 {Math.round((c.wins / c.matches) * 100)}%（{c.matches}戦）
+                  </Text>
+                ))}
+                {ranked.length > 12 && (
+                  <>
+                    <Text style={styles.note}>▼ 勝率の低いカード（調整候補）</Text>
+                    {ranked.slice(-5).reverse().map((c) => (
+                      <Text key={c.cardId} style={styles.statLine}>
+                        ・{nameOf(c.cardId)}: 勝率 {Math.round((c.wins / c.matches) * 100)}%（{c.matches}戦）
+                      </Text>
+                    ))}
+                  </>
+                )}
+              </>
+            );
+          })()}
+
+          <Text style={styles.sectionTitle}>🤝 よく使われる組み合わせ（使用数順）</Text>
+          {(stats.topPairs ?? []).length === 0 && (
+            <Text style={styles.note}>まだデータがありません</Text>
+          )}
+          {(stats.topPairs ?? []).map((p, i) => (
+            <Text key={p.pair.join("|")} style={styles.statLine}>
+              {i + 1}. {p.pair.map((id) => allCards.find((x) => x.id === id)?.name ?? id).join(" ＋ ")}: {p.matches}戦
+              {p.matches >= 5 ? `（勝率 ${Math.round((p.wins / p.matches) * 100)}%）` : ""}
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>🎴 デッキ別の成績</Text>
+          <Text style={styles.note}>どのデッキがよく使われ、勝てているかの集計です。</Text>
+          {(stats.decks ?? []).length === 0 && (
+            <Text style={styles.note}>まだデータがありません（今日の更新から集計が始まります）</Text>
+          )}
+          {(stats.decks ?? []).map((d) => (
+            <Text key={d.name} style={styles.statLine}>
+              ・{d.name}: {d.matches}戦
+              {d.matches >= 3 ? `（勝率 ${Math.round((d.wins / d.matches) * 100)}%）` : ""}
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>⚔️ モード別の平均</Text>
+          {(["cpu", "online"] as const).map((m) => {
+            const t = stats.byMode?.[m];
+            if (!t || t.turnsCount === 0) {
+              return (
+                <Text key={m} style={styles.statLine}>
+                  ・{m === "cpu" ? "CPU対戦" : "オンライン対戦"}: まだデータがありません
+                </Text>
+              );
+            }
+            return (
+              <Text key={m} style={styles.statLine}>
+                ・{m === "cpu" ? "CPU対戦" : "オンライン対戦"}: 平均{" "}
+                {(t.turnsSum / t.turnsCount).toFixed(1)}ターン／
+                {t.durCount > 0 ? `${Math.round(t.durSum / t.durCount / 60)}分` : "-"}
+              </Text>
+            );
+          })}
+
+          <Text style={styles.sectionTitle}>📅 曜日別の対戦数（日本時間）</Text>
+          {(() => {
+            const wd = stats.weekday ?? [];
+            const labels = ["月", "火", "水", "木", "金", "土", "日"];
+            const max = Math.max(1, ...wd);
+            return labels.map((l, i) => (
+              <View key={l} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[styles.statLine, { width: 24 }]}>{l}</Text>
+                <View
+                  style={{
+                    height: 10,
+                    borderRadius: 5,
+                    backgroundColor: "#3d8fd0",
+                    width: `${((wd[i] ?? 0) / max) * 70}%` as never,
+                    minWidth: 2,
+                  }}
+                />
+                <Text style={styles.note}>{wd[i] ?? 0}</Text>
+              </View>
+            ));
+          })()}
+
+          <Text style={styles.sectionTitle}>📱 端末の種類別</Text>
+          {Object.entries(stats.platforms ?? {}).map(([k, v]) => (
+            <Text key={k} style={styles.statLine}>
+              ・{k === "web" ? "ブラウザ（iPhone/Android/PC）" : k}: 起動{v.opens}回／対戦{v.matches}回
+            </Text>
+          ))}
+
+          <Text style={styles.sectionTitle}>🔁 定着率（7日）</Text>
+          <Text style={styles.note}>
+            8日以上前に初めて遊んだ端末のうち、この7日間にも遊んでいる割合です。
+          </Text>
+          {stats.retention && stats.retention.base > 0 ? (
+            <Text style={styles.statLine}>
+              {stats.retention.base}台中 {stats.retention.kept}台が継続（
+              {Math.round((stats.retention.rate ?? 0) * 100)}%）
+            </Text>
+          ) : (
+            <Text style={styles.note}>まだデータがありません</Text>
+          )}
 
           <Text style={styles.sectionTitle}>環境別</Text>
           {Object.entries(stats.env).map(([k, v]) => (

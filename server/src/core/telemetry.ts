@@ -26,6 +26,8 @@ export interface TrackEvent {
   cardId?: string;
   /** メタ分析用: この対戦で使ったデッキのカードID一覧 */
   cards?: string[];
+  /** デッキ分析用: 使ったデッキの名前（スタンダードデッキ等） */
+  deckName?: string;
   /** 週間ランキング用（本人が付けた表示名。未設定なら送られない） */
   name?: string;
   streak?: number;
@@ -65,6 +67,14 @@ interface Aggregates {
   /** カード2枚の組み合わせ別のメタ分析（キーは "小さいID|大きいID"） */
   pairUsage: Record<string, { matches: number; wins: number }>;
   envTotals: Record<string, { opens: number; matches: number }>;
+  /** 端末の種類別（web / ios / android）の利用数 */
+  platformTotals?: Record<string, { opens: number; matches: number }>;
+  /** デッキ名別の対戦数と勝利数 */
+  deckUsage?: Record<string, { matches: number; wins: number }>;
+  /** CPU・オンライン別の平均ターン・平均時間の材料 */
+  turnsByMode?: Record<string, { turnsSum: number; turnsCount: number; durSum: number; durCount: number }>;
+  /** 曜日別の対戦数（日本時間、0=月曜） */
+  weekday?: number[];
   /** 時間帯別（日本時間0〜23時）の対戦数 */
   hourly: { cpu: number[]; online: number[] };
   /** LINE連携の実行数（累計と日別） */
@@ -103,6 +113,10 @@ function emptyAggregates(): Aggregates {
     cardUsage: {},
     pairUsage: {},
     envTotals: {},
+    platformTotals: {},
+    deckUsage: {},
+    turnsByMode: {},
+    weekday: new Array(7).fill(0),
     hourly: { cpu: new Array(24).fill(0), online: new Array(24).fill(0) },
     lineLinks: { total: 0, daily: {} },
     weekly: {},
@@ -184,11 +198,16 @@ export class Telemetry {
       day.devices.push(deviceId);
     }
     const envT = (this.agg.envTotals[env] ??= { opens: 0, matches: 0 });
+    // 端末の種類別（web / ios / android）
+    const platform = String(e.platform ?? "").slice(0, 16) || "不明";
+    this.agg.platformTotals ??= {};
+    const platT = (this.agg.platformTotals[platform] ??= { opens: 0, matches: 0 });
 
     if (e.type === "appOpen") {
       this.agg.totals.appOpens++;
       day.opens++;
       envT.opens++;
+      platT.opens++;
     } else if (e.type === "lineLink") {
       // LINE連携の実行（コード入力やログインの成功）
       this.agg.lineLinks ??= { total: 0, daily: {} };
@@ -200,6 +219,21 @@ export class Telemetry {
       this.agg.totals.matches++;
       day.matches++;
       envT.matches++;
+      platT.matches++;
+      // 曜日別（日本時間、0=月曜）
+      this.agg.weekday ??= new Array(7).fill(0);
+      const jstDay = (new Date(this.now().getTime() + 9 * 3600 * 1000).getUTCDay() + 6) % 7;
+      this.agg.weekday[jstDay]++;
+      // デッキ名別の成績
+      const deckName = String(e.deckName ?? "").slice(0, 24);
+      if (deckName) {
+        this.agg.deckUsage ??= {};
+        if (this.agg.deckUsage[deckName] || Object.keys(this.agg.deckUsage).length < 200) {
+          const du = (this.agg.deckUsage[deckName] ??= { matches: 0, wins: 0 });
+          du.matches++;
+          if (e.result === "win") du.wins++;
+        }
+      }
       // 時間帯別（日本時間）。古い保存データには hourly が無いことがある
       this.agg.hourly ??= { cpu: new Array(24).fill(0), online: new Array(24).fill(0) };
       const jstHour = (this.now().getUTCHours() + 9) % 24;
@@ -217,13 +251,25 @@ export class Telemetry {
         d.matches++;
         if (e.result === "win") d.wins++;
       }
+      // CPU・オンライン別の平均の材料
+      this.agg.turnsByMode ??= {};
+      const tm = (this.agg.turnsByMode[e.mode === "online" ? "online" : "cpu"] ??= {
+        turnsSum: 0,
+        turnsCount: 0,
+        durSum: 0,
+        durCount: 0,
+      });
       if (typeof e.turns === "number" && e.turns > 0 && e.turns < 200) {
         this.agg.turnsSum += e.turns;
         this.agg.turnsCount++;
+        tm.turnsSum += e.turns;
+        tm.turnsCount++;
       }
       if (typeof e.durationSec === "number" && e.durationSec > 0 && e.durationSec < 3600 * 3) {
         this.agg.durSum += e.durationSec;
         this.agg.durCount++;
+        tm.durSum += e.durationSec;
+        tm.durCount++;
       }
       if (typeof e.first === "boolean") {
         this.agg.firstPlayer.firstMatches++;
@@ -379,6 +425,19 @@ export class Telemetry {
       }
       return { linked, known };
     };
+    // 定着率: 8日以上前に初めて来た端末のうち、直近7日にも来ている割合
+    let retBase = 0;
+    let retKept = 0;
+    {
+      const nowMs = this.now().getTime();
+      const activeSet = activeIds(7);
+      for (const [id, d] of allDevices) {
+        if (nowMs - Date.parse(d.first) >= 8 * 86400000) {
+          retBase++;
+          if (activeSet.has(id)) retKept++;
+        }
+      }
+    }
     const l7 = linkedIn(7);
     const l30 = linkedIn(30);
     const lineDaily = lastNDates(14).map((date) => ({
@@ -448,7 +507,23 @@ export class Telemetry {
         .slice(0, 12)
         .map(([key, p]) => ({ pair: key.split("|"), matches: p.matches, wins: p.wins })),
       env: a.envTotals,
-      daily: lastNDates(14).map((date) => ({
+      platforms: a.platformTotals ?? {},
+      decks: Object.entries(a.deckUsage ?? {})
+        .sort((x, y) => y[1].matches - x[1].matches)
+        .slice(0, 30)
+        .map(([name, u]) => ({ name, matches: u.matches, wins: u.wins })),
+      byMode: {
+        cpu: a.turnsByMode?.cpu ?? null,
+        online: a.turnsByMode?.online ?? null,
+      },
+      weekday: a.weekday ?? new Array(7).fill(0),
+      retention: { base: retBase, kept: retKept, rate: retBase > 0 ? retKept / retBase : null },
+      // よく使われるペア（使用数順）
+      topPairs: Object.entries(a.pairUsage)
+        .sort((x, y) => y[1].matches - x[1].matches)
+        .slice(0, 12)
+        .map(([key, p]) => ({ pair: key.split("|"), matches: p.matches, wins: p.wins })),
+      daily: lastNDates(30).map((date) => ({
         date,
         opens: a.daily[date]?.opens ?? 0,
         matches: a.daily[date]?.matches ?? 0,

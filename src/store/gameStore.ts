@@ -311,6 +311,8 @@ function trackMatchEvents(
         first: meta.firstIsMe ?? undefined,
         // メタ分析用（カード別の使用率・勝率）
         cards: meta.myCards,
+        // デッキ分析用（この時点のアクティブデッキ名。入れ替え設定時は近似）
+        deckName: resolveActiveDeck(useDeckStore.getState()).name,
         name: useRankStore.getState().playerName.trim() || undefined,
         streak: useRecordStore.getState().streak,
       });
