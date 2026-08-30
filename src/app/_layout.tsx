@@ -70,7 +70,14 @@ function useUpdateAvailable(): boolean {
       if (doc.visibilityState === "visible") void check();
     };
     doc.addEventListener("visibilitychange", onVisible);
-    return () => doc.removeEventListener("visibilitychange", onVisible);
+    // 開きっぱなしでも新しい版に気づけるよう、定期的にも確認する
+    const timer = setInterval(() => {
+      if (doc.visibilityState === "visible") void check();
+    }, 5 * 60 * 1000);
+    return () => {
+      doc.removeEventListener("visibilitychange", onVisible);
+      clearInterval(timer);
+    };
   }, []);
   return available;
 }
