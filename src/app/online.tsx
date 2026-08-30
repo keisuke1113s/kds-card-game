@@ -430,7 +430,8 @@ export default function OnlineScreen() {
                 </View>
 
                 <Text style={styles.cpuOptionTitle}>サウンド</Text>
-                <View style={styles.choiceRow}>
+                {/* 4つ並ぶので折り返し可能な行にする（「振動」がはみ出さないように） */}
+                <View style={styles.choiceWrap}>
                   <Choice
                     label={`効果音 ${settings.seEnabled ? "ON" : "OFF"}`}
                     active={settings.seEnabled}

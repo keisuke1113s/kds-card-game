@@ -377,6 +377,8 @@ export function startServer(port: number): http.Server {
       }
       const result = clientMessageSchema.safeParse(parsed);
       if (!result.success) {
+        // 原因調査のためサーバーログに中身を残す（fly logs で確認できる）
+        console.warn("不正なWSメッセージ:", JSON.stringify(parsed).slice(0, 300));
         send({ type: "error", message: "メッセージの形式が正しくありません" });
         return;
       }
