@@ -108,8 +108,10 @@ export function startFrameWatch(): () => void {
     if (my === session) {
       session++;
       cancelAnimationFrame(raf);
-      // 対戦を離れるとき、重いフレームの内訳をまとめて報告する
-      if (collected.length >= 3) {
+      // 対戦を離れるとき、重いフレームの内訳をまとめて報告する。
+      // 改善後の「軽かった対戦」も効果確認できるよう、盤面更新の記録があれば
+      // 重いフレームが少なくても（0件でも）報告する
+      if (collected.length >= 3 || commitSamples.length > 0) {
         const bySc: Record<string, { n: number; max: number }> = {};
         for (const f of collected) {
           const b = (bySc[f.scene] ??= { n: 0, max: 0 });
@@ -133,9 +135,11 @@ export function startFrameWatch(): () => void {
           cs.length > 0
             ? ` 盤面更新${cs.length}回(平均${Math.round(cs.reduce((a, b) => a + b, 0) / cs.length)}ms/最大${Math.max(...cs)}ms/100ms超${heavyCommits}回)`
             : "";
+        const detail =
+          collected.length > 0 ? ` 内訳: ${parts} 最悪: ${worst}` : "";
         reportPerf(
           `対戦ログ: ${Math.round((performance.now() - startedAt) / 1000)}秒間に重いフレーム${collected.length}件` +
-            `${triggered ? "（自動軽量化 発動）" : ""}${commitInfo} 内訳: ${parts} 最悪: ${worst}`
+            `${triggered ? "（自動軽量化 発動）" : ""}${commitInfo}${detail}`
         );
       }
     }
