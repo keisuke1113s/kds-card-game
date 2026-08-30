@@ -6260,7 +6260,18 @@ function Overlay({
         entering={entering === "bounce" ? BounceIn.duration(500) : ZoomIn.duration(200)}
       >
         <Text style={styles.overlayTitle}>{title}</Text>
-        {children}
+        {translucent ? (
+          // 中身が画面より長いときは箱の中でスクロールさせ、箱の外へはみ出させない
+          <ScrollView
+            style={styles.overlayScroll}
+            contentContainerStyle={styles.overlayScrollInner}
+            showsVerticalScrollIndicator={false}
+          >
+            {children}
+          </ScrollView>
+        ) : (
+          children
+        )}
       </Animated.View>
     </Animated.View>
   );
@@ -7451,7 +7462,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   overlayBgLight: { backgroundColor: "#00000026" },
-  overlayBoxTranslucent: { backgroundColor: colors.surface + "80" },
+  overlayBoxTranslucent: { backgroundColor: colors.surface + "80", overflow: "hidden" },
+  overlayScroll: { alignSelf: "stretch", flexShrink: 1 },
+  overlayScrollInner: { gap: 14, alignItems: "center", paddingBottom: 4 },
   overlayTitle: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center" },
   menuCardRow: { flexDirection: "row", gap: 10, alignSelf: "stretch", alignItems: "flex-start" },
   menuEffectText: {
