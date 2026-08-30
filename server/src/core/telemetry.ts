@@ -29,7 +29,6 @@ export interface TrackEvent {
   /** 週間ランキング用（本人が付けた表示名。未設定なら送られない） */
   name?: string;
   streak?: number;
-  dan?: number;
 }
 
 interface DailyStat {
@@ -73,7 +72,7 @@ interface Aggregates {
   /** 週間ランキング（キーは日本時間の週の月曜日 YYYY-MM-DD） */
   weekly?: Record<
     string,
-    Record<string, { name: string; wins: number; losses: number; bestStreak: number; dan: number }>
+    Record<string, { name: string; wins: number; losses: number; bestStreak: number }>
   >;
 }
 
@@ -239,12 +238,11 @@ export class Telemetry {
         const wkeys = Object.keys(this.agg.weekly).sort();
         while (wkeys.length > 8) delete this.agg.weekly[wkeys.shift()!];
         if (week[deviceId] || Object.keys(week).length < 2000) {
-          const r = (week[deviceId] ??= { name: "", wins: 0, losses: 0, bestStreak: 0, dan: 0 });
+          const r = (week[deviceId] ??= { name: "", wins: 0, losses: 0, bestStreak: 0 });
           r.name = String(e.name).slice(0, 12);
           if (e.result === "win") r.wins++;
           else if (e.result === "lose") r.losses++;
           if (typeof e.streak === "number") r.bestStreak = Math.max(r.bestStreak, Math.min(999, e.streak));
-          if (typeof e.dan === "number") r.dan = Math.max(0, Math.min(999, e.dan));
         }
       }
       // カード別のメタ分析（重複IDは1回として数える）
@@ -324,7 +322,6 @@ export class Telemetry {
           wins: r.wins,
           losses: r.losses,
           bestStreak: r.bestStreak,
-          dan: r.dan,
         }));
     return {
       generatedAt: this.now().toISOString(),
