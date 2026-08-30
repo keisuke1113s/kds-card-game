@@ -37,6 +37,22 @@ MAX_SEC = {
     "voice_kessyaku": 2.8,
     "voice_comeback": 3.2,
     "voice_fullline": 2.2,
+    "voice_battle": 2.4,       # バトル宣言
+    "voice_battlewin": 2.2,    # バトル勝利
+    "voice_tie": 2.0,          # 相打ち
+    "voice_close": 2.2,        # 大接戦バトル
+    "voice_flip": 2.2,         # 形勢逆転
+    "voice_result_win": 3.2,   # 勝利リザルト
+    "voice_result_lose": 3.2,  # 敗北リザルト
+    "voice_kentei": 4.2,       # 卒業検定開始
+    "voice_perfect": 3.0,      # 完全勝利
+    "voice_setback": 4.4,      # 大幅に戻された
+    "voice_lasthand": 1.8,     # 手札ラスト1枚
+    "voice_decklow": 3.8,      # 山札残りわずか
+    "voice_out": 3.0,          # 場外送り
+    "voice_streak": 2.8,       # 連勝バナー
+    "voice_heat_s": 2.6,       # 名勝負度S
+    "voice_revenge": 3.8,      # 因縁の再戦
 }
 
 
