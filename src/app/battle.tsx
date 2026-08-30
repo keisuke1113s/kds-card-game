@@ -1598,9 +1598,11 @@ export default function BattleScreen() {
                     ? `実況:${currentAnn.finalBlow ? "決着の一手" : currentAnn.kind}`
                     : flyFx.length > 0
                       ? "カード移動"
-                      : "待機"
+                      : aiThinking
+                        ? "CPU思考"
+                        : "待機"
     );
-  }, [finishedOutcome, resultShown, dealing, vsIntro, jankenActive, outFx, drawFx, currentAnn, flyFx.length]);
+  }, [finishedOutcome, resultShown, dealing, vsIntro, jankenActive, outFx, drawFx, currentAnn, flyFx.length, aiThinking]);
   const dealtRef = useRef("");
   useEffect(() => {
     if (!view || view.phase.type !== "mulligan") return;
@@ -4188,14 +4190,24 @@ function CheerFloat({ emoji }: { emoji: string }) {
  * 初回表示の瞬間の画像展開によるカクつきを防ぐ
  */
 function BattleWarmLayer({ cardIds }: { cardIds: string[] }) {
-  const [ready, setReady] = useState(false);
+  // 一度に全部並べると読み込みが集中してそれ自体がカクつくため、
+  // 開幕2秒後から1枚ずつ（0.4秒間隔）増やして読み込みを分散する
+  const [count, setCount] = useState(0);
+  const total = Math.min(26, new Set(cardIds).size);
   useEffect(() => {
-    // 開幕演出と競合しないよう、少し待ってから並べる
-    const t = setTimeout(() => setReady(true), 1800);
-    return () => clearTimeout(t);
+    const start = setTimeout(() => {
+      const timer = setInterval(() => {
+        setCount((c) => {
+          if (c + 1 >= total) clearInterval(timer);
+          return c + 1;
+        });
+      }, 400);
+    }, 2000);
+    return () => clearTimeout(start);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  if (Platform.OS !== "web" || !ready) return null;
-  const ids = [...new Set(cardIds)].slice(0, 26);
+  if (Platform.OS !== "web" || count === 0) return null;
+  const ids = [...new Set(cardIds)].slice(0, count);
   return (
     <View style={styles.battleWarm} pointerEvents="none">
       {ids.map((id) => (

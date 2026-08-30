@@ -77,8 +77,10 @@ export function startFrameWatch(): () => void {
             scene: voicesWarming() ? `${scene}+読込` : scene,
           });
         }
-        // 自動軽量化の判定は従来どおり（開始8秒と先読み中は対象外）
-        if (!triggered && t - startedAt > 8000 && !voicesWarming()) {
+        // 自動軽量化の判定は従来どおり（開始8秒と先読み中は対象外）。
+        // CPUの思考中は画面が動いていないため、そこでの重さは演出を
+        // 軽くしても解決しない＝発動の判定からは外す（記録には残す）
+        if (!triggered && t - startedAt > 8000 && !voicesWarming() && scene !== "CPU思考") {
           longCount++;
           longFrames.push(t);
           longFrames = longFrames.filter((x) => t - x < 5000);
