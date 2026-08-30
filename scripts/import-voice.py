@@ -67,54 +67,54 @@ MAX_SEC = {
     "voice_longgame": 2.2,
     "voice_mikiwame": 3.2,
     # ---- 追加実況・第2弾 ----
-    "voice_counter": 2.4,      # カウンター（防御側がサポートで逆転勝ち）
-    "voice_holdout": 2.2,      # 守り切り（防御側のまま勝利）
-    "voice_battlestreak": 2.8, # バトル3連勝
-    "voice_ace": 2.2,          # エース登場（最高戦闘力）
-    "voice_reinforce": 2.4,    # 怒涛の増援（1ターン2枚出し）
-    "voice_gakka": 2.6,        # 学科修了
+    "voice_counter": 3.8,      # カウンター（防御側がサポートで逆転勝ち）
+    "voice_holdout": 2.8,      # 守り切り（防御側のまま勝利）
+    "voice_battlestreak": 4.7, # バトル3連勝
+    "voice_ace": 3.4,          # エース登場（最高戦闘力）
+    "voice_reinforce": 3.2,    # 怒涛の増援（1ターン2枚出し）
+    "voice_gakka": 3.7,        # 学科修了
     "voice_ginou": 2.8,        # 技能修了
-    "voice_bigsupport": 2.6,   # 強烈なサポート（+3以上）
-    "voice_momentum": 2.4,     # 波に乗る（3ターン連続前進）
-    "voice_pitstop": 2.4,      # 作戦タイム（休憩・抽選）
+    "voice_bigsupport": 3.8,   # 強烈なサポート（+3以上）
+    "voice_momentum": 3.1,     # 波に乗る（3ターン連続前進）
+    "voice_pitstop": 3.2,      # 作戦タイム（休憩・抽選）
     # ---- 追加実況・第3弾 ----
-    "voice_giantkill": 2.8,    # ジャイアントキリング
-    "voice_mirror": 2.6,       # 同門対決
+    "voice_giantkill": 3.4,    # ジャイアントキリング
+    "voice_mirror": 3.7,       # 同門対決
     "voice_topdeck": 2.4,      # 引いて即投入
-    "voice_purebattle": 2.2,   # 真っ向勝負（サポート無し決着）
-    "voice_sabotage": 2.4,     # 妨害成功（相手の教習を後退）
-    "voice_chance": 2.6,       # 攻め時到来（相手全員休憩中）
-    "voice_deathmatch": 2.6,   # 死闘（サポート5枚以上）
-    "voice_pursuit": 2.4,      # 猛追（大差から追い上げ）
-    "voice_solo": 2.4,         # 孤軍奮闘（少数側がバトル勝ち）
-    "voice_tripledraw": 3.0,   # まさかの珍事（引き分け3回）
+    "voice_purebattle": 2.5,   # 真っ向勝負（サポート無し決着）
+    "voice_sabotage": 3.3,     # 妨害成功（相手の教習を後退）
+    "voice_chance": 3.7,       # 攻め時到来（相手全員休憩中）
+    "voice_deathmatch": 3.9,   # 死闘（サポート5枚以上）
+    "voice_pursuit": 2.8,      # 猛追（大差から追い上げ）
+    "voice_solo": 3.6,         # 孤軍奮闘（少数側がバトル勝ち）
+    "voice_tripledraw": 4.5,   # まさかの珍事（引き分け3回）
     # ---- 追加実況・第1弾（後日録音） ----
-    "voice_overwhelm": 2.4,    # 圧勝バトル（パワー差5以上）
-    "voice_supportwar": 2.6,   # サポート合戦（3〜4枚）
-    "voice_rush": 2.4,         # 速攻リーチ（序盤リーチ）
-    "voice_defense": 2.6,      # 執念のディフェンス（相手リーチ中に防衛）
+    "voice_overwhelm": 3.6,    # 圧勝バトル（パワー差5以上）
+    "voice_supportwar": 3.9,   # サポート合戦（3〜4枚）
+    "voice_rush": 3.3,         # 速攻リーチ（序盤リーチ）
+    "voice_defense": 3.4,      # 執念のディフェンス（相手リーチ中に防衛）
     "voice_straight": 2.4,     # ダブル前進（同ターン両トラック）
     "voice_firstblood": 2.4,   # 先制攻撃（最初のバトル）
     "voice_fullhouse": 2.4,    # 最強の布陣（場に4人）
     "voice_graveyard": 2.4,    # 壮絶な削り合い（場外6枚超）
     # ---- 追加実況・第4弾 ----
-    "voice_lucky": 2.6,        # 効果じゃんけん勝ち
-    "voice_unlucky": 2.6,      # 効果じゃんけん負け
-    "voice_encore": 2.6,       # 場外から回収
+    "voice_lucky": 3.6,        # 効果じゃんけん勝ち
+    "voice_unlucky": 3.5,      # 効果じゃんけん負け
+    "voice_encore": 3.5,       # 場外から回収
     "voice_peek": 2.2,         # 相手の手札を見た
     "voice_recycle": 2.4,      # 場外サポートが山札へ
-    "voice_breakaway": 2.6,    # 突き放す（迫られてから引き離す）
-    "voice_wall": 2.4,         # 厚い壁（バトル3連敗）
-    "voice_perfectrun": 2.8,   # 無敗のままリーチ
+    "voice_breakaway": 3.7,    # 突き放す（迫られてから引き離す）
+    "voice_wall": 3.2,         # 厚い壁（バトル3連敗）
+    "voice_perfectrun": 4.3,   # 無敗のままリーチ
     # ---- 追加実況・第5弾 ----
     "voice_opening": 2.4,      # 開幕ダッシュ（1手目から配置）
-    "voice_lastcard": 2.8,     # 山札ラスト1枚
-    "voice_doublekill": 2.4,   # まとめて場外（2枚以上同時）
-    "voice_teacher": 2.8,      # 教え上手の登場（最高教習力）
-    "voice_slowstart": 2.8,    # 慎重な立ち上がり（5ターン目で場0人）
-    "voice_revengewin": 2.8,   # リベンジ達成（因縁の再戦で勝利）
-    "voice_crowd": 2.8,        # 観客が集まる（観戦3人以上）
-    "voice_cheerup": 2.4,      # 声援が届く（応援スタンプ・抽選）
+    "voice_lastcard": 4.2,     # 山札ラスト1枚
+    "voice_doublekill": 3.3,   # まとめて場外（2枚以上同時）
+    "voice_teacher": 4.5,      # 教え上手の登場（最高教習力）
+    "voice_slowstart": 4.4,    # 慎重な立ち上がり（5ターン目で場0人）
+    "voice_revengewin": 3.4,   # リベンジ達成（因縁の再戦で勝利）
+    "voice_crowd": 3.7,        # 観客が集まる（観戦3人以上）
+    "voice_cheerup": 3.8,      # 声援が届く（応援スタンプ・抽選）
 }
 
 
