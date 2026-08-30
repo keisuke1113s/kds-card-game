@@ -33,6 +33,12 @@ export function setPerfScene(label: string): void {
   scene = label;
 }
 
+/** 盤面更新（1手の適用）ごとの描画コスト記録。対戦ログにまとめて報告する */
+let commitSamples: number[] = [];
+export function noteCommitMs(ms: number): void {
+  if (commitSamples.length < 300 && ms >= 0 && ms < 10000) commitSamples.push(Math.round(ms));
+}
+
 // 動作確認用（ブラウザのコンソールから状態を見られるようにしておく）
 if (typeof window !== "undefined") {
   (window as unknown as Record<string, unknown>).__kdsPerf = {
@@ -57,6 +63,7 @@ export function startFrameWatch(): () => void {
     return () => {};
   }
   const my = ++session;
+  commitSamples = [];
   cancelAnimationFrame(raf);
   let last = 0;
   let longFrames: number[] = [];
@@ -118,9 +125,16 @@ export function startFrameWatch(): () => void {
           .slice(0, 5)
           .map((f) => `${f.dt}ms@${f.scene}@${f.sec}秒`)
           .join(", ");
+        // 盤面更新1回あたりの描画コストのまとめ
+        const cs = commitSamples;
+        const heavyCommits = cs.filter((v) => v > 100).length;
+        const commitInfo =
+          cs.length > 0
+            ? ` 盤面更新${cs.length}回(平均${Math.round(cs.reduce((a, b) => a + b, 0) / cs.length)}ms/最大${Math.max(...cs)}ms/100ms超${heavyCommits}回)`
+            : "";
         reportPerf(
           `対戦ログ: ${Math.round((performance.now() - startedAt) / 1000)}秒間に重いフレーム${collected.length}件` +
-            `${triggered ? "（自動軽量化 発動）" : ""} 内訳: ${parts} 最悪: ${worst}`
+            `${triggered ? "（自動軽量化 発動）" : ""}${commitInfo} 内訳: ${parts} 最悪: ${worst}`
         );
       }
     }
