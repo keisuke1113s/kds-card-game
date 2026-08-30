@@ -1298,8 +1298,6 @@ export default function BattleScreen() {
       }));
     if (outs.length > 0) {
       setPendingOuts((q) => [...q, ...outs]);
-      // バトル勝利ボイスなどが鳴っていれば1チャンネル制で自動スキップされる
-      playVoice("voice_out");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastEvents]);
@@ -1307,6 +1305,8 @@ export default function BattleScreen() {
     if (pendingOuts.length === 0 || busy || outFx) return;
     setOutFx({ key: Date.now(), cards: pendingOuts });
     setPendingOuts([]);
+    // 場外へ飛んでいくアニメーションと同時にひとこと
+    playVoice("voice_out");
   }, [pendingOuts, busy, outFx]);
 
   // 山札から1枚引いたときの演出。実況とぶつからないよう、実況が捌けてから出す
