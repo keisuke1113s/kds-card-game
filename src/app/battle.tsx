@@ -3153,19 +3153,6 @@ function BattleInner() {
                 <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
               )
             )}
-            {finalBlowAnnRef.current && !replayActive && (
-              <ActionButton
-                label="🎬 決着の瞬間をもう一度"
-                color={colors.accent}
-                onPress={() => {
-                  haptic("medium");
-                  const ann = finalBlowAnnRef.current;
-                  if (!ann) return;
-                  setResultShown(false);
-                  setAnnQueue((q) => [...q, { ...ann, key: ++annSeq }]);
-                }}
-              />
-            )}
             {Platform.OS === "web" && !replayActive && (
               <ActionButton
                 label="📸 結果を画像で保存・共有"
@@ -5686,8 +5673,14 @@ function GoldFlash() {
   return <Animated.View style={[styles.goldFlash, style]} pointerEvents="none" />;
 }
 
-/** リザルトの学科・技能スコアをカウントアップで見せる */
-function ResultScores({
+/**
+ * リザルトの学科・技能スコアをカウントアップで見せる。
+ * バーは width% ではなく transform(scaleX) で伸ばす:
+ * iPhone の Safari では width 変更＋overflow hidden＋角丸の組み合わせが
+ * 再描画のちらつき（点滅）を起こすため、GPU合成だけで済む方式にしている。
+ * memo 化で親の再レンダリングからも切り離す
+ */
+const ResultScores = React.memo(function ResultScores({
   meA,
   meS,
   opA,
@@ -5724,12 +5717,24 @@ function ResultScores({
       <View style={styles.resultScoreBars}>
         <View style={styles.resultScoreBarWrap}>
           <View
-            style={[styles.resultScoreBar, { width: `${(Math.round(a * p) / ACADEMIC_GOAL) * 100}%`, backgroundColor: colors.primary }]}
+            style={[
+              styles.resultScoreBar,
+              {
+                backgroundColor: colors.primary,
+                transform: [{ scaleX: Math.min(1, Math.round(a * p) / ACADEMIC_GOAL) }],
+              },
+            ]}
           />
         </View>
         <View style={styles.resultScoreBarWrap}>
           <View
-            style={[styles.resultScoreBar, { width: `${(Math.round(sk * p) / SKILL_GOAL) * 100}%`, backgroundColor: colors.success }]}
+            style={[
+              styles.resultScoreBar,
+              {
+                backgroundColor: colors.success,
+                transform: [{ scaleX: Math.min(1, Math.round(sk * p) / SKILL_GOAL) }],
+              },
+            ]}
           />
         </View>
       </View>
@@ -5744,7 +5749,7 @@ function ResultScores({
       {row(oppLabelText, opA, opS, false)}
     </View>
   );
-}
+});
 
 /** 対戦入場の暗転ワイプ（左右の幕が開き、中央がひと筋光る） */
 function BattleEnterWipe({ onDone }: { onDone: () => void }) {
@@ -7030,7 +7035,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     overflow: "hidden",
   },
-  resultScoreBar: { height: "100%", borderRadius: 3 },
+  resultScoreBar: {
+    height: "100%",
+    width: "100%",
+    borderRadius: 3,
+    transformOrigin: "left",
+  },
   resultScoreNums: { fontSize: 12, fontWeight: "800", color: colors.text, width: 74, textAlign: "right" },
   wipeLayer: { ...StyleSheet.absoluteFill, zIndex: 90 },
   wipeHalf: {
