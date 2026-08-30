@@ -481,6 +481,24 @@ export class RoomCore {
     return this.spectators.size;
   }
 
+  /** トーナメント進行用: 入室状況と勝敗（端末ID基準） */
+  tourneyInfo(): {
+    started: boolean;
+    joinedDevices: string[];
+    finished: boolean;
+    winnerDevice: string | null;
+  } {
+    const joinedDevices = this.seats
+      .filter((s): s is Seat => !!s)
+      .map((s) => s.device ?? "");
+    const finished = !!this.state && this.state.phase.type === "finished";
+    let winnerDevice: string | null = null;
+    if (this.state && this.state.phase.type === "finished" && this.state.phase.winner !== null) {
+      winnerDevice = this.seats[this.state.phase.winner]?.device ?? null;
+    }
+    return { started: this.started, joinedDevices, finished, winnerDevice };
+  }
+
   /** 観戦者に見せる盤面（手札・山札の中身は含めない） */
   private buildBoard(): SpectatorBoard | null {
     const st = this.state;

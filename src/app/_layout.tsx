@@ -197,6 +197,7 @@ export default function RootLayout() {
         <Stack.Screen name="line" options={{ title: "LINE連携", headerStyle: { backgroundColor: "#06C755" }, headerTintColor: "#fff" }} />
         <Stack.Screen name="ranking" options={{ title: "週間ランキング", headerStyle: { backgroundColor: "#c9971b" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="spectate" options={{ title: "ライブ観戦", headerStyle: { backgroundColor: "#16283c" }, headerTintColor: "#fff", }} />
+        <Stack.Screen name="tourney" options={{ title: "オンライントーナメント", headerStyle: { backgroundColor: "#7a5a00" }, headerTintColor: "#fff", }} />
         {/* 設定は下から迫り上がる（ダイアログのような扱い） */}
         <Stack.Screen
           name="settings"

@@ -598,6 +598,18 @@ export default function OnlineScreen() {
               </View>
             )}
 
+            {/* オンライントーナメント */}
+            <Pressable
+              style={[styles.bigButton, { backgroundColor: "#7a5a00" }]}
+              onPress={() => {
+                haptic("light");
+                router.push("/tourney");
+              }}
+            >
+              <Text style={styles.bigButtonText}>🏆 オンライントーナメント</Text>
+              <Text style={styles.bigButtonSub}>4人そろったら自動開催！王者を決めろ</Text>
+            </Pressable>
+
             {/* ライブ観戦 */}
             <View style={styles.watchCard}>
               <Text style={styles.watchTitle}>👀 ライブ観戦</Text>
