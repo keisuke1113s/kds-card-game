@@ -1613,7 +1613,7 @@ function BattleInner() {
           ? { text: "🌇 夕方の教習です！\n日が沈む前に決めましょう！", voice: "voice_greet_evening" as const }
           : dp === "night"
             ? { text: "🌙 こんばんは！\n夜間教習を始めます！", voice: "voice_greet_night" as const }
-            : null;
+            : { text: "☀️ こんにちは！\n今日も教習日和です！", voice: "voice_greet_day" as const };
     if (greet) adds.push({ key: ++annSeq, kind: "text", text: greet.text, voice: greet.voice });
     if (weather === "rain") {
       adds.push({ key: ++annSeq, kind: "text", text: "☔ 本日は雨天教習！\n路面の変化に気をつけて！", voice: "voice_rainy" });
