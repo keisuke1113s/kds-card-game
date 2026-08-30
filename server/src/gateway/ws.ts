@@ -317,7 +317,9 @@ export function startServer(port: number): http.Server {
         "content-type": "application/json",
         "access-control-allow-origin": "*",
       });
-      res.end(JSON.stringify({ waiting: matchmaker.waitingCount }));
+      res.end(
+        JSON.stringify({ waiting: matchmaker.waitingCount, tourney: tourney.lobbySize() })
+      );
       return;
     }
     res.writeHead(404);

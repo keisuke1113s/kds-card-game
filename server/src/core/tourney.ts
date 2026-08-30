@@ -103,6 +103,12 @@ export class Tourney {
     this.lobby = this.lobby.filter((e) => e.device !== device);
   }
 
+  /** ロビーで待っている人数（ホームの表示用） */
+  lobbySize(): number {
+    this.tick();
+    return this.lobby.length;
+  }
+
   /** 状況を返す。device がロビーにいれば生存時刻も更新する（ハートビート） */
   status(device: string): TourneyStatus {
     const me = this.lobby.find((e) => e.device === device);
