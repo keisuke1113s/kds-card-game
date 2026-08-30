@@ -137,6 +137,9 @@ html, body { overflow-x: hidden; }
 [data-kdsanim="dots"] { animation-name: kds-dots; }
 [data-kdsanim="fall"] { animation-name: kds-fall; }
 [data-kdsanim="sway"] { animation-name: kds-sway; }
+[data-kdsanim="cardfall"] { animation-name: kds-cardfall; }
+[data-kdsanim="spin"] { animation-name: kds-spin; }
+[data-kdsanim="burst"] { animation-name: kds-burst; }
 @keyframes kds-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 @keyframes kds-pulsering { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
 @keyframes kds-glowpulse { 0%, 100% { opacity: .1; } 50% { opacity: 1; } }
@@ -146,6 +149,9 @@ html, body { overflow-x: hidden; }
 @keyframes kds-goldpulse { 0%, 100% { opacity: .25; } 50% { opacity: .9; } }
 @keyframes kds-reachpulse { 0%, 100% { opacity: .2; } 50% { opacity: .55; } }
 @keyframes kds-dots { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@keyframes kds-cardfall { 0% { transform: translateY(-120px); opacity: 0; } 6% { opacity: 1; } 90% { opacity: 1; } 100% { transform: translateY(1100px); opacity: 0; } }
+@keyframes kds-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes kds-burst { 0% { transform: scale(0.2); opacity: 0; } 12% { opacity: 1; } 100% { transform: scale(2.3); opacity: 0; } }
 @keyframes kds-fall { 0% { transform: translateY(-40px); opacity: 0; } 5% { opacity: .7; } 90% { opacity: .7; } 100% { transform: translateY(940px); opacity: 0; } }
 [data-kdsanim="wipeleft"] { animation-name: kds-wipeleft; }
 [data-kdsanim="wiperight"] { animation-name: kds-wiperight; }
