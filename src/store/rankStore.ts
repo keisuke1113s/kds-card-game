@@ -18,6 +18,9 @@ interface RankState {
   /** 診断の回答内訳（軸文字の並び。メーターの再表示に使う） */
   shindanAnswers: string;
   setShindanAnswers: (a: string) => void;
+  /** セーフティチェック（6観点スコア0-100）の前回結果 */
+  shindanSafety: Record<string, number> | null;
+  setShindanSafety: (s: Record<string, number>) => void;
   /** 入校式（初回ガイド）を見たか */
   entranceDone: boolean;
   setEntranceDone: () => void;
@@ -41,6 +44,8 @@ export const useRankStore = create<RankState>()(
       setShindanType: (shindanType) => set({ shindanType }),
       shindanAnswers: "",
       setShindanAnswers: (shindanAnswers) => set({ shindanAnswers }),
+      shindanSafety: null,
+      setShindanSafety: (shindanSafety) => set({ shindanSafety }),
       entranceDone: false,
       setEntranceDone: () => set({ entranceDone: true }),
       favoriteCard: "",
