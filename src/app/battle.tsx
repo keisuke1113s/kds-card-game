@@ -45,7 +45,7 @@ import {
   pauseBgm,
   playBgm,
   playSe,
-  hasCardVoice, playCardVoice, playVoice,
+  hasCardVoice, playCardVoice, playVoice, playVoiceSoon,
   stopBgm,
   warmVoices,
   type VoiceKey,
@@ -749,7 +749,8 @@ function BattleInner() {
   const showVsIntro = useCallback(() => {
     if (vsShownRef.current || replayActive) return;
     vsShownRef.current = true;
-    playVoice(isOnline && revengeMatch ? "voice_revenge" : "voice_start");
+    // 開始ボイスは大事なので、じゃんけんボイス等が鳴っていても終わり次第流す
+    playVoiceSoon(isOnline && revengeMatch ? "voice_revenge" : "voice_start");
     setVsIntro(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [replayActive]);

@@ -404,6 +404,19 @@ export function warmVoices(): void {
   });
 }
 
+/**
+ * 大事な実況（対戦開始など）用: 別のボイスが再生中なら、
+ * 終わるのを待ってから鳴らす（普通の playVoice は重なったらスキップする）
+ */
+export function playVoiceSoon(key: VoiceKey): void {
+  const wait = voiceBusyUntil - Date.now();
+  if (wait > 0) {
+    setTimeout(() => playVoice(key), wait + 80);
+  } else {
+    playVoice(key);
+  }
+}
+
 /** カード個別実況（voice_c_<カードID>.wav）が用意されているか */
 export function hasCardVoice(cardId: string): boolean {
   return seAssets[`voice_c_${cardId}`] !== undefined;
@@ -427,13 +440,25 @@ let voiceBusyUntil = 0;
  * 別の実況がまだ鳴っている間は重ねずにスキップする
  */
 export function playVoice(key: VoiceKey): void {
-  if (!unlocked) return;
+  // 発動調査用のスイッチ（コンソールで __kdsVoiceDebug = true にすると経過が見える）
+  const dbg = (globalThis as { __kdsVoiceDebug?: boolean }).__kdsVoiceDebug;
+  if (!unlocked) {
+    if (dbg) console.log("[voice]", key, "→ 未解禁でスキップ");
+    return;
+  }
   const s = useSettingsStore.getState();
-  if (!s.seEnabled || !s.voiceEnabled) return;
+  if (!s.seEnabled || !s.voiceEnabled) {
+    if (dbg) console.log("[voice]", key, "→ 設定OFFでスキップ");
+    return;
+  }
   const asset = seAssets[key];
   if (asset === undefined) return;
   const now = Date.now();
-  if (now < voiceBusyUntil) return;
+  if (now < voiceBusyUntil) {
+    if (dbg) console.log("[voice]", key, `→ 別ボイス再生中でスキップ（あと${voiceBusyUntil - now}ms）`);
+    return;
+  }
+  if (dbg) console.log("[voice]", key, "→ 再生");
   // Web は軽量な Web Audio で鳴らす。長さはデコード済みなら正確に、未デコードなら2.2秒と見込む
   if (Platform.OS === "web" && webBuffers[key] !== null) {
     const buf = webBuffers[key];
