@@ -230,6 +230,8 @@ const styles = StyleSheet.create({
   scroll: {
     alignSelf: "stretch",
     maxHeight: Math.min(560, Dimensions.get("window").height * 0.58),
+    // 外側の箱の最大高さに押されて効果文が途中で切れないようにする
+    flexShrink: 0,
   },
   container: { alignItems: "center", gap: 8, paddingBottom: 8 },
   plain: { alignSelf: "stretch" },
