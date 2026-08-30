@@ -16,6 +16,12 @@ interface QuizState {
   /** 今日の1問（ホームの豆知識から）の挑戦記録 */
   dailyDate: string;
   dailyCorrect: boolean;
+  /** 弱点ノート: 間違えた問題（id → 間違い回数・最終日時・その後の連続正解数） */
+  wrong: Record<string, { count: number; at: string; streak: number }>;
+  /** 分野別の通算成績（正答率表示用） */
+  catStats: Record<string, { asked: number; correct: number }>;
+  /** 解答1問ぶんを記録する。2回連続で正解した弱点問題はノートから卒業 */
+  markAnswer: (id: string, cat: string, correct: boolean) => void;
   setDaily: (date: string, correct: boolean) => void;
   addResult: (score: number, total: number, category: string) => void;
   addKentei: (score: number, passed: boolean) => void;
@@ -33,6 +39,28 @@ export const useQuizStore = create<QuizState>()(
       kenteiBest: 0,
       dailyDate: "",
       dailyCorrect: false,
+      wrong: {},
+      catStats: {},
+      markAnswer: (id, cat, correct) =>
+        set((s) => {
+          const wrong = { ...s.wrong };
+          const w = wrong[id];
+          if (!correct) {
+            wrong[id] = {
+              count: (w?.count ?? 0) + 1,
+              at: new Date().toISOString(),
+              streak: 0,
+            };
+          } else if (w) {
+            const streak = w.streak + 1;
+            if (streak >= 2) delete wrong[id]; // 2回連続正解で卒業
+            else wrong[id] = { ...w, streak };
+          }
+          const cs = { ...s.catStats };
+          const c = (cs[cat] ??= { asked: 0, correct: 0 });
+          cs[cat] = { asked: c.asked + 1, correct: c.correct + (correct ? 1 : 0) };
+          return { wrong, catStats: cs };
+        }),
       setDaily: (dailyDate, dailyCorrect) => set({ dailyDate, dailyCorrect }),
       addResult: (score, total, category) =>
         set((s) => ({

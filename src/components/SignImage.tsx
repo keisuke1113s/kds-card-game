@@ -19,7 +19,11 @@ export type SignId =
   | "ippou_tsukou" // 一方通行
   | "sharyou_tsukoudome" // 車両通行止め
   | "hokousha_senyou" // 歩行者専用
-  | "jitensha_hokousha"; // 自転車及び歩行者専用
+  | "jitensha_hokousha" // 自転車及び歩行者専用
+  | "tsukoudome" // 通行止め（歩行者も車も）
+  | "keiteki" // 警笛鳴らせ
+  | "wakaba" // 初心運転者標識（初心者マーク）
+  | "yusen"; // 優先道路
 
 const SIGN_IMAGES: Record<SignId, number> = {
   tomare: require("../../assets/images/signs/tomare.webp"),
@@ -32,6 +36,10 @@ const SIGN_IMAGES: Record<SignId, number> = {
   sharyou_tsukoudome: require("../../assets/images/signs/sharyou_tsukoudome.webp"),
   hokousha_senyou: require("../../assets/images/signs/hokousha_senyou.webp"),
   jitensha_hokousha: require("../../assets/images/signs/jitensha_hokousha.webp"),
+  tsukoudome: require("../../assets/images/signs/tsukoudome.webp"),
+  keiteki: require("../../assets/images/signs/keiteki.webp"),
+  wakaba: require("../../assets/images/signs/wakaba.webp"),
+  yusen: require("../../assets/images/signs/yusen.webp"),
 };
 
 const SIZE = 96;

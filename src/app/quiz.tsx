@@ -11,7 +11,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { QUIZ_CATEGORIES, QUIZ_QUESTIONS, QuizCategory, QuizQuestion } from "@/data/quizQuestions";
+import { QUIZ_CATEGORIES, QUIZ_QUESTIONS, quizIdOf, QuizCategory, QuizQuestion } from "@/data/quizQuestions";
 import { SignImage } from "@/components/SignImage";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { useQuizStore } from "@/store/quizStore";
@@ -49,7 +49,31 @@ function JudgeStamp({ correct }: { correct: boolean }) {
 
 /** 出題順をランダムに（同じ問題は1セットに1回だけ）。分野を選ぶとその分野から出る */
 function pickQuestions(cat: QuizCategory | "all"): QuizQuestion[] {
+  const wrong = useQuizStore.getState().wrong;
   const pool = QUIZ_QUESTIONS.filter((q) => cat === "all" || q.cat === cat);
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  // 忘却曲線: 以前間違えた問題（古いものから）を最大4問だけ優先して混ぜる
+  const weak = pool
+    .filter((q) => wrong[quizIdOf(q)])
+    .sort((a, b) => (wrong[quizIdOf(a)]!.at < wrong[quizIdOf(b)]!.at ? -1 : 1))
+    .slice(0, 4);
+  const rest = pool.filter((q) => !weak.includes(q));
+  const set = [...weak, ...rest].slice(0, SET_SIZE);
+  // 弱点問題が固まらないよう最後にもう一度混ぜる
+  for (let i = set.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [set[i], set[j]] = [set[j], set[i]];
+  }
+  return set;
+}
+
+/** 弱点ノートの問題だけで出題（間違えたまま卒業していない問題） */
+function pickWeakQuestions(): QuizQuestion[] {
+  const wrong = useQuizStore.getState().wrong;
+  const pool = QUIZ_QUESTIONS.filter((q) => wrong[quizIdOf(q)]);
   for (let i = pool.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
     [pool[i], pool[j]] = [pool[j], pool[i]];
@@ -226,6 +250,19 @@ export default function QuizScreen() {
     setPhase("play");
   };
 
+  /** 弱点ノートの問題だけで復習する */
+  const startWeak = () => {
+    const qs = pickWeakQuestions();
+    if (qs.length === 0) return;
+    setKentei(false);
+    setQuestions(qs);
+    setIndex(0);
+    setScore(0);
+    setPicked(null);
+    setComboStreak(0);
+    setPhase("play");
+  };
+
   const startKentei = () => {
     setKentei(true);
     setAnswers([]);
@@ -267,6 +304,8 @@ export default function QuizScreen() {
   const choose = (ans: boolean) => {
     if (picked !== null || !q) return;
     const ok = ans === q.answer;
+    // 弱点ノートと分野別成績に記録する
+    quiz.markAnswer(quizIdOf(q), q.cat, ok);
     if (kentei) {
       // 本試験形式: 正誤は明かさず、テンポよく次の問題へ。解説は最後にまとめて
       playSe("tap");
@@ -349,6 +388,52 @@ export default function QuizScreen() {
             <Pressable style={[styles.wideButton, { backgroundColor: "#78b424" }]} onPress={start}>
               <Text style={styles.wideButtonText}>スタート！</Text>
             </Pressable>
+            {/* 弱点ノート: 間違えた問題だけを復習 */}
+            {Object.keys(quiz.wrong).length > 0 && (
+              <View style={styles.kenteiBox}>
+                <Text style={styles.kenteiTitle}>
+                  📕 弱点ノート（{Object.keys(quiz.wrong).length}問）
+                </Text>
+                <Text style={styles.kenteiNote}>
+                  これまでに間違えた問題だけを復習できます。時間をおいて解き直すのが
+                  いちばん記憶に残ります。2回連続で正解するとノートから卒業！
+                </Text>
+                <Pressable
+                  style={[styles.wideButton, { backgroundColor: "#e8890c" }]}
+                  onPress={startWeak}
+                >
+                  <Text style={styles.wideButtonText}>苦手だけ復習する</Text>
+                </Pressable>
+              </View>
+            )}
+            {/* 分野別の正答率（5問以上解いた分野だけ表示） */}
+            {QUIZ_CATEGORIES.some((c) => (quiz.catStats[c]?.asked ?? 0) >= 5) && (
+              <View style={styles.kenteiBox}>
+                <Text style={styles.kenteiTitle}>📊 分野別の正答率</Text>
+                {QUIZ_CATEGORIES.filter((c) => (quiz.catStats[c]?.asked ?? 0) >= 5).map((c) => {
+                  const st = quiz.catStats[c]!;
+                  const pct = Math.round((st.correct / st.asked) * 100);
+                  return (
+                    <View key={c} style={styles.catStatRow}>
+                      <Text style={styles.catStatName}>{c}</Text>
+                      <View style={styles.catStatTrack}>
+                        <View
+                          style={[
+                            styles.catStatFill,
+                            {
+                              width: `${pct}%`,
+                              backgroundColor:
+                                pct >= 80 ? "#2f9e44" : pct >= 60 ? "#e8890c" : "#d83030",
+                            },
+                          ]}
+                        />
+                      </View>
+                      <Text style={styles.catStatPct}>{pct}%</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
             {/* 教習所の効果測定と同じ本試験形式 */}
             <View style={styles.kenteiBox}>
               <Text style={styles.kenteiTitle}>🖊 効果測定（本試験形式）</Text>
@@ -518,6 +603,17 @@ export default function QuizScreen() {
 }
 
 const styles = StyleSheet.create({
+  catStatRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  catStatName: { width: 110, fontSize: 12, fontWeight: "700", color: "#5c4a00" },
+  catStatTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#00000014",
+    overflow: "hidden",
+  },
+  catStatFill: { height: 10, borderRadius: 5 },
+  catStatPct: { width: 40, fontSize: 12, fontWeight: "800", color: "#5c4a00", textAlign: "right" },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
   card: {
