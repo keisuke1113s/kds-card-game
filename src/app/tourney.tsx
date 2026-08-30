@@ -8,9 +8,10 @@ import { AppButton } from "@/components/AppButton";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { DEFAULT_SERVER_URL, useOnlinePrefs } from "@/app/online";
 import { getDeviceId } from "@/data/telemetry";
-import { resolveActiveDeck, useDeckStore } from "@/store/deckStore";
-import { useGameStore } from "@/store/gameStore";
+import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
+import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRankStore } from "@/store/rankStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useTourneyStore } from "@/store/tourneyStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -51,8 +52,11 @@ export default function TourneyScreen() {
   const deckState = useDeckStore();
   const connectOnline = useGameStore((s) => s.connectOnline);
   const onlineStatus = useGameStore((s) => s.onlineStatus);
+  const startGame = useGameStore((s) => s.startGame);
   const setTourneyActive = useTourneyStore((s) => s.setActive);
   const addTourneyWin = useTourneyStore((s) => s.addWin);
+  const startLobbyWatch = useTourneyStore((s) => s.startLobbyWatch);
+  const stopLobbyWatch = useTourneyStore((s) => s.stopLobbyWatch);
 
   const [status, setStatus] = useState<TourneyStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -78,10 +82,12 @@ export default function TourneyScreen() {
     if (onlineStatus === "playing") router.replace("/battle");
   }, [onlineStatus, router]);
 
-  // 画面を見ている間: エントリー（ハートビート）＋3秒ごとの状況確認
+  // 画面を見ている間: エントリー（ハートビート）＋3秒ごとの状況確認。
+  // 待機中CPU対戦の見張りはこの画面が引き継ぐので止める
   useFocusEffect(
     useCallback(() => {
       if (!device) return;
+      stopLobbyWatch();
       let alive = true;
       const poll = async () => {
         try {
@@ -114,8 +120,27 @@ export default function TourneyScreen() {
           body: JSON.stringify({ device }),
         }).catch(() => {});
       };
-    }, [device, nameFor])
+    }, [device, nameFor, stopLobbyWatch])
   );
+
+  /** ロビーで待ちながらCPU対戦を始める（裏でロビーの見張りを続ける） */
+  const startCpuWhileWaiting = () => {
+    if (!device) return;
+    haptic("medium");
+    startLobbyWatch(device, nameFor(device));
+    const latest = useDeckStore.getState();
+    const player = resolveActiveDeck(latest);
+    const cpu = cpuDeckFor(player, latest.builtinOverrides);
+    const st = useSettingsStore.getState();
+    startGame({
+      playerDeck: player.list,
+      cpuDeck: cpu.list,
+      difficulty: st.difficulty,
+      aiSpeedMs: st.aiSpeedMs,
+      firstPlayer: Math.random() < 0.5 ? HUMAN : CPU,
+    });
+    router.replace("/battle");
+  };
 
   // 優勝したら一度だけお祝い＋記録（実績「オンライン王者」用）
   useEffect(() => {
@@ -200,6 +225,16 @@ export default function TourneyScreen() {
                 />
               ))}
             </View>
+            <AppButton
+              label="🤖 CPUと対戦しながら待つ"
+              custom={{ bg: colors.primary }}
+              fullWidth
+              onPress={startCpuWhileWaiting}
+            />
+            <Text style={styles.waitText}>
+              エントリーしたままCPU対戦で腕ならし。4人そろうと対戦画面にお知らせが出ます
+              （90秒以内にトーナメントへ移動しないと不戦敗になるので注意！）
+            </Text>
           </View>
         )}
 
