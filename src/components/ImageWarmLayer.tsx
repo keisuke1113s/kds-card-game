@@ -25,7 +25,19 @@ export function ImageWarmLayer() {
   const uris = useMemo(() => {
     if (Platform.OS !== "web") return [];
     const out: string[] = [];
-    for (const src of [...Object.values(cardSmalls), ...Object.values(cardThumbs)]) {
+    // 対戦のカットインで使う演出背景も温めておく（初回表示のカクつき防止）
+    const fxImages = [
+      require("../../assets/images/fx/fx_battle.webp"),
+      require("../../assets/images/fx/fx_up.webp"),
+      require("../../assets/images/fx/fx_down.webp"),
+      require("../../assets/images/fx/fx_victory.webp"),
+      require("../../assets/images/fx/fx_reach_gold.webp"),
+      require("../../assets/images/fx/fx_reach_red.webp"),
+      require("../../assets/images/fx/fx_defeat.webp"),
+      require("../../assets/images/fx/fx_janken.webp"),
+      require("../../assets/images/kds-car.png"),
+    ];
+    for (const src of [...fxImages, ...Object.values(cardSmalls), ...Object.values(cardThumbs)]) {
       try {
         const uri = Asset.fromModule(src).uri;
         if (uri) out.push(uri);
