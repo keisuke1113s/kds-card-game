@@ -41,7 +41,7 @@ import { HeuristicAI } from "@/ai/heuristic";
 import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { shareResultImage } from "@/data/shareImage";
 import { useAchievementStore } from "@/store/achievementStore";
-import { pauseBgm, playBgm, playSe, playVoice, stopBgm } from "@/audio/sound";
+import { pauseBgm, playBgm, playSe, playVoice, stopBgm, warmVoices } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -148,6 +148,13 @@ interface Announcement {
 }
 
 let annSeq = 0;
+
+/** 演出部品用: ひかえめモードまたは自動軽量化が効いているか */
+function useLightFx(): boolean {
+  const fxLevel = useSettingsStore((s) => s.fxLevel);
+  const autoLight = usePerfStore((s) => s.autoLight);
+  return autoLight || fxLevel === "light";
+}
 
 
 /**
@@ -502,6 +509,10 @@ export default function BattleScreen() {
   const [pileView, setPileView] = useState<"deck" | "outOfPlay" | "cpuOutOfPlay" | null>(null);
   const [choicePreview, setChoicePreview] = useState<number | null>(null);
   const [annQueue, setAnnQueue] = useState<Announcement[]>([]);
+  // 実況ボイスを裏で先読みして、演出の瞬間のカクつきを防ぐ
+  useEffect(() => {
+    warmVoices();
+  }, []);
   const [currentAnn, setCurrentAnn] = useState<Announcement | null>(null);
   const bgmEnabled = useSettingsStore((s) => s.bgmEnabled);
   const seEnabled = useSettingsStore((s) => s.seEnabled);
@@ -4220,6 +4231,7 @@ function TypewriterText({ text, style }: { text: string; style?: StyleProp<TextS
 
 /** 節目のお祝い花火。色とりどりの光の輪が次々に開く */
 function Fireworks({ label }: { label: string }) {
+  const lightFx = useLightFx();
   useEffect(() => {
     playSe("cheer");
     const t = setTimeout(() => playSe("horn"), 750);
@@ -4227,7 +4239,7 @@ function Fireworks({ label }: { label: string }) {
   }, []);
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
-      {Array.from({ length: 10 }, (_, i) => (
+      {Array.from({ length: lightFx ? 4 : 10 }, (_, i) => (
         <FireworkBurst key={i} index={i} />
       ))}
       <View style={styles.fireworksLabelWrap}>
@@ -4346,6 +4358,7 @@ export function BattleCutIn({
   defCardId?: string;
   atkIsCpu: boolean;
 }) {
+  const lightFx = useLightFx();
   const slashA = useSharedValue(0);
   const slashB = useSharedValue(0);
   const cardL = useSharedValue(0);
@@ -4427,12 +4440,14 @@ export function BattleCutIn({
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashA, slashAStyle]} />
       <Animated.View style={[styles.cutinSlash, styles.cutinSlashB, slashBStyle]} />
 
-      {/* 激突の火花 */}
-      <View style={styles.sparkWrap} pointerEvents="none">
-        {Array.from({ length: 8 }, (_, i) => (
-          <ClashSpark key={i} index={i} progress={sparks} />
-        ))}
-      </View>
+      {/* 激突の火花（軽量時は省略） */}
+      {!lightFx && (
+        <View style={styles.sparkWrap} pointerEvents="none">
+          {Array.from({ length: 8 }, (_, i) => (
+            <ClashSpark key={i} index={i} progress={sparks} />
+          ))}
+        </View>
+      )}
 
       {atkCardId && defCardId && (
         <View style={styles.cutinCards}>
@@ -4648,6 +4663,7 @@ function FlyToOut({
   target: { x: number; y: number } | null;
   onDone?: () => void;
 }) {
+  const lightFx = useLightFx();
   const p = useSharedValue(0);
 
   // 画面中央からの差分で着地点を決める
@@ -4698,7 +4714,7 @@ function FlyToOut({
 
   return (
     <View style={styles.outFxCenter} pointerEvents="none">
-      <Animated.View style={[styles.dustPuff, dustSt]} />
+      {!lightFx && <Animated.View style={[styles.dustPuff, dustSt]} />}
       <Animated.View style={style}>
         <CardFace cardId={cardId} size="md" />
       </Animated.View>
@@ -4902,9 +4918,12 @@ function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
  * 勝利のお祝い。デッキのカードが紙吹雪と一緒に画面いっぱいに舞う。
  */
 function CardRain({ cardIds }: { cardIds: string[] }) {
+  // 軽量時は舞う枚数を半分にして負荷を下げる
+  const lightFx = useLightFx();
+  const shown = lightFx ? cardIds.filter((_, i) => i % 2 === 0) : cardIds;
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
-      {cardIds.map((id, i) => (
+      {shown.map((id, i) => (
         <RainCard key={`${id}-${i}`} cardId={id} index={i} />
       ))}
     </View>
