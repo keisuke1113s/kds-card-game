@@ -531,6 +531,8 @@ function BattleInner() {
   const kyokanId = useGameStore((s) => s.kyokanId);
   const tournamentMatch = useGameStore((s) => s.tournamentMatch);
   const onlineTourneyActive = useTourneyStore((s) => s.active);
+  const tourneyWatching = useTourneyStore((s) => s.watching);
+  const tourneyMatchReady = useTourneyStore((s) => s.matchReady);
   const kyokanDef = kyokanId ? KYOKAN_LIST.find((k) => k.cardId === kyokanId) : undefined;
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const replayPaused = useGameStore((s) => s.replayPaused);
@@ -2128,6 +2130,27 @@ function BattleInner() {
             <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
           </View>
         )}
+        {/* トーナメントの人数待ちでCPU対戦しているときの目印 */}
+        {tourneyWatching && !tourneyMatchReady && !isOnline && (
+          <View style={styles.queueBadge} pointerEvents="none">
+            <Text style={styles.queueBadgeText}>🏆 トーナメントの人数待ち…</Text>
+          </View>
+        )}
+        {/* トーナメントが始まった！ タップでこの対戦を切り上げて移動する */}
+        {tourneyWatching && tourneyMatchReady && !isOnline && (
+          <Pressable
+            style={styles.tourneyReadyBanner}
+            onPress={() => {
+              haptic("medium");
+              quitGame();
+              router.replace("/tourney");
+            }}
+          >
+            <Text style={styles.tourneyReadyText}>
+              🏆 トーナメント開始！{"\n"}タップして移動（90秒以内）
+            </Text>
+          </Pressable>
+        )}
         {/* カクつき検知で演出を軽くしたお知らせ */}
         {autoLightNote && (
           <View style={styles.autoLightNote} pointerEvents="none">
@@ -3155,8 +3178,8 @@ function BattleInner() {
                 <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
               )
             )}
-            {/* オンライントーナメントの一戦なら、その進行画面へ戻る */}
-            {isOnline && onlineTourneyActive && (
+            {/* オンライントーナメントの一戦（または人数待ちCPU対戦）なら、進行画面へ戻る */}
+            {((isOnline && onlineTourneyActive) || tourneyWatching) && (
               <ActionButton
                 label="🏆 トーナメントへ戻る"
                 color={colors.accent}
@@ -7305,6 +7328,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   queueBadgeText: { color: "#fff", fontSize: 11, fontWeight: "800" },
+  tourneyReadyBanner: {
+    position: "absolute",
+    top: 4,
+    alignSelf: "center",
+    zIndex: 60,
+    backgroundColor: "#7a5a00f2",
+    borderWidth: 2,
+    borderColor: "#ffd54d",
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  tourneyReadyText: {
+    color: "#ffd54d",
+    fontSize: 14,
+    fontWeight: "900",
+    textAlign: "center",
+    lineHeight: 20,
+  },
   rematchOfferText: { fontSize: 14, fontWeight: "900", color: "#c9971b", textAlign: "center" },
   rematchWaitText: { fontSize: 13, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
   stampRow: {

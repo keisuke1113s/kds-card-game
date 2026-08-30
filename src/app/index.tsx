@@ -38,6 +38,7 @@ import { useQuizStore } from "@/store/quizStore";
 import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { DEFAULT_SERVER_URL } from "@/app/online";
+import { useTourneyStore } from "@/store/tourneyStore";
 import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -291,10 +292,12 @@ export default function HomeScreen() {
     transform: [{ translateY: -scrollY.value * 0.25 }],
   }));
 
-  // BGMは対戦中のみ。ホームに戻ったら止める
+  // BGMは対戦中のみ。ホームに戻ったら止める。
+  // トーナメントの人数待ち（CPU対戦しながら）もホームに戻ったら取りやめる
   useFocusEffect(
     useCallback(() => {
       stopBgm();
+      useTourneyStore.getState().stopLobbyWatch({ leave: true });
     }, [])
   );
 
