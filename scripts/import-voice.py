@@ -66,6 +66,28 @@ MAX_SEC = {
     "voice_wipedout": 2.0,
     "voice_longgame": 2.2,
     "voice_mikiwame": 3.2,
+    # ---- 追加実況・第2弾 ----
+    "voice_counter": 2.4,      # カウンター（防御側がサポートで逆転勝ち）
+    "voice_holdout": 2.2,      # 守り切り（防御側のまま勝利）
+    "voice_battlestreak": 2.8, # バトル3連勝
+    "voice_ace": 2.2,          # エース登場（最高戦闘力）
+    "voice_reinforce": 2.4,    # 怒涛の増援（1ターン2枚出し）
+    "voice_gakka": 2.6,        # 学科修了
+    "voice_ginou": 2.8,        # 技能修了
+    "voice_bigsupport": 2.6,   # 強烈なサポート（+3以上）
+    "voice_momentum": 2.4,     # 波に乗る（3ターン連続前進）
+    "voice_pitstop": 2.4,      # 作戦タイム（休憩・抽選）
+    # ---- 追加実況・第3弾 ----
+    "voice_giantkill": 2.8,    # ジャイアントキリング
+    "voice_mirror": 2.6,       # 同門対決
+    "voice_topdeck": 2.4,      # 引いて即投入
+    "voice_purebattle": 2.2,   # 真っ向勝負（サポート無し決着）
+    "voice_sabotage": 2.4,     # 妨害成功（相手の教習を後退）
+    "voice_chance": 2.6,       # 攻め時到来（相手全員休憩中）
+    "voice_deathmatch": 2.6,   # 死闘（サポート5枚以上）
+    "voice_pursuit": 2.4,      # 猛追（大差から追い上げ）
+    "voice_solo": 2.4,         # 孤軍奮闘（少数側がバトル勝ち）
+    "voice_tripledraw": 3.0,   # まさかの珍事（引き分け3回）
 }
 
 

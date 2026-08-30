@@ -312,7 +312,27 @@ export type VoiceKey =
   | "voice_openfield"
   | "voice_wipedout"
   | "voice_longgame"
-  | "voice_mikiwame";
+  | "voice_mikiwame"
+  | "voice_counter"
+  | "voice_holdout"
+  | "voice_battlestreak"
+  | "voice_ace"
+  | "voice_reinforce"
+  | "voice_gakka"
+  | "voice_ginou"
+  | "voice_bigsupport"
+  | "voice_momentum"
+  | "voice_pitstop"
+  | "voice_giantkill"
+  | "voice_mirror"
+  | "voice_topdeck"
+  | "voice_purebattle"
+  | "voice_sabotage"
+  | "voice_chance"
+  | "voice_deathmatch"
+  | "voice_pursuit"
+  | "voice_solo"
+  | "voice_tripledraw";
 
 /**
  * 実況ボイスを裏で少しずつ読み込んでおく（初回再生時のカクつき防止）。
