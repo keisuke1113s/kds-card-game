@@ -21,12 +21,6 @@ interface SettingsState {
   /** 演出の量（full=たっぷり / normal=標準 / light=ひかえめ） */
   fxLevel: "full" | "normal" | "light";
   setFxLevel: (v: "full" | "normal" | "light") => void;
-  /** 自動軽量化が発動した累積回数（3回でひかえめモードを標準にする） */
-  autoLightStrikes: number;
-  /** ひかえめモードへ自動で切り替え済みか（お知らせは1回だけ） */
-  autoLightPromoted: boolean;
-  /** 自動軽量化の発動を1回記録し、3回目でひかえめモードへ自動切り替え */
-  noteAutoLightStrike: () => void;
   /** 大きめ文字モード（効果文・実況・クイズの文字を1段階大きく） */
   largeText: boolean;
   setLargeText: (v: boolean) => void;
@@ -62,17 +56,6 @@ export const useSettingsStore = create<SettingsState>()(
       guideDone: false,
       fxLevel: "full",
       setFxLevel: (fxLevel) => set({ fxLevel }),
-      autoLightStrikes: 0,
-      autoLightPromoted: false,
-      noteAutoLightStrike: () =>
-        set((s) => {
-          const n = s.autoLightStrikes + 1;
-          // この端末では毎回重くなる＝検知を繰り返すより、ひかえめを標準にする
-          if (n >= 3 && s.fxLevel !== "light" && !s.autoLightPromoted) {
-            return { autoLightStrikes: n, fxLevel: "light" as const, autoLightPromoted: true };
-          }
-          return { autoLightStrikes: n };
-        }),
       largeText: false,
       setLargeText: (largeText) => set({ largeText }),
       bgmVolume: 1,
