@@ -1,6 +1,6 @@
 import { Image } from "expo-image";
 import React, { useRef } from "react";
-import { Dimensions, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Dimensions, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -117,6 +117,10 @@ const typeLabel: Record<string, string> = {
  */
 export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?: boolean }) {
   const def = getCard(cardId);
+  // 縮小判定は描画のたびに現在の画面サイズで行う
+  // （起動時の一度きりの判定だと、端末の読み込み順によって効かないことがある）
+  const winH = useWindowDimensions().height;
+  const compact = winH < 1000;
   // 設定「大きめ文字」で効果文をひとまわり大きく
   const largeText = useSettingsStore((s) => s.largeText);
   const bigger = largeText ? { fontSize: 16, lineHeight: 24 } : null;
@@ -132,13 +136,13 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
       <View
         style={[
           styles.cardWrap,
-          COMPACT && {
+          compact && {
             width: (cardSize.lg.width + 78) * COMPACT_SCALE,
             height: (cardSize.lg.height + 16) * COMPACT_SCALE,
           },
         ]}
       >
-        <View style={COMPACT ? { transform: [{ scale: COMPACT_SCALE }] } : null}>
+        <View style={compact ? { transform: [{ scale: COMPACT_SCALE }] } : null}>
           <View style={styles.cardWrap}>
             <Image
               source={cardThumbs["cardback"]}
@@ -195,9 +199,7 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
 }
 
 // 画面が低い端末（iPhone縦持ちなど）ではカードを縮めて効果文が隠れないようにする
-// 縦1000px未満（iPhone Pro Max含むスマホ全般）はカードを縮小して、
-// 効果の説明とボタンまでスクロールなしで収まるようにする
-const COMPACT = Dimensions.get("window").height < 1000;
+// 縮小判定は CardDetail 内で描画のたびに useWindowDimensions で行う
 const COMPACT_SCALE = 0.64;
 
 const styles = StyleSheet.create({
