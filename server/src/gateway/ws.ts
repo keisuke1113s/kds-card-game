@@ -8,6 +8,7 @@ import { RoomCore, ServerMessage } from "../core/room";
 import { clientMessageSchema, sanitizeName, sanitizeTitle } from "../protocol/messages";
 import { Telemetry } from "../core/telemetry";
 import { Challenges } from "../core/challenges";
+import { Tourney } from "../core/tourney";
 import { config } from "../config";
 
 /** ディレクトリとして存在し書き込めそうか */
@@ -41,6 +42,11 @@ export function startServer(port: number): http.Server {
     process.env.KDS_DATA_DIR ?? (fsExistsDir("/data") ? "/data" : "./data");
   const telemetry = new Telemetry(dataDir);
   const challenges = new Challenges();
+  // オンライントーナメント（常設ロビー・4人制）
+  const tourney = new Tourney({
+    createRoom: () => ({ code: matchmaker.createRoom().code }),
+    info: (code) => matchmaker.findRoom(code)?.tourneyInfo() ?? null,
+  });
   process.on("beforeExit", () => telemetry.saveNow());
 
   // アプリから届いたエラー報告（直近200件をメモリに保持）
@@ -234,6 +240,61 @@ export function startServer(port: number): http.Server {
             Boolean(b.accept),
             b.code ? String(b.code) : undefined
           );
+        } catch {
+          // 壊れた入力はそのままエラー応答
+        }
+        res.writeHead(200, {
+          "content-type": "application/json; charset=utf-8",
+          "access-control-allow-origin": "*",
+        });
+        res.end(JSON.stringify(out));
+      });
+      return;
+    }
+    if (req.url?.startsWith("/tourney?device=") && req.method === "GET") {
+      // トーナメントの状況（ロビーにいる人はこれがハートビートを兼ねる）
+      const device = decodeURIComponent(req.url.split("device=")[1] ?? "").slice(0, 64);
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify(tourney.status(device)));
+      return;
+    }
+    if (
+      (req.url === "/tourney/join" || req.url === "/tourney/leave") &&
+      req.method === "OPTIONS"
+    ) {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (
+      (req.url === "/tourney/join" || req.url === "/tourney/leave") &&
+      req.method === "POST"
+    ) {
+      const isJoin = req.url === "/tourney/join";
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 2000) req.destroy();
+      });
+      req.on("end", () => {
+        let out: object = { error: "送信内容を読み取れませんでした" };
+        try {
+          const b = JSON.parse(body) as { device?: string; name?: string };
+          const device = String(b.device ?? "");
+          if (isJoin) {
+            out = tourney.join(device, sanitizeName(String(b.name ?? "")));
+          } else {
+            tourney.leave(device);
+            out = { ok: true };
+          }
         } catch {
           // 壊れた入力はそのままエラー応答
         }

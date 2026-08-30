@@ -32,6 +32,8 @@ export interface AchievementInput {
   dailyAllDone: boolean;
   /** トーナメント優勝回数 */
   tournamentWins: number;
+  /** オンライントーナメントの優勝回数 */
+  onlineTourneyWins: number;
 }
 
 export interface AchievementDef {
@@ -102,6 +104,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "kyokan15", emoji: "🏵️", name: "15人撃破", desc: "「インストラクターに挑戦」で15人に勝つ", title: "常勝の教習生", check: (s) => kyokanBeaten(s.history) >= 15 },
   { id: "kyokanAll", emoji: "🏆", name: "全インストラクター制覇", desc: "「インストラクターに挑戦」で全員に勝つ", title: "頂点の教習生", check: (s) => kyokanBeaten(s.history) >= s.totalInstructors },
   { id: "champion", emoji: "🏆", name: "グランドチャンピオン", desc: "トーナメントで優勝する", title: "グランドチャンピオン", check: (s) => s.tournamentWins >= 1 },
+  { id: "onlineking", emoji: "👑", name: "オンライン王者", desc: "オンライントーナメントで優勝する", title: "オンライン王者", check: (s) => s.onlineTourneyWins >= 1 },
   { id: "dailyAll", emoji: "🎯", name: "今日の優等生", desc: "デイリーミッションを全て達成する", title: "今日の優等生", check: (s) => s.dailyAllDone },
   // ---- シークレット（達成するまで内容が隠される） ----
   { id: "sMidnight", emoji: "🌌", name: "真夜中の教習", desc: "深夜0時〜3時に対戦する", title: "真夜中の教習生", secret: true, check: (s) => s.history.some((r) => { const h = new Date(r.at).getHours(); return h >= 0 && h < 3; }) },

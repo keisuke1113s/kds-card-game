@@ -81,6 +81,7 @@ import {
 } from "@/store/deckStore";
 import { CPU, HUMAN, useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
+import { useTourneyStore } from "@/store/tourneyStore";
 import { getDeviceId } from "@/data/telemetry";
 import { useRankStore } from "@/store/rankStore";
 import { DEFAULT_SERVER_URL } from "@/app/online";
@@ -529,6 +530,7 @@ function BattleInner() {
   const jankenActive = useGameStore((s) => s.jankenActive);
   const kyokanId = useGameStore((s) => s.kyokanId);
   const tournamentMatch = useGameStore((s) => s.tournamentMatch);
+  const onlineTourneyActive = useTourneyStore((s) => s.active);
   const kyokanDef = kyokanId ? KYOKAN_LIST.find((k) => k.cardId === kyokanId) : undefined;
   const replaySpeed = useGameStore((s) => s.replaySpeed);
   const replayPaused = useGameStore((s) => s.replayPaused);
@@ -3152,6 +3154,17 @@ function BattleInner() {
               !replayActive && (
                 <ActionButton label="もう一度遊ぶ" color={colors.primary} onPress={rematch} />
               )
+            )}
+            {/* オンライントーナメントの一戦なら、その進行画面へ戻る */}
+            {isOnline && onlineTourneyActive && (
+              <ActionButton
+                label="🏆 トーナメントへ戻る"
+                color={colors.accent}
+                onPress={() => {
+                  quitGame();
+                  router.replace("/tourney");
+                }}
+              />
             )}
             {Platform.OS === "web" && !replayActive && (
               <ActionButton

@@ -10,6 +10,7 @@ import { useKytStore } from "@/store/kytStore";
 import { KYT_SCENES } from "@/data/kytScenes";
 import { useVisionStore } from "@/store/visionStore";
 import { useCourseStore } from "@/store/courseStore";
+import { useTourneyStore } from "@/store/tourneyStore";
 import { useLineStore } from "@/store/lineStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
@@ -86,6 +87,7 @@ export function evaluateAchievements(): void {
     totalInstructors: allCards.filter((c) => c.type === "instructor").length,
     dailyAllDone: useMissionStore.getState().everAllDone,
     tournamentWins: useTournamentStore.getState().champions,
+    onlineTourneyWins: useTourneyStore.getState().wins,
   };
   const got: string[] = [];
   for (const a of ACHIEVEMENTS) {
