@@ -60,6 +60,9 @@ export default function KytScreen() {
   const router = useRouter();
   const kyt = useKytStore();
   const [phase, setPhase] = useState<"start" | "play" | "result">("start");
+  /** タイムアタック（60秒で何場面正解できるか） */
+  const [rush, setRush] = useState(false);
+  const [rushTime, setRushTime] = useState(60);
   const [scenes, setScenes] = useState<KytScene[]>([]);
   const [index, setIndex] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -69,6 +72,7 @@ export default function KytScreen() {
   const scene = scenes[index];
 
   const start = () => {
+    setRush(false);
     setScenes(pickScenes(kyt.masteredIds));
     setIndex(0);
     setCorrectCount(0);
@@ -76,6 +80,50 @@ export default function KytScreen() {
     setRunMastered([]);
     setPhase("play");
   };
+
+  /** タイムアタック開始（全場面シャッフルで60秒間解き続ける） */
+  const startRush = () => {
+    const all = [...KYT_SCENES];
+    for (let i = all.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [all[i], all[j]] = [all[j], all[i]];
+    }
+    setRush(true);
+    setRushTime(60);
+    setScenes(all);
+    setIndex(0);
+    setCorrectCount(0);
+    setPicked(null);
+    setRunMastered([]);
+    setPhase("play");
+  };
+
+  // タイムアタックの残り時間
+  useEffect(() => {
+    if (!rush || phase !== "play") return;
+    const h = setInterval(() => {
+      setRushTime((t) => {
+        if (t <= 1) {
+          clearInterval(h);
+          setPhase("result");
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(h);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rush, phase]);
+
+  // タイムアタック終了時の記録
+  useEffect(() => {
+    if (phase !== "result" || !rush) return;
+    kyt.addRush(correctCount);
+    kyt.markMastered(runMastered);
+    playSe("achievement");
+    setTimeout(evaluateAchievements, 400);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   const choose = (i: number) => {
     if (picked !== null) return;
@@ -89,6 +137,13 @@ export default function KytScreen() {
     } else {
       playSe("hit");
       haptic("warning");
+    }
+    // タイムアタックは解説を出さずテンポよく次へ
+    if (rush) {
+      setTimeout(() => {
+        setIndex((x) => (x + 1) % scenes.length);
+        setPicked(null);
+      }, 550);
     }
   };
 
@@ -129,13 +184,28 @@ export default function KytScreen() {
             <Pressable style={[styles.wideButton, { backgroundColor: "#e8590c" }]} onPress={start}>
               <Text style={styles.wideButtonText}>スタート！</Text>
             </Pressable>
+            <View style={styles.rushBox}>
+              <Text style={styles.rushTitle}>⏱ タイムアタック</Text>
+              <Text style={styles.rushNote}>
+                60秒で何場面見抜けるか！解説なしのテンポ勝負。
+                {kyt.bestRush > 0 && `　自己ベスト: ${kyt.bestRush}問`}
+              </Text>
+              <Pressable
+                style={[styles.wideButton, { backgroundColor: "#b0413e" }]}
+                onPress={startRush}
+              >
+                <Text style={styles.wideButtonText}>タイムアタックに挑戦</Text>
+              </Pressable>
+            </View>
           </View>
         )}
 
         {phase === "play" && (
           <View style={styles.card}>
             <Text style={styles.progress}>
-              場面 {index + 1} / {scenes.length}　（正解 {correctCount}）
+              {rush
+                ? `⏱ 残り${rushTime}秒　正解 ${correctCount}`
+                : `場面 ${index + 1} / ${scenes.length}　（正解 ${correctCount}）`}
             </Text>
             <Text style={styles.sceneTitle}>{scene.title}</Text>
             <Text style={styles.note}>{scene.desc}</Text>
@@ -207,7 +277,21 @@ export default function KytScreen() {
                     ? "⭕ その通り！"
                     : `❌ 惜しい！正解は「${scene.spots[scene.correctIndex].label}」`}
                 </Text>
-                <Text style={styles.explain}>{scene.explain}</Text>
+                {/* 本物のKYT手法にならった3段階（何が→どうなる→どうする） */}
+                <View style={styles.kytSteps}>
+                  <Text style={styles.kytStep}>
+                    ⚠️ <Text style={styles.kytStepHead}>何が:</Text>{" "}
+                    {scene.spots[scene.correctIndex].label}
+                  </Text>
+                  <Text style={styles.kytStep}>
+                    💥 <Text style={styles.kytStepHead}>どうなる:</Text> {scene.explain}
+                  </Text>
+                  {!!scene.action && (
+                    <Text style={styles.kytStep}>
+                      ✅ <Text style={styles.kytStepHead}>どうする:</Text> {scene.action}
+                    </Text>
+                  )}
+                </View>
                 <Pressable style={[styles.wideButton, { backgroundColor: colors.primary }]} onPress={next}>
                   <Text style={styles.wideButtonText}>
                     {index + 1 >= scenes.length ? "結果を見る" : "次の場面へ"}
@@ -221,17 +305,34 @@ export default function KytScreen() {
         {phase === "result" && (
           <View style={styles.card}>
             <Text style={styles.title}>
-              {correctCount >= scenes.length
-                ? "🏅 全問クリア！"
-                : correctCount >= 3
-                  ? "💮 いいセンス！"
-                  : "📚 おつかれさま！"}
+              {rush
+                ? correctCount >= 10
+                  ? "🏆 神業の危険察知！"
+                  : correctCount >= 6
+                    ? "🔥 ナイスペース！"
+                    : "⏱ タイムアップ！"
+                : correctCount >= scenes.length
+                  ? "🏅 全問クリア！"
+                  : correctCount >= 3
+                    ? "💮 いいセンス！"
+                    : "📚 おつかれさま！"}
             </Text>
             {/* 全問正解は指差し確認で「ヨシ！」 */}
-            {correctCount >= scenes.length && <YoshiStamp />}
+            {!rush && correctCount >= scenes.length && <YoshiStamp />}
             <Text style={styles.resultScore}>
-              {correctCount} <Text style={styles.resultTotal}>/ {scenes.length} 問正解</Text>
+              {rush ? (
+                <>
+                  {correctCount} <Text style={styles.resultTotal}>問正解（60秒）</Text>
+                </>
+              ) : (
+                <>
+                  {correctCount} <Text style={styles.resultTotal}>/ {scenes.length} 問正解</Text>
+                </>
+              )}
             </Text>
+            {rush && kyt.bestRush > 0 && (
+              <Text style={styles.record}>⏱ 自己ベスト: {kyt.bestRush}問</Text>
+            )}
             <Text style={styles.record}>
               🦺 場面制覇 {kyt.masteredIds.length} / {KYT_SCENES.length}
             </Text>
@@ -259,6 +360,24 @@ export default function KytScreen() {
 }
 
 const styles = StyleSheet.create({
+  kytSteps: {
+    backgroundColor: "#00000008",
+    borderRadius: 10,
+    padding: 10,
+    gap: 6,
+    alignSelf: "stretch",
+  },
+  kytStep: { fontSize: 13, lineHeight: 20, color: "#333" },
+  kytStepHead: { fontWeight: "900" },
+  rushBox: {
+    backgroundColor: "#00000008",
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+    alignSelf: "stretch",
+  },
+  rushTitle: { fontSize: 15, fontWeight: "900", color: "#7a2020" },
+  rushNote: { fontSize: 12, lineHeight: 18, color: "#666" },
   root: { flex: 1, backgroundColor: colors.background },
   content: { padding: spacing.lg, gap: spacing.lg },
   card: {
