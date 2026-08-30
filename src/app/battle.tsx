@@ -575,7 +575,6 @@ export default function BattleScreen() {
   // 実況の表示時間の計算から参照する（effectの再実行を増やさないためref越し）
   const reachOnRef = useRef(false);
   reachOnRef.current = reachOn;
-  const doubleReachOnRef = useRef(false);
   const fxScaleRef = useRef(1);
   fxScaleRef.current = fxScale;
 
@@ -937,7 +936,6 @@ export default function BattleScreen() {
     if (!oppReach) reachShown.current.opp = false;
     if (!both) doubleReachShown.current = false;
     setDoubleReachOn(both);
-    doubleReachOnRef.current = both;
     setReachOn(meReach || oppReach);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.academic, view?.self.skill, view?.opponent.academic, view?.opponent.skill, view?.phase.type]);
@@ -1244,8 +1242,8 @@ export default function BattleScreen() {
         Math.round(
           (next.kind === "turn"
             ? 900
-            : next.kind === "battleResult" && doubleReachOnRef.current
-              ? 5600 // 両者リーチのラストバトルはカウントアップ＋ための分だけ長く見せる
+            : next.kind === "battleResult" && reachOnRef.current
+              ? 5600 // ラストバトルはカウントアップ（約2.1秒）＋ため（約1秒）の分だけ長く見せる
               : next.kind === "battle" || next.kind === "battleResult"
               ? 3200 // いざ勝負！と勝敗はしっかり見せる
               : next.kind === "trackComplete"
@@ -2329,7 +2327,7 @@ export default function BattleScreen() {
               tie={currentAnn.resTie ?? false}
               atk={currentAnn.resAtk ?? 0}
               def={currentAnn.resDef ?? 0}
-              deciding={doubleReachOn}
+              deciding={reachOn}
             />
           ) : currentAnn.kind === "trackComplete" ? (
             <TrackCompleteCutIn
