@@ -612,7 +612,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  choiceText: { fontWeight: "700", color: colors.text },
+  choiceText: { fontWeight: "700", color: colors.text, textAlign: "center" },
   note: { color: colors.textMuted, marginTop: 16, fontSize: 12 },
   reportInput: {
     minHeight: 70,

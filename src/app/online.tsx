@@ -440,6 +440,11 @@ export default function OnlineScreen() {
                     onPress={() => settings.setBgmEnabled(!settings.bgmEnabled)}
                   />
                   <Choice
+                    label={`実況 ${settings.voiceEnabled ? "ON" : "OFF"}`}
+                    active={settings.voiceEnabled}
+                    onPress={() => settings.setVoiceEnabled(!settings.voiceEnabled)}
+                  />
+                  <Choice
                     label={HAPTICS_AVAILABLE ? `振動 ${settings.hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
                     active={HAPTICS_AVAILABLE && settings.hapticsEnabled}
                     disabled={!HAPTICS_AVAILABLE}
@@ -818,7 +823,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     alignItems: "center",
   },
-  choiceText: { fontWeight: "700", color: colors.text, fontSize: 13 },
+  choiceText: { fontWeight: "700", color: colors.text, fontSize: 13, textAlign: "center" },
   choiceDisabled: { borderStyle: "dashed" },
   cpuStartButton: {
     backgroundColor: colors.primary,

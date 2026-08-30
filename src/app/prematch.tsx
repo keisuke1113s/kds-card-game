@@ -39,6 +39,8 @@ export default function PrematchScreen() {
     aiSpeedMs,
     setAiSpeedMs,
     seEnabled,
+    voiceEnabled,
+    setVoiceEnabled,
     setSeEnabled,
     bgmEnabled,
     setBgmEnabled,
@@ -188,6 +190,11 @@ export default function PrematchScreen() {
             onPress={() => setBgmEnabled(!bgmEnabled)}
           />
           <Choice
+            label={`実況 ${voiceEnabled ? "ON" : "OFF"}`}
+            active={voiceEnabled}
+            onPress={() => setVoiceEnabled(!voiceEnabled)}
+          />
+          <Choice
             label={HAPTICS_AVAILABLE ? `振動 ${hapticsEnabled ? "ON" : "OFF"}` : "振動 なし"}
             active={HAPTICS_AVAILABLE && hapticsEnabled}
             disabled={!HAPTICS_AVAILABLE}
@@ -304,7 +311,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     alignItems: "center",
   },
-  choiceText: { fontWeight: "700", color: colors.text },
+  choiceText: { fontWeight: "700", color: colors.text, textAlign: "center" },
   choiceDisabled: { backgroundColor: colors.background, borderStyle: "dashed" },
   hapticNote: {
     fontSize: 12,
