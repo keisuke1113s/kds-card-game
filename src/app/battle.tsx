@@ -161,6 +161,9 @@ interface Announcement {
 
 let annSeq = 0;
 
+/** 空のハイライト集合（毎描画で作り直さないための共有インスタンス） */
+const EMPTY_UID_SET = new Set<string>();
+
 /** 演出部品用: ひかえめモードまたは自動軽量化が効いているか */
 function useLightFx(): boolean {
   const fxLevel = useSettingsStore((s) => s.fxLevel);
@@ -1645,6 +1648,7 @@ export default function BattleScreen() {
 
   const me = view.self;
   const cpu = view.opponent;
+
   const isMyMain = view.phase.type === "main" && view.turnPlayer === ME;
   const actor = playerToActFromView(view);
 
@@ -1733,6 +1737,60 @@ export default function BattleScreen() {
         (a.type === "declareBattle" && a.attackerUid === uid) ||
         (a.type === "activateAbility" && a.uid === uid)
     );
+
+
+  // ===== 盤面の再描画封じ込め =====
+  // FieldRow・手札行に渡す値は、盤面が変わったときだけ作り直す。
+  // 実況や演出のこまかい状態変化では同じ参照のままにして、
+  // メモ化した行コンポーネントの再計算をスキップさせる
+  const cpuHighlights = useMemo(
+    () => (targetingUid ? battleTargets(targetingUid) : EMPTY_UID_SET),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [targetingUid, legal]
+  );
+  const myHighlights = useMemo(
+    () => new Set(me.field.filter((f) => instActions(f.uid).length > 0).map((f) => f.uid)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, legal]
+  );
+
+  const onPressCpuField = useCallback(
+    (uid: string) => {
+      if (targetingUid && battleTargets(targetingUid).has(uid)) {
+        const inst = cpu.field.find((f) => f.uid === uid);
+        if (inst) {
+          haptic("light");
+          setTargetPreview({ uid, cardId: inst.cardId });
+        }
+      } else if (!targetingUid) {
+        const inst = cpu.field.find((f) => f.uid === uid);
+        if (inst) setDetailCardId(inst.cardId, "cpu");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [targetingUid, view, legal]
+  );
+  const onPressMyField = useCallback(
+    (uid: string) => {
+      if (instActions(uid).length > 0) {
+        setSelectedUid(uid);
+        setTargetingUid(null);
+      } else {
+        const inst = me.field.find((f) => f.uid === uid);
+        if (inst) setDetailCardId(inst.cardId, "self");
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, legal]
+  );
+  // 手札行に渡す1枚ごとの情報（出せるか・短い札）も盤面が変わったときだけ再計算
+  const handMeta = useMemo(
+    () => me.hand.map((_, i) => ({ playable: handActionFor(i) !== null, tag: handTagFor(i) })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [view, legal]
+  );
+
+  const onPressHandIndex = useCallback((i: number) => setPreviewHandIndex(i), []);
 
   const tantouUsable = can((a) => a.type === "activateAbility" && a.uid === undefined);
 
@@ -1867,21 +1925,9 @@ export default function BattleScreen() {
           view={view}
           player={OPP}
           field={cpu.field}
-          highlightUids={targetingUid ? battleTargets(targetingUid) : new Set()}
+          highlightUids={cpuHighlights}
           highlightColor={colors.target}
-          onPress={(uid) => {
-            if (targetingUid && battleTargets(targetingUid).has(uid)) {
-              // いきなり決定せず、カードの詳細と戦闘力の比較を見せてから仕掛ける
-              const inst = cpu.field.find((f) => f.uid === uid);
-              if (inst) {
-                haptic("light");
-                setTargetPreview({ uid, cardId: inst.cardId });
-              }
-            } else if (!targetingUid) {
-              const inst = cpu.field.find((f) => f.uid === uid);
-              if (inst) setDetailCardId(inst.cardId, "cpu");
-            }
-          }}
+          onPress={onPressCpuField}
         />
       </View>
 
@@ -2090,20 +2136,10 @@ export default function BattleScreen() {
           view={view}
           player={ME}
           field={me.field}
-          highlightUids={
-            new Set(me.field.filter((f) => instActions(f.uid).length > 0).map((f) => f.uid))
-          }
+          highlightUids={myHighlights}
           highlightColor={colors.highlight}
           selectedUid={selectedUid}
-          onPress={(uid) => {
-            if (instActions(uid).length > 0) {
-              setSelectedUid(uid);
-              setTargetingUid(null);
-            } else {
-              const inst = me.field.find((f) => f.uid === uid);
-              if (inst) setDetailCardId(inst.cardId, "self");
-            }
-          }}
+          onPress={onPressMyField}
         />
         <TrackBar label="学科" kind="academic" value={shownTracks?.ma ?? me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" kind="skill" value={shownTracks?.ms ?? me.skill} goal={SKILL_GOAL} color={colors.success} />
@@ -2160,52 +2196,13 @@ export default function BattleScreen() {
             onDone={() => setDrawFx(null)}
           />
         )}
-        <ScrollView
-          ref={handScroll}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.hand}
-        >
-          {me.hand.map((cardId, i) => {
-            const playable = handActionFor(i) !== null;
-            // 手札をわずかに扇状に並べる（中央が高く、端がわずかに沈んで傾く）
-            const mid = (me.hand.length - 1) / 2;
-            const fanRot = (i - mid) * 2.2;
-            const fanDrop = Math.abs(i - mid) * 2.5;
-            return (
-              <Animated.View
-                key={`${cardId}-${i}`}
-                entering={FadeInDown.duration(250)}
-                style={{ transform: [{ rotate: `${fanRot}deg` }, { translateY: fanDrop }] }}
-              >
-                {/* 出せるカードはゆっくり浮き沈みして、目で追えるようにする */}
-                <FloatIdle active={playable} offset={i}>
-                  <View style={playable ? styles.playableCard : undefined}>
-                    {playable && <GoldPulseBorder />}
-                    <CardFace
-                      cardId={cardId}
-                      size="md"
-                      dimmed={!playable && (isMyMain || view.phase.type === "battleSupport")}
-                      onPress={() => setPreviewHandIndex(i)}
-                    />
-                    {(() => {
-                      const tag = handTagFor(i);
-                      if (!tag) return null;
-                      return (
-                        <View style={styles.handTag} pointerEvents="none">
-                          <Text style={styles.handTagText} numberOfLines={1}>
-                            {tag}
-                          </Text>
-                        </View>
-                      );
-                    })()}
-                  </View>
-                </FloatIdle>
-              </Animated.View>
-            );
-          })}
-          {me.hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
-        </ScrollView>
+        <HandRow
+          hand={me.hand}
+          meta={handMeta}
+          dimUnplayable={isMyMain || view.phase.type === "battleSupport"}
+          scrollRef={handScroll}
+          onPressIndex={onPressHandIndex}
+        />
         {/* 手札が残り1枚の緊張感 */}
         {me.hand.length === 1 && view.phase.type !== "finished" && (
           <View
@@ -3249,7 +3246,70 @@ function TargetArrow({ color }: { color: string }) {
   );
 }
 
-function FieldRow({
+/**
+ * 手札の一列。盤面（view・合法手）が変わったときだけ再描画されるようメモ化。
+ * 実況や演出のこまかい状態変化ではスキップされ、カクつきを生まない
+ */
+const HandRow = React.memo(function HandRow({
+  hand,
+  meta,
+  dimUnplayable,
+  scrollRef,
+  onPressIndex,
+}: {
+  hand: string[];
+  meta: { playable: boolean; tag: string | null }[];
+  dimUnplayable: boolean;
+  scrollRef: React.RefObject<ScrollView | null>;
+  onPressIndex: (i: number) => void;
+}) {
+  return (
+    <ScrollView
+      ref={scrollRef}
+      horizontal
+      showsHorizontalScrollIndicator={false}
+      contentContainerStyle={styles.hand}
+    >
+      {hand.map((cardId, i) => {
+        const playable = meta[i]?.playable ?? false;
+        // 手札をわずかに扇状に並べる（中央が高く、端がわずかに沈んで傾く）
+        const mid = (hand.length - 1) / 2;
+        const fanRot = (i - mid) * 2.2;
+        const fanDrop = Math.abs(i - mid) * 2.5;
+        return (
+          <Animated.View
+            key={`${cardId}-${i}`}
+            entering={FadeInDown.duration(250)}
+            style={{ transform: [{ rotate: `${fanRot}deg` }, { translateY: fanDrop }] }}
+          >
+            {/* 出せるカードはゆっくり浮き沈みして、目で追えるようにする */}
+            <FloatIdle active={playable} offset={i}>
+              <View style={playable ? styles.playableCard : undefined}>
+                {playable && <GoldPulseBorder />}
+                <CardFace
+                  cardId={cardId}
+                  size="md"
+                  dimmed={!playable && dimUnplayable}
+                  onPress={() => onPressIndex(i)}
+                />
+                {meta[i]?.tag ? (
+                  <View style={styles.handTag} pointerEvents="none">
+                    <Text style={styles.handTagText} numberOfLines={1}>
+                      {meta[i]?.tag}
+                    </Text>
+                  </View>
+                ) : null}
+              </View>
+            </FloatIdle>
+          </Animated.View>
+        );
+      })}
+      {hand.length === 0 && <Text style={styles.infoText}>手札がありません</Text>}
+    </ScrollView>
+  );
+});
+
+const FieldRow = React.memo(function FieldRow({
   view,
   player,
   field,
@@ -3334,7 +3394,7 @@ function FieldRow({
       })}
     </ScrollView>
   );
-}
+});
 
 /** CPUの思考中を示す、ゆっくり明滅する点 */
 /**
