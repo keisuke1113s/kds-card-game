@@ -4525,7 +4525,7 @@ function LessonCutIn({
       return () => clearTimeout(t1);
     }
     playSe(gained ? "advance" : "hit");
-    if (gained && mine && amount >= 2) playVoice("voice_bigstep");
+    if (gained && mine && amount >= 4) playVoice("voice_bigstep");
     if (!gained && mine && amount <= -3) playVoice("voice_setback");
     run.value = withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.cubic) });
     pop.value = withDelay(150, withSpring(1, { damping: 9, stiffness: 170 }));
