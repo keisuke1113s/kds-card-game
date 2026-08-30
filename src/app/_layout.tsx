@@ -193,7 +193,6 @@ export default function RootLayout() {
         <Stack.Screen name="license" options={{ title: "教習生免許証", headerStyle: { backgroundColor: "#e2604a" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="shindan" options={{ title: "運転適性診断", headerStyle: { backgroundColor: "#e2604a" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="eyecheck" options={{ title: "動体視力チェック", headerStyle: { backgroundColor: "#3d8fd0" }, headerTintColor: "#fff", }} />
-        <Stack.Screen name="course" options={{ title: "S字・クランク" }} />
         <Stack.Screen name="line" options={{ title: "LINE連携", headerStyle: { backgroundColor: "#06C755" }, headerTintColor: "#fff" }} />
         <Stack.Screen name="ranking" options={{ title: "週間ランキング", headerStyle: { backgroundColor: "#c9971b" }, headerTintColor: "#fff", }} />
         <Stack.Screen name="spectate" options={{ title: "ライブ観戦", headerStyle: { backgroundColor: "#16283c" }, headerTintColor: "#fff", }} />
