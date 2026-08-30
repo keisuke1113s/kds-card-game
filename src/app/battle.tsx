@@ -4257,7 +4257,9 @@ function FireworkBurst({ index }: { index: number }) {
   const left = ((index * 37 + 11) % 78) + 8;
   const top = ((index * 53 + 13) % 42) + 8;
   const hue = ["#ffd54d", "#ff8a8a", "#8fd3ee", "#b0f2a0", "#d9a6ff", "#ffc37d"][index % 6];
+  const isWeb = Platform.OS === "web";
   useEffect(() => {
+    if (isWeb) return; // WebはCSSアニメに任せる
     p.value = withDelay(
       index * 430,
       withRepeat(withTiming(1, { duration: 1500, easing: Easing.out(Easing.cubic) }), -1, false)
@@ -4268,6 +4270,25 @@ function FireworkBurst({ index }: { index: number }) {
     opacity: p.value < 0.15 ? p.value * 6 : Math.max(0, 1 - (p.value - 0.15) / 0.65),
     transform: [{ scale: 0.2 + p.value * 2.1 }],
   }));
+  if (isWeb) {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "burst" } } as object)}
+        style={[
+          styles.fireworkDot,
+          { left: `${left}%` as DimensionValue, top: `${top}%` as DimensionValue, borderColor: hue },
+          {
+            animationDuration: "1500ms",
+            animationDelay: `${index * 430}ms`,
+            animationTimingFunction: "ease-out",
+            animationIterationCount: "infinite",
+            opacity: 0,
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      />
+    );
+  }
   return (
     <Animated.View
       style={[
@@ -4862,6 +4883,27 @@ function RainDrop({ index }: { index: number }) {
   const delay = (index % 13) * 140;
   const duration = 900 + (index % 5) * 160;
 
+  // Webではブラウザ合成のCSSアニメで降らせる（敗北画面のカクつき防止）
+  if (Platform.OS === "web") {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "fall" } } as object)}
+        style={[
+          styles.rainDrop,
+          { left: left as DimensionValue },
+          {
+            animationDuration: `${duration}ms`,
+            animationDelay: `${delay}ms`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            opacity: 0,
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      />
+    );
+  }
+
   const p = useSharedValue(0);
   useEffect(() => {
     p.value = withDelay(
@@ -4886,6 +4928,44 @@ function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
   const delay = Math.floor((index * 1371) % 5600);
   const duration = 4800 + ((index * 977) % 2600);
   const sway = (((index * 89) % 7) - 3) * 26 + 12;
+
+  // Webではブラウザ合成のCSSアニメでひらひら落とす
+  if (Platform.OS === "web") {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "cardfall" } } as object)}
+        style={[
+          styles.rainCard,
+          { left: left as DimensionValue },
+          {
+            animationDuration: `${duration}ms`,
+            animationDelay: `${delay}ms`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            opacity: 0,
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      >
+        <View
+          {...({ dataSet: { kdsanim: "sway" } } as object)}
+          style={[
+            {
+              animationDuration: `${2000 + (index % 4) * 600}ms`,
+              animationTimingFunction: "ease-in-out",
+              animationIterationCount: "infinite",
+              opacity: 0.6,
+            } as unknown as ViewStyle,
+          ]}
+        >
+          <View style={{ transform: [{ scale: 0.72 }] }}>
+            <CardFace cardId={cardId} size="sm" />
+          </View>
+        </View>
+      </View>
+    );
+  }
+  void sway;
 
   const p = useSharedValue(0);
   useEffect(() => {
@@ -4939,6 +5019,47 @@ function RainCard({ cardId, index }: { cardId: string; index: number }) {
   const spin = (index % 2 === 0 ? 1 : -1) * (420 + ((index * 173) % 480));
   const drift = (((index * 89) % 7) - 3) * 30;
 
+  // Webではブラウザ合成のCSSアニメで舞わせる（JSが混んでいても滑らか＝カクつかない）
+  if (Platform.OS === "web") {
+    const anim = (name: string, dur: number, extra?: object) =>
+      ({
+        ...({ dataSet: { kdsanim: name } } as object),
+        style: [
+          {
+            animationDuration: `${dur}ms`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            ...extra,
+          } as unknown as ViewStyle,
+        ],
+      }) as object;
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "cardfall" } } as object)}
+        style={[
+          styles.rainCard,
+          { left: left as DimensionValue },
+          {
+            animationDuration: `${duration}ms`,
+            animationDelay: `${delay}ms`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            opacity: 0,
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      >
+        <View {...anim("drift", 2200 + ((index * 977) % 1200))}>
+          <View {...anim("spin", Math.max(700, Math.round((duration * 360) / Math.abs(spin))))}>
+            <View style={{ transform: [{ scale: 0.75 }] }}>
+              <CardFace cardId={cardId} size="sm" />
+            </View>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   const progress = useSharedValue(0);
   useEffect(() => {
     progress.value = withDelay(
@@ -4986,6 +5107,44 @@ function ConfettiPiece({ index }: { index: number }) {
   const delay = (index % 9) * 130;
   const duration = 2400 + (index % 5) * 260;
   const drift = ((index % 7) - 3) * 16;
+
+  // Webではブラウザ合成のCSSアニメで降らせる
+  if (Platform.OS === "web") {
+    return (
+      <View
+        {...({ dataSet: { kdsanim: "fall" } } as object)}
+        style={[
+          styles.confettiPiece,
+          {
+            left: left as DimensionValue,
+            width: size,
+            height: size,
+            backgroundColor: color,
+          },
+          {
+            animationDuration: `${duration}ms`,
+            animationDelay: `${delay}ms`,
+            animationTimingFunction: "linear",
+            animationIterationCount: "infinite",
+            opacity: 0,
+          } as unknown as ViewStyle,
+        ]}
+        pointerEvents="none"
+      >
+        <View
+          {...({ dataSet: { kdsanim: "spin" } } as object)}
+          style={[
+            { width: size, height: size, backgroundColor: color },
+            {
+              animationDuration: `${900 + (index % 4) * 240}ms`,
+              animationTimingFunction: "linear",
+              animationIterationCount: "infinite",
+            } as unknown as ViewStyle,
+          ]}
+        />
+      </View>
+    );
+  }
 
   const progress = useSharedValue(0);
   useEffect(() => {
