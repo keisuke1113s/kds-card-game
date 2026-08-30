@@ -437,9 +437,41 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
   return out;
 }
 
+/**
+ * 対戦画面の入口。対局が無いときは案内だけを出し、
+ * 対局があるときだけ本体（BattleInner）を組み立てる。
+ * 対局が消えた瞬間は本体ごと取り外されるため、
+ * フック数の食い違いによる白画面クラッシュが起きない
+ */
 export default function BattleScreen() {
+  const hasGame = useGameStore((s) => s.view !== null);
+  if (!hasGame) return <NoGameScreen />;
+  return <BattleInner />;
+}
+
+/** 対局が無いときの案内（オンラインのじゃんけん待ちはここでも出す） */
+function NoGameScreen() {
   const router = useRouter();
-  const view = useGameStore((s) => s.view);
+  return (
+    <SafeAreaView style={styles.root}>
+      <View style={styles.center}>
+        <Text style={styles.bannerText}>対局がありません</Text>
+        <ActionButton label="ホームへ" color={colors.primary} onPress={() => router.replace("/")} />
+      </View>
+      {/* CPU対戦の破棄直後〜オンライン初回盤面が届くまでの間もじゃんけんを出し続ける */}
+      <OnlineJanken />
+    </SafeAreaView>
+  );
+}
+
+function BattleInner() {
+  const router = useRouter();
+  const viewLive = useGameStore((s) => s.view);
+  // 対局が消えた瞬間の一瞬は直前の盤面のまま描き、フック数を絶対に変えない
+  // （親のBattleScreenが直後にこの本体ごと取り外す）
+  const lastViewRef = useRef(viewLive);
+  if (viewLive) lastViewRef.current = viewLive;
+  const view = viewLive ?? lastViewRef.current;
   // 自分の席番号（オフラインは常に0。オンラインの後手は1になる）
   const ME = (view?.playerId ?? HUMAN) as 0 | 1;
   const OPP = (1 - ME) as 0 | 1;
@@ -1634,16 +1666,8 @@ export default function BattleScreen() {
   }, [lastEvents]);
 
   if (!view) {
-    return (
-      <SafeAreaView style={styles.root}>
-        <View style={styles.center}>
-          <Text style={styles.bannerText}>対局がありません</Text>
-          <ActionButton label="ホームへ" color={colors.primary} onPress={() => router.replace("/")} />
-        </View>
-        {/* CPU対戦の破棄直後〜オンライン初回盤面が届くまでの間もじゃんけんを出し続ける */}
-        <OnlineJanken />
-      </SafeAreaView>
-    );
+    // 起動直後に対局が無いままここへ来た場合のみ（通常は親が防いでいる）
+    return null;
   }
 
   const me = view.self;
