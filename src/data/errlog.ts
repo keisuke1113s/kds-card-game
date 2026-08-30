@@ -63,7 +63,11 @@ function report(msg: string, stack?: string): void {
 export function reportPerf(detail: string): void {
   const loc = (globalThis as { location?: { hostname: string } }).location;
   if (!loc || !loc.hostname.endsWith("github.io")) return;
-  report(`[性能診断] ${detail.slice(0, 400)}`);
+  // どのビルドで起きたか分かるようにバージョン（entryハッシュ8桁）を添える
+  const doc = (globalThis as { document?: Document }).document;
+  const src = (doc?.querySelector('script[src*="entry-"]') as { src?: string } | null)?.src ?? "";
+  const buildId = /entry-([a-f0-9]{8})/.exec(src)?.[1] ?? "?";
+  report(`[性能診断 v${buildId}] ${detail.slice(0, 380)}`);
 }
 
 /**

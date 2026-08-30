@@ -41,7 +41,15 @@ import { HeuristicAI } from "@/ai/heuristic";
 import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { shareResultImage } from "@/data/shareImage";
 import { useAchievementStore } from "@/store/achievementStore";
-import { pauseBgm, playBgm, playSe, playVoice, stopBgm, warmVoices } from "@/audio/sound";
+import {
+  pauseBgm,
+  playBgm,
+  playSe,
+  playVoice,
+  stopBgm,
+  warmVoices,
+  type VoiceKey,
+} from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -126,6 +134,10 @@ interface Announcement {
   finalBlow?: boolean;
   /** 同じバッチで効果が連続したときのチェイン番号（2以上で表示） */
   chain?: number;
+  /** この実況が画面に出た瞬間に鳴らす実況ボイス */
+  voice?: VoiceKey;
+  /** この実況が画面に出た瞬間に歓声も鳴らす */
+  cheer?: boolean;
   /** kind === "turn" のとき、自分の番かどうか */
   mine?: boolean;
   /** kind === "battle" のとき、ぶつかり合う2枚 */
@@ -205,6 +217,8 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
           kind: "turn",
           text: e.player === ME ? "あなたのターン" : `${oppLabel}のターン`,
           mine: e.player === ME,
+          // 長期戦突入のひとことは、ターン12の帯が出た瞬間に合わせる
+          voice: e.turnNumber === 12 ? "voice_longgame" : undefined,
         });
         break;
       // 誰の行動かはバッジで示すので、文章では繰り返さない
@@ -1006,8 +1020,6 @@ export default function BattleScreen() {
     const n = view?.self.field.length ?? 0;
     if (view && view.phase.type !== "finished" && n >= 5 && !fullLineShown.current) {
       fullLineShown.current = true;
-      playSe("cheer");
-      playVoice("voice_fullline");
       setAnnQueue((q) => [
         ...q,
         {
@@ -1015,6 +1027,8 @@ export default function BattleScreen() {
           kind: "text",
           text: "🖐️ フルライン！！\n場にインストラクターが5人そろった！",
           emph: true,
+          voice: "voice_fullline",
+          cheer: true,
         },
       ]);
     }
@@ -1040,29 +1054,21 @@ export default function BattleScreen() {
     r.prev = n;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.hand.length, view?.phase.type]);
-  // 相手の場ががら空き／自分の場が全滅／長期戦突入のひとこと
+  // 相手の場ががら空き／自分の場が全滅のひとこと。
+  // 状態が変わった瞬間ではなく、実況と退場アニメーションが終わってから鳴らす
   const prevFieldsRef = useRef({ me: 0, opp: 0 });
+  const pendingFieldVoice = useRef<"voice_openfield" | "voice_wipedout" | null>(null);
   useEffect(() => {
     const meN = view?.self.field.length ?? 0;
     const opN = view?.opponent.field.length ?? 0;
     const prev = prevFieldsRef.current;
     if (view && view.phase.type !== "finished") {
-      if (prev.opp > 0 && opN === 0) playVoice("voice_openfield");
-      else if (prev.me > 0 && meN === 0) playVoice("voice_wipedout");
+      if (prev.opp > 0 && opN === 0) pendingFieldVoice.current = "voice_openfield";
+      else if (prev.me > 0 && meN === 0) pendingFieldVoice.current = "voice_wipedout";
     }
     prevFieldsRef.current = { me: meN, opp: opN };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view?.self.field.length, view?.opponent.field.length, view?.phase.type]);
-  const longGameShown = useRef(false);
-  useEffect(() => {
-    const t = view?.turnNumber ?? 0;
-    if (view && view.phase.type !== "finished" && t >= 12 && !longGameShown.current) {
-      longGameShown.current = true;
-      playVoice("voice_longgame");
-    }
-    if (t < 12) longGameShown.current = false;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view?.turnNumber, view?.phase.type]);
   const deckLowShown = useRef(false);
   useEffect(() => {
     const n = view?.self.deckContents.length ?? 99;
@@ -1086,8 +1092,11 @@ export default function BattleScreen() {
       Math.max(0, ACADEMIC_GOAL - p.academic) + Math.max(0, SKILL_GOAL - p.skill);
     const meR = remainOf(view.self);
     const opR = remainOf(view.opponent);
-    const pushHype = (text: string) =>
-      setAnnQueue((q) => [...q, { key: ++annSeq, kind: "text" as const, text, emph: true }]);
+    const pushHype = (text: string, voice?: VoiceKey, cheer?: boolean) =>
+      setAnnQueue((q) => [
+        ...q,
+        { key: ++annSeq, kind: "text" as const, text, emph: true, voice, cheer },
+      ]);
     if (meR === 1 && !hypeShown.current.lastLap) {
       hypeShown.current.lastLap = true;
       pushHype("🎙️ あと1時限で卒業だーー！！");
@@ -1102,9 +1111,7 @@ export default function BattleScreen() {
     const lead = opR - meR; // 正の値=自分がリード
     if (prevLeadRef.current <= -3 && lead >= 1 && !hypeShown.current.flip) {
       hypeShown.current.flip = true;
-      playSe("cheer");
-      playVoice("voice_flip");
-      pushHype("🎙️ 形勢逆転！！ 会場がどよめいている！");
+      pushHype("🎙️ 形勢逆転！！ 会場がどよめいている！", "voice_flip", true);
     }
     if (lead <= -1) hypeShown.current.flip = false;
     // 名勝負メーター: リードの入れ替わりを数える
@@ -1207,14 +1214,21 @@ export default function BattleScreen() {
     }
     // カードを場に出す移動演出が終わってから詳細を見せる
     const delay = Math.round((next.delayMs ?? 0) * fxScaleRef.current);
+    // 実況が画面に出た瞬間、対応するボイス・歓声を鳴らす（演出と同期させる）
+    const speak = () => {
+      if (next.voice) playVoice(next.voice);
+      if (next.cheer) playSe("cheer");
+    };
     if (delay > 0) {
       setAnnShown(false);
       annDelayTimer.current = setTimeout(() => {
         annDelayTimer.current = null;
         setAnnShown(true);
+        speak();
       }, delay);
     } else {
       setAnnShown(true);
+      speak();
     }
     // カード付きの実況はタップするまで表示したままにする（読み逃し防止）。
     // ただし自動プレイ中とオンライン対戦では、少し見せてから自動で進める
@@ -1308,6 +1322,20 @@ export default function BattleScreen() {
     // 場外へ飛んでいくアニメーションと同時にひとこと
     playVoice("voice_out");
   }, [pendingOuts, busy, outFx]);
+
+  // がら空き・全滅のひとことは、実況と退場アニメーションが終わってから
+  useEffect(() => {
+    const v = pendingFieldVoice.current;
+    if (!v) return;
+    if (busy || flyFx.length > 0 || outFx) return;
+    pendingFieldVoice.current = null;
+    if (!view || view.phase.type === "finished") return;
+    // 鳴らす直前にもう一度確認（その間に場が埋まっていたら鳴らさない）
+    if (v === "voice_openfield" && view.opponent.field.length !== 0) return;
+    if (v === "voice_wipedout" && view.self.field.length !== 0) return;
+    playVoice(v);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy, flyFx.length, outFx, view]);
 
   // 山札から1枚引いたときの演出。実況とぶつからないよう、実況が捌けてから出す
   // 読み終えたヒント。盤面が変わって別の内容になれば、また出す
@@ -1431,10 +1459,12 @@ export default function BattleScreen() {
   const [comebackFx, setComebackFx] = useState(false);
   useEffect(() => {
     if (!comebackWin) return;
-    const t1 = setTimeout(() => setComebackFx(true), 400);
+    const t1 = setTimeout(() => {
+      setComebackFx(true);
+      playVoice("voice_comeback");
+    }, 400);
     const t2 = setTimeout(() => setComebackFx(false), 2600);
     playSe("comeback");
-    playVoice("voice_comeback");
     return () => {
       clearTimeout(t1);
       clearTimeout(t2);
@@ -2882,6 +2912,7 @@ export default function BattleScreen() {
 
       {view.phase.type === "finished" && resultShown && (
         <Overlay
+          translucent
           title={
             view.phase.winner === ME
               ? // 勝ち方によって見出しを変える（圧勝・接戦・通常）
@@ -4998,9 +5029,12 @@ function SinkingCard({ cardId, index }: { cardId: string; index: number }) {
  * 勝利のお祝い。デッキのカードが紙吹雪と一緒に画面いっぱいに舞う。
  */
 function CardRain({ cardIds }: { cardIds: string[] }) {
-  // 軽量時は舞う枚数を半分にして負荷を下げる
+  // 画像の読み込みが一度に集中しないよう最大24枚、軽量時は12枚に抑える
   const lightFx = useLightFx();
-  const shown = lightFx ? cardIds.filter((_, i) => i % 2 === 0) : cardIds;
+  const shown = (lightFx ? cardIds.filter((_, i) => i % 2 === 0) : cardIds).slice(
+    0,
+    lightFx ? 12 : 24
+  );
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: "hidden" }]} pointerEvents="none">
       {shown.map((id, i) => (
@@ -6140,17 +6174,23 @@ function Overlay({
   children,
   onClose,
   entering,
+  translucent,
 }: {
   title: string;
   children: React.ReactNode;
   onClose?: () => void;
   entering?: "bounce" | "zoom";
+  /** 背景の演出（舞うカード等）が透けて見える半透明の箱にする */
+  translucent?: boolean;
 }) {
   return (
-    <Animated.View style={styles.overlayBg} entering={FadeIn.duration(150)}>
+    <Animated.View
+      style={[styles.overlayBg, translucent && styles.overlayBgLight]}
+      entering={FadeIn.duration(150)}
+    >
       <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       <Animated.View
-        style={styles.overlayBox}
+        style={[styles.overlayBox, translucent && styles.overlayBoxTranslucent]}
         entering={entering === "bounce" ? BounceIn.duration(500) : ZoomIn.duration(200)}
       >
         <Text style={styles.overlayTitle}>{title}</Text>
@@ -7328,6 +7368,8 @@ const styles = StyleSheet.create({
     gap: 14,
     alignItems: "center",
   },
+  overlayBgLight: { backgroundColor: "#00000026" },
+  overlayBoxTranslucent: { backgroundColor: colors.surface + "d9" },
   overlayTitle: { fontSize: 17, fontWeight: "800", color: colors.text, textAlign: "center" },
   menuCardRow: { flexDirection: "row", gap: 10, alignSelf: "stretch", alignItems: "flex-start" },
   menuEffectText: {
