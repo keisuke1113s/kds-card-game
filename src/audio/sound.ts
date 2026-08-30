@@ -1,3 +1,4 @@
+import { Asset } from "expo-asset";
 import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Platform } from "react-native";
 import { bgmAssets, seAssets } from "@/data/audio";
@@ -22,6 +23,98 @@ async function ensureAudioMode() {
   }
 }
 
+// ---- Web Audio（Web専用の効果音・ボイス再生） ----
+// iPhone の Safari では expo-audio（HTMLAudio）の頭出し・再生開始に1回あたり数十ms
+// かかり、1手ごとに複数回鳴る効果音が対戦カクつきの主因だった
+// （実測: 効果音OFFで盤面更新の平均158ms→25ms）。
+// Web Audio API は事前デコード済みのバッファを即時に再生でき、このコストをほぼ0にできる。
+let webCtx: AudioContext | null = null;
+function getWebCtx(): AudioContext | null {
+  if (Platform.OS !== "web") return null;
+  if (!webCtx) {
+    try {
+      const Ctor =
+        (globalThis as { AudioContext?: typeof AudioContext }).AudioContext ??
+        (globalThis as { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!Ctor) return null;
+      webCtx = new Ctor();
+    } catch {
+      return null;
+    }
+  }
+  if (webCtx.state === "suspended") {
+    try {
+      void webCtx.resume();
+    } catch {
+      // 次のユーザー操作で再開される
+    }
+  }
+  return webCtx;
+}
+
+/** デコード済みバッファ。null はデコード失敗（以後は従来方式で鳴らす） */
+const webBuffers: Record<string, AudioBuffer | null> = {};
+const webLoading: Record<string, Promise<AudioBuffer | null> | undefined> = {};
+
+function loadWebBuffer(key: string): Promise<AudioBuffer | null> {
+  const done = webBuffers[key];
+  if (done !== undefined) return Promise.resolve(done);
+  const inFlight = webLoading[key];
+  if (inFlight) return inFlight;
+  const p = (async () => {
+    try {
+      const ctx = getWebCtx();
+      if (!ctx) return null;
+      const uri = Asset.fromModule(seAssets[key]).uri;
+      const res = await fetch(uri);
+      const raw = await res.arrayBuffer();
+      const buf = await ctx.decodeAudioData(raw);
+      webBuffers[key] = buf;
+      return buf;
+    } catch {
+      webBuffers[key] = null;
+      return null;
+    } finally {
+      delete webLoading[key];
+    }
+  })();
+  webLoading[key] = p;
+  return p;
+}
+
+function startWebBuffer(ctx: AudioContext, buf: AudioBuffer, rate: number) {
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  try {
+    src.playbackRate.value = rate;
+  } catch {
+    // 速度変更に対応しない環境では通常の音程で鳴らす
+  }
+  src.connect(ctx.destination);
+  src.start();
+}
+
+/**
+ * Web Audio で1音鳴らす。true=引き受けた（未デコードなら読み込み後すぐ鳴らす）、
+ * false=Web Audio が使えない/デコード失敗済み → 従来方式で鳴らす
+ */
+function playWeb(key: string, rate: number): boolean {
+  const ctx = getWebCtx();
+  if (!ctx) return false;
+  const buf = webBuffers[key];
+  if (buf) {
+    startWebBuffer(ctx, buf, rate);
+    return true;
+  }
+  if (buf === null) return false;
+  // 初回はデコードが済み次第すぐ鳴らす（wavのデコードは数ms〜数十ms）
+  void loadWebBuffer(key).then((b) => {
+    if (b) startWebBuffer(ctx, b, rate);
+  });
+  return true;
+}
+
 // ---- 自動再生ブロック対策（Web のみ） ----
 let unlocked = Platform.OS !== "web";
 let pendingBgmKey: string | null = null;
@@ -29,24 +122,46 @@ let pendingBgmKey: string | null = null;
 if (Platform.OS === "web" && typeof document !== "undefined") {
   const unlock = () => {
     unlocked = true;
-    // iOS Safari は「ユーザー操作の中で一度再生した音」しか後から鳴らせない。
-    // このタップの中で全ての効果音プレイヤーを作って無音で慣らしておくことで、
-    // 以降のタイマー起点の再生（演出中の効果音）も拒否されなくなる。
-    try {
-      for (const key of Object.keys(seAssets)) {
-        if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
-        const pl = sePlayers[key];
-        pl.volume = 0;
-        safePlay(pl);
-        try {
-          pl.pause();
-        } catch {
-          // 再生前の pause は環境により失敗するが問題ない
-        }
-        pl.volume = 1;
+    // iOS Safari はユーザー操作の中で起こした音声だけを以後も許可する。
+    // Web Audio ではこのタップの中で無音バッファを1つ鳴らせば、
+    // 以降のタイマー起点の再生（演出中の効果音）もすべて許可される。
+    const ctx = getWebCtx();
+    if (ctx) {
+      try {
+        const silent = ctx.createBuffer(1, 1, 22050);
+        const src = ctx.createBufferSource();
+        src.buffer = silent;
+        src.connect(ctx.destination);
+        src.start();
+      } catch {
+        // 解禁に失敗しても、通常の再生時にもう一度試みる
       }
-    } catch {
-      // 慣らしに失敗しても、通常の再生時にもう一度試みる
+      // 効果音（ボイス以外）は小さいので、少しずつ先にデコードしておく
+      Object.keys(seAssets)
+        .filter((k) => !k.startsWith("voice_"))
+        .forEach((key, i) => {
+          setTimeout(() => void loadWebBuffer(key), 120 * i);
+        });
+    } else {
+      // Web Audio が使えない環境の従来手順:
+      // このタップの中で全ての効果音プレイヤーを作って無音で慣らしておくことで、
+      // 以降のタイマー起点の再生も拒否されなくなる。
+      try {
+        for (const key of Object.keys(seAssets)) {
+          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+          const pl = sePlayers[key];
+          pl.volume = 0;
+          safePlay(pl);
+          try {
+            pl.pause();
+          } catch {
+            // 再生前の pause は環境により失敗するが問題ない
+          }
+          pl.volume = 1;
+        }
+      } catch {
+        // 慣らしに失敗しても、通常の再生時にもう一度試みる
+      }
     }
     if (pendingBgmKey) {
       const key = pendingBgmKey;
@@ -138,6 +253,8 @@ export function playSe(key: SeKey, rate = 1): void {
   if (!useSettingsStore.getState().seEnabled) return;
   const asset = seAssets[key];
   if (asset === undefined) return;
+  // Web は軽量な Web Audio で鳴らす（対戦カクつき対策の本命）
+  if (Platform.OS === "web" && playWeb(key, rate)) return;
   try {
     void ensureAudioMode();
     let p = sePlayers[key];
@@ -226,6 +343,11 @@ export function warmVoices(): void {
     setTimeout(() => {
       const load = () => {
         try {
+          if (Platform.OS === "web") {
+            // Web は Web Audio 用のバッファを先にデコードしておく
+            void loadWebBuffer(key);
+            return;
+          }
           if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
         } catch {
           // 読み込めなくても、再生時にあらためて試される
@@ -252,6 +374,15 @@ export function playVoice(key: VoiceKey): void {
   if (asset === undefined) return;
   const now = Date.now();
   if (now < voiceBusyUntil) return;
+  // Web は軽量な Web Audio で鳴らす。長さはデコード済みなら正確に、未デコードなら2.2秒と見込む
+  if (Platform.OS === "web" && webBuffers[key] !== null) {
+    const buf = webBuffers[key];
+    if (playWeb(key, 1)) {
+      const dur = buf ? buf.duration : 2.2;
+      voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
+      return;
+    }
+  }
   try {
     void ensureAudioMode();
     let p = sePlayers[key];
