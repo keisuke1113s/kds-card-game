@@ -550,6 +550,19 @@ export default function BattleScreen() {
   }, []);
   // 自動軽量化のお知らせ（1回だけ数秒表示）
   const [autoLightNote, setAutoLightNote] = useState(false);
+  // ひかえめモードへ自動切り替えした時の1回きりのお知らせ
+  const [promotedNote, setPromotedNote] = useState(false);
+  useEffect(() => {
+    if (!autoLight) return;
+    const st = useSettingsStore.getState();
+    const before = st.autoLightPromoted;
+    st.noteAutoLightStrike();
+    if (!before && useSettingsStore.getState().autoLightPromoted) {
+      setPromotedNote(true);
+      const t = setTimeout(() => setPromotedNote(false), 7000);
+      return () => clearTimeout(t);
+    }
+  }, [autoLight]);
   useEffect(() => {
     if (!autoLight || fxLevel === "light") return;
     setAutoLightNote(true);
@@ -1957,9 +1970,16 @@ export default function BattleScreen() {
           </View>
         )}
         {/* カクつき検知で演出を軽くしたお知らせ */}
-        {autoLightNote && (
+        {autoLightNote && !promotedNote && (
           <View style={styles.autoLightNote} pointerEvents="none">
             <Text style={styles.autoLightNoteText}>⚡ 動きが重いため、演出を自動で軽くしました</Text>
+          </View>
+        )}
+        {promotedNote && (
+          <View style={styles.autoLightNote} pointerEvents="none">
+            <Text style={styles.autoLightNoteText}>
+              ⚡ この端末に合わせて演出を「ひかえめ」を標準にしました（設定で変更できます）
+            </Text>
           </View>
         )}
         {/* 自動プレイ（観戦）。ONの間は自分の手もAIが選ぶ。オンラインでは出さない */}
