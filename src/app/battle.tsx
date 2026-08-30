@@ -55,6 +55,16 @@ import { CardDetail } from "@/components/CardDetail";
 import { allCards, cardRegistry, getCard } from "@/data/cards";
 import { currentWeather } from "@/data/weather";
 
+/** 時間帯（早朝・昼・夕方・夜）。時間演出とあいさつ実況に使う */
+type Daypart = "morning" | "day" | "evening" | "night";
+function daypartNow(): Daypart {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 8) return "morning";
+  if (h >= 16 && h < 19) return "evening";
+  if (h >= 19 || h < 5) return "night";
+  return "day";
+}
+
 /** 全カード中の最高戦闘力（「エース登場」ボイスの基準） */
 const MAX_COMBAT = Math.max(...allCards.map((c) => c.combat ?? 0));
 /** 全カード中の最高教習力（「教え上手の登場」ボイスの基準） */
@@ -601,16 +611,16 @@ function BattleInner() {
       alive = false;
     };
   }, []);
-  // 時間帯のトーン（朝・夕・夜で画面全体をほんのり染める）。ダーク設定では
-  // 夜色が重なってうるさいため出さない
-  const daypartTint = useMemo<string | null>(() => {
+  // 時間帯の空演出（早朝・夕方・夜）。上＝空側が濃いグラデーションで
+  // はっきり分かるように染める。ダーク設定では夜色が重なってうるさいため出さない
+  const daypart = useMemo<Daypart>(() => daypartNow(), []);
+  const daypartSky = useMemo<[string, string] | null>(() => {
     if (DARK_MODE) return null;
-    const h = new Date().getHours();
-    if (h >= 16 && h < 19) return "#ff8c4216"; // 夕焼け
-    if (h >= 19 || h < 5) return "#12245c1f"; // 夜
-    if (h >= 5 && h < 8) return "#ffd9a012"; // 朝
+    if (daypart === "evening") return ["#ff7b3042", "#ffb35608"];
+    if (daypart === "night") return ["#0b1c5445", "#1a2a6410"];
+    if (daypart === "morning") return ["#ffc98035", "#ffe9c008"];
     return null;
-  }, []);
+  }, [daypart]);
   // 自動軽量化のお知らせ（1回だけ数秒表示）
   const [autoLightNote, setAutoLightNote] = useState(false);
   useEffect(() => {
@@ -1593,6 +1603,22 @@ function BattleInner() {
         text: "⚡ 因縁の再戦！！\n挑戦状の決着をつけろ！",
         emph: true,
       });
+    }
+    // 時間帯のあいさつ（昼はいつも通りなので省略）と、雨・雪の日のお知らせ
+    const dp = daypartNow();
+    const greet =
+      dp === "morning"
+        ? { text: "🌅 おはようございます！\n朝イチの教習、いってみましょう！", voice: "voice_greet_morning" as const }
+        : dp === "evening"
+          ? { text: "🌇 夕方の教習です！\n日が沈む前に決めましょう！", voice: "voice_greet_evening" as const }
+          : dp === "night"
+            ? { text: "🌙 こんばんは！\n夜間教習を始めます！", voice: "voice_greet_night" as const }
+            : null;
+    if (greet) adds.push({ key: ++annSeq, kind: "text", text: greet.text, voice: greet.voice });
+    if (weather === "rain") {
+      adds.push({ key: ++annSeq, kind: "text", text: "☔ 本日は雨天教習！\n路面の変化に気をつけて！", voice: "voice_rainy" });
+    } else if (weather === "snow") {
+      adds.push({ key: ++annSeq, kind: "text", text: "⛄ 本日は雪道教習！\nスリップ注意です！", voice: "voice_snowy" });
     }
     if (adds.length > 0) setAnnQueue((q) => [...q, ...adds]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2778,12 +2804,60 @@ function BattleInner() {
       )}
       {isOnline && cheers.map((c) => <CheerFloat key={c.key} emoji={c.emoji} />)}
 
-      {/* 時間帯のトーン（朝・夕・夜）。結果画面では消す */}
-      {daypartTint && view.phase.type !== "finished" && (
-        <View
-          style={[StyleSheet.absoluteFill, { backgroundColor: daypartTint, zIndex: 1 }]}
+      {/* 時間帯の空色（早朝・夕方・夜）。結果画面では消す */}
+      {daypartSky && view.phase.type !== "finished" && (
+        <LinearGradient
+          colors={daypartSky}
+          style={[StyleSheet.absoluteFill, { zIndex: 1 }]}
           pointerEvents="none"
         />
+      )}
+      {/* 夕方: 世界三大夕日「釧路の夕日」が相手側の空に沈む */}
+      {daypart === "evening" && !DARK_MODE && view.phase.type !== "finished" && (
+        <View style={styles.sunsetWrap} pointerEvents="none">
+          <View style={styles.sunsetGlow} />
+          <View style={styles.sunsetSun} />
+        </View>
+      )}
+      {/* 夜: 星がまたたく */}
+      {daypart === "night" && view.phase.type !== "finished" && (
+        <View style={StyleSheet.absoluteFill} pointerEvents="none">
+          {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+            <View
+              key={i}
+              {...({ dataSet: { kdsanim: "glowpulse" } } as object)}
+              style={[
+                styles.nightStar,
+                {
+                  left: `${(7 + i * 13) % 92}%`,
+                  top: 10 + ((i * 47) % 100),
+                  ...(Platform.OS === "web"
+                    ? ({
+                        animationDuration: `${1600 + (i % 4) * 600}ms`,
+                        animationTimingFunction: "ease-in-out",
+                        animationIterationCount: "infinite",
+                      } as object)
+                    : null),
+                } as never,
+              ]}
+            />
+          ))}
+        </View>
+      )}
+      {/* 時間帯バッジ（雨・雪のバッジがあるときはその下に並ぶ） */}
+      {daypart !== "day" && view.phase.type !== "finished" && (
+        <View
+          style={[
+            styles.weatherChip,
+            styles.daypartChip,
+            weather !== "sunny" && effFxLevel !== "light" && styles.daypartChipShift,
+          ]}
+          pointerEvents="none"
+        >
+          <Text style={styles.weatherChipText} allowFontScaling={false}>
+            {daypart === "morning" ? "🌅 早朝教習" : daypart === "evening" ? "🌇 夕方教習" : "🌙 夜間教習"}
+          </Text>
+        </View>
       )}
       {/* 実際の天気と連動（雨・雪）。軽量モード中は出さない */}
       {weather !== "sunny" && effFxLevel !== "light" && view.phase.type !== "finished" && (
@@ -6135,10 +6209,15 @@ function TurnCar({ mine }: { mine: boolean }) {
     ],
     opacity: x.value < 0.05 ? x.value * 20 : x.value > 0.92 ? (1 - x.value) * 12 : 1,
   }));
+  const night = daypartNow() === "night";
   return (
-    <Animated.Text style={[styles.turnCar, style]} allowFontScaling={false}>
-      {mine ? "🚙" : "🚗"}
-    </Animated.Text>
+    <Animated.View style={[styles.turnCarWrap, style]} pointerEvents="none">
+      {/* 夜間教習はヘッドライトを点けて走る（scaleX反転で光が進行方向に来る） */}
+      {night && <View style={styles.headlightBeam} />}
+      <Text style={styles.turnCarEmoji} allowFontScaling={false}>
+        {mine ? "🚙" : "🚗"}
+      </Text>
+    </Animated.View>
   );
 }
 
@@ -7483,6 +7562,48 @@ const styles = StyleSheet.create({
     borderColor: "#ffd54d",
   },
   turnCar: { position: "absolute", bottom: 4, fontSize: 22, alignSelf: "center" },
+  turnCarWrap: {
+    position: "absolute",
+    bottom: 4,
+    alignSelf: "center",
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  turnCarEmoji: { fontSize: 22 },
+  headlightBeam: {
+    width: 44,
+    height: 13,
+    borderRadius: 8,
+    backgroundColor: "#ffe9a35c",
+    marginRight: -5,
+  },
+  daypartChip: { zIndex: 5 },
+  daypartChipShift: { top: 32 },
+  sunsetWrap: {
+    position: "absolute",
+    top: 44,
+    right: 28,
+    zIndex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sunsetGlow: {
+    position: "absolute",
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: "#ff8c422e",
+  },
+  sunsetSun: { width: 70, height: 70, borderRadius: 35, backgroundColor: "#ff6b35", opacity: 0.5 },
+  nightStar: {
+    position: "absolute",
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "#fff8d8",
+    opacity: 0.8,
+    zIndex: 1,
+  },
   goldFlash: {
     ...StyleSheet.absoluteFill,
     borderRadius: 6,
