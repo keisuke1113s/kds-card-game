@@ -302,7 +302,8 @@ export default function HomeScreen() {
   );
 
   // オンライン対戦で相手を待っている人・トーナメントのエントリー人数
-  // （ボタン内のお知らせ表示用）。ホームを見ている間だけ20秒おきに確認する
+  // （ボタン内のお知らせ表示用）。ホームを見ている間だけ5秒おきに確認する
+  // （応答は数十バイトの軽いJSONなので、この間隔でも負荷はほぼない）
   const [lobbyWaiting, setLobbyWaiting] = useState({ waiting: 0, tourney: 0 });
   useFocusEffect(
     useCallback(() => {
@@ -318,7 +319,7 @@ export default function HomeScreen() {
         }
       };
       void check();
-      const timer = setInterval(() => void check(), 20000);
+      const timer = setInterval(() => void check(), 5000);
       return () => {
         alive = false;
         clearInterval(timer);
