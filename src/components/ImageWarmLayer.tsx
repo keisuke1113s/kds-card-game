@@ -22,10 +22,10 @@ export function ImageWarmLayer() {
     return () => clearTimeout(t);
   }, []);
 
-  const uris = useMemo(() => {
-    if (Platform.OS !== "web") return [];
-    const out: string[] = [];
-    // 対戦のカットインで使う演出背景も温めておく（初回表示のカクつき防止）
+  // 演出背景は常駐させると毎回のスタイル計算の負担になるため、
+  // 起動時に一度だけ読み込んで展開しておく方式にする
+  useEffect(() => {
+    if (Platform.OS !== "web") return;
     const fxImages = [
       require("../../assets/images/fx/fx_battle.webp"),
       require("../../assets/images/fx/fx_up.webp"),
@@ -37,7 +37,26 @@ export function ImageWarmLayer() {
       require("../../assets/images/fx/fx_janken.webp"),
       require("../../assets/images/kds-car.png"),
     ];
-    for (const src of [...fxImages, ...Object.values(cardSmalls), ...Object.values(cardThumbs)]) {
+    const timers = fxImages.map((m, i) =>
+      setTimeout(() => {
+        try {
+          const uri = Asset.fromModule(m).uri;
+          if (!uri) return;
+          const img = new (globalThis as { Image: new () => HTMLImageElement }).Image();
+          img.src = uri;
+          void img.decode?.().catch(() => {});
+        } catch {
+          // 展開できなくても表示時に通常の読み込みが行われる
+        }
+      }, 3000 + i * 400)
+    );
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const uris = useMemo(() => {
+    if (Platform.OS !== "web") return [];
+    const out: string[] = [];
+    for (const src of [...Object.values(cardSmalls), ...Object.values(cardThumbs)]) {
       try {
         const uri = Asset.fromModule(src).uri;
         if (uri) out.push(uri);
