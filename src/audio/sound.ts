@@ -182,7 +182,20 @@ export type VoiceKey =
   | "voice_out"
   | "voice_streak"
   | "voice_heat_s"
-  | "voice_revenge";
+  | "voice_revenge"
+  | "voice_janken"
+  | "voice_janken_win"
+  | "voice_janken_lose"
+  | "voice_aiko"
+  | "voice_mulligan"
+  | "voice_support"
+  | "voice_ability"
+  | "voice_chain"
+  | "voice_bigstep"
+  | "voice_openfield"
+  | "voice_wipedout"
+  | "voice_longgame"
+  | "voice_mikiwame";
 
 /** 実況が重ならないための1チャンネル制。再生が終わる見込み時刻まで次を断る */
 let voiceBusyUntil = 0;

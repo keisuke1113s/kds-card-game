@@ -53,6 +53,19 @@ MAX_SEC = {
     "voice_streak": 2.8,       # 連勝バナー
     "voice_heat_s": 2.6,       # 名勝負度S
     "voice_revenge": 3.8,      # 因縁の再戦
+    "voice_janken": 1.6,
+    "voice_janken_win": 1.6,
+    "voice_janken_lose": 3.2,
+    "voice_aiko": 2.0,
+    "voice_mulligan": 1.6,
+    "voice_support": 2.0,
+    "voice_ability": 2.0,
+    "voice_chain": 1.8,
+    "voice_bigstep": 2.0,
+    "voice_openfield": 3.0,
+    "voice_wipedout": 2.0,
+    "voice_longgame": 2.2,
+    "voice_mikiwame": 3.2,
 }
 
 

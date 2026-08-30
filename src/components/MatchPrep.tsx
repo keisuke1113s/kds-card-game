@@ -15,7 +15,7 @@ import Animated, {
   ZoomIn,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
-import { playBgm, playSe } from "@/audio/sound";
+import { playBgm, playSe, playVoice } from "@/audio/sound";
 import { CardFace } from "@/components/CardFace";
 import { preloadForMatch } from "@/data/preload";
 import { colors, radius, spacing } from "@/theme";
@@ -91,6 +91,8 @@ export function MatchPrep({
     // シャッフルが終わったら、じゃんけんの間はドラムロール曲で緊張感を出す。
     // 決着後は対戦画面がメイン曲を続きから再開する
     if (phase !== "shuffle") playBgm("bgm_janken");
+    if (phase === "choose") playVoice("voice_janken");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [phase]);
 
   const choose = (hand: Hand) => {
@@ -104,10 +106,11 @@ export function MatchPrep({
 
     const result = judge(hand, cpu);
     if (result === 0) {
-      // あいこ。もう一度選び直す
+      // あいこ。もう一度選び直す（3回続いたら盛り上げのひとこと）
       setTimeout(() => {
         setDraw(true);
         haptic("warning");
+        if (round >= 3) playVoice("voice_aiko");
       }, 700);
       setTimeout(() => {
         setMine(null);
@@ -122,6 +125,7 @@ export function MatchPrep({
     setTimeout(() => {
       haptic(result === 1 ? "success" : "warning");
       playSe(result === 1 ? "janken_win" : "janken_lose");
+      playVoice(result === 1 ? "voice_janken_win" : "voice_janken_lose");
     }, 650);
     setTimeout(() => onDecided(result === 1), 2100);
   };
