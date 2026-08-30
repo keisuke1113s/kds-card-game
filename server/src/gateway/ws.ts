@@ -328,6 +328,24 @@ export function startServer(port: number): http.Server {
 
   const wss = new WebSocketServer({ server });
 
+  // ホーム画面へのリアルタイム待ち人数配信。
+  // 購読者がいる間だけ2秒ごとに数え、変化したときだけ全員へ送る
+  const lobbyWatchers = new Set<WebSocket>();
+  const lobbyCounts = () => ({
+    waiting: matchmaker.waitingCount,
+    tourney: tourney.lobbySize(),
+  });
+  let lastLobbyJson = "";
+  setInterval(() => {
+    if (lobbyWatchers.size === 0) return;
+    const payload = JSON.stringify({ type: "lobbyUpdate", ...lobbyCounts() });
+    if (payload === lastLobbyJson) return;
+    lastLobbyJson = payload;
+    for (const w of lobbyWatchers) {
+      if (w.readyState === WebSocket.OPEN) w.send(payload);
+    }
+  }, 2000);
+
   wss.on("connection", (ws: WebSocket, req) => {
     // Origin 検証（WS に古典的 CORS は効かないため自前で確認する）
     const origin = req.headers.origin;
@@ -339,7 +357,13 @@ export function startServer(port: number): http.Server {
     }
 
     const conn: ConnState = { room: null, roomCode: null, seat: null, spectating: null };
-    const send = (msg: ServerMessage | { type: "roomCreated"; code: string } | { type: "pong" }) => {
+    const send = (
+      msg:
+        | ServerMessage
+        | { type: "roomCreated"; code: string }
+        | { type: "pong" }
+        | { type: "lobbyUpdate"; waiting: number; tourney: number }
+    ) => {
       if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
     };
 
@@ -361,6 +385,12 @@ export function startServer(port: number): http.Server {
       switch (msg.type) {
         case "ping":
           send({ type: "pong" });
+          break;
+
+        case "watchLobby":
+          // ホーム画面の待ち人数購読。現在値をすぐ返し、以後は変化時に配信される
+          lobbyWatchers.add(ws);
+          send({ type: "lobbyUpdate", ...lobbyCounts() });
           break;
 
         case "createRoom": {
@@ -489,6 +519,7 @@ export function startServer(port: number): http.Server {
     });
 
     ws.on("close", () => {
+      lobbyWatchers.delete(ws);
       if (conn.room && conn.seat !== null) conn.room.markDisconnected(conn.seat);
       if (conn.spectating) conn.spectating.room.removeSpectator(conn.spectating.id);
     });
