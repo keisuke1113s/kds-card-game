@@ -331,8 +331,18 @@ export default function HomeScreen() {
   const seenRankIndex = useRankStore((s) => s.seenRankIndex);
   const setSeenRankIndex = useRankStore((s) => s.setSeenRankIndex);
   const [rankUpShow, setRankUpShow] = useState(false);
+  // 「どの段階まで見せたか」の保存値が端末から読み込み終わるのを待つ。
+  // 読み込み前に判定すると、進級済みでも毎回お祝いが出てしまう
+  const [rankHydrated, setRankHydrated] = useState(
+    useRankStore.persist?.hasHydrated?.() ?? true
+  );
   useEffect(() => {
-    if (rankIdx > seenRankIndex) {
+    const unsub = useRankStore.persist?.onFinishHydration?.(() => setRankHydrated(true));
+    if (useRankStore.persist?.hasHydrated?.()) setRankHydrated(true);
+    return () => unsub?.();
+  }, []);
+  useEffect(() => {
+    if (rankHydrated && rankIdx > seenRankIndex) {
       const t = setTimeout(() => {
         playSe("achievement");
         haptic("success");
@@ -341,7 +351,7 @@ export default function HomeScreen() {
       return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rankIdx, seenRankIndex]);
+  }, [rankHydrated, rankIdx, seenRankIndex]);
 
   // 総走行距離（対戦数から換算）とご当地マイルストーン
   const km = totalDistanceKm(record.wins + record.losses);
