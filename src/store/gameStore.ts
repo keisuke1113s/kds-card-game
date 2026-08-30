@@ -15,7 +15,6 @@ import { ReplayData, useRecordStore } from "@/store/recordStore";
 import { useMissionStore } from "@/store/missionStore";
 import { useTournamentStore } from "@/store/tournamentStore";
 import { getDeviceId, trackEvent } from "@/data/telemetry";
-import { useDanStore } from "@/store/danStore";
 import { useRankStore } from "@/store/rankStore";
 import { useSettingsStore } from "@/store/settingsStore";
 import {
@@ -81,8 +80,6 @@ interface GameStore {
   cheers: { key: number; emoji: string }[];
   /** いまの観戦者数 */
   spectatorCount: number;
-  /** この対戦での段位の変化（結果画面の昇段・降段表示用） */
-  danResult: { before: number; after: number } | null;
   /** オンライン対戦を開始する（部屋を作る／合言葉で入る／ランダム） */
   connectOnline: (opts: {
     serverUrl: string;
@@ -300,12 +297,6 @@ function trackMatchEvents(
               }
             : undefined,
       });
-      // 段位: 勝ち+1／負け-1。結果画面で昇段・降段を見せる
-      const danBefore = useDanStore.getState().pts;
-      useDanStore.getState().addResult(e.winner === myId);
-      useGameStore.setState({
-        danResult: { before: danBefore, after: useDanStore.getState().pts },
-      });
       // 新しく達成した実績があればお知らせを出す
       evaluateAchievements();
       // 利用状況の集計。名前は本人が免許証に付けた表示名だけを
@@ -321,7 +312,6 @@ function trackMatchEvents(
         cards: meta.myCards,
         name: useRankStore.getState().playerName.trim() || undefined,
         streak: useRecordStore.getState().streak,
-        dan: useDanStore.getState().pts,
       });
       return;
     }
@@ -548,7 +538,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
     revengeMatch: false,
     cheers: [],
     spectatorCount: 0,
-    danResult: null,
     queueActive: false,
     matchFound: null,
     clearMatchFound: () => set({ matchFound: null }),
@@ -775,7 +764,6 @@ export const useGameStore = create<GameStore>()((set, get) => {
         revengeMatch: revenge ?? false,
         cheers: [],
         spectatorCount: 0,
-        danResult: null,
         state: null,
         view: null,
         eventLog: [],

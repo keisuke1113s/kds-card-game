@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { ScreenEnter } from "@/components/ScreenEnter";
-import { danNameOf } from "@/store/danStore";
 import { useRankStore } from "@/store/rankStore";
 import { DEFAULT_SERVER_URL } from "@/app/online";
 import { colors, radius, spacing } from "@/theme";
@@ -18,7 +17,6 @@ interface RankRow {
   wins: number;
   losses: number;
   bestStreak: number;
-  dan: number;
 }
 
 interface RankingData {
@@ -85,10 +83,9 @@ export default function RankingScreen() {
                         {r.name}
                         {mine ? "（あなた）" : ""}
                       </Text>
-                      <Text style={styles.sub}>
-                        🥋 {danNameOf(r.dan)}
-                        {r.bestStreak >= 2 ? `　🔥 最高${r.bestStreak}連勝` : ""}
-                      </Text>
+                      {r.bestStreak >= 2 && (
+                        <Text style={styles.sub}>🔥 最高{r.bestStreak}連勝</Text>
+                      )}
                     </View>
                     <Text style={styles.wins} allowFontScaling={false}>
                       {r.wins}勝

@@ -42,14 +42,6 @@ import { DIFFICULTY_PARAMS } from "@/ai/difficulty";
 import { shareResultImage } from "@/data/shareImage";
 import { useAchievementStore } from "@/store/achievementStore";
 import { pauseBgm, playBgm, playSe, playVoice, stopBgm } from "@/audio/sound";
-import {
-  danIndexOf,
-  danNameOf,
-  DAN_STEPS,
-  isDemotionMatch,
-  isPromotionMatch,
-  useDanStore,
-} from "@/store/danStore";
 import { haptic } from "@/audio/haptics";
 import { CardDetail } from "@/components/CardDetail";
 import { cardRegistry, getCard } from "@/data/cards";
@@ -452,7 +444,6 @@ export default function BattleScreen() {
   const replayActive = useGameStore((s) => s.replayActive);
   const cheers = useGameStore((s) => s.cheers);
   const spectatorCount = useGameStore((s) => s.spectatorCount);
-  const danResult = useGameStore((s) => s.danResult);
   const revengeMatch = useGameStore((s) => s.revengeMatch);
   const opponentDevice = useGameStore((s) => s.opponentDevice);
   // 挑戦状（リベンジ予約）を送ったか
@@ -1083,22 +1074,6 @@ export default function BattleScreen() {
         key: ++annSeq,
         kind: "text",
         text: "⚡ 因縁の再戦！！\n挑戦状の決着をつけろ！",
-        emph: true,
-      });
-    }
-    const pts = useDanStore.getState().pts;
-    if (isPromotionMatch(pts)) {
-      adds.push({
-        key: ++annSeq,
-        kind: "text",
-        text: `🥋 昇段戦！！\n勝てば「${DAN_STEPS[danIndexOf(pts) + 1].name}」に昇段！`,
-        emph: true,
-      });
-    } else if (isDemotionMatch(pts)) {
-      adds.push({
-        key: ++annSeq,
-        kind: "text",
-        text: "🥋 降段のかかった一戦…！\n負けられない勝負だ！",
         emph: true,
       });
     }
@@ -2840,10 +2815,6 @@ export default function BattleScreen() {
           />
           {/* 名勝負度（逆転・接戦・チェインなどの白熱度） */}
           {heat && <NetsuMeter rank={heat.rank} score={heat.score} />}
-          {/* 段位の変化（昇段・降段） */}
-          {danResult && !replayActive && (
-            <DanBanner before={danResult.before} after={danResult.after} />
-          )}
           {/* インストラクターの講評（教習原簿の所見欄風・CPU戦のみ） */}
           {!isOnline && (
             <View style={styles.kouhyouBox}>
@@ -3991,47 +3962,6 @@ function NetsuMeter({ rank, score }: { rank: "S" | "A" | "B" | "C"; score: numbe
         />
       </View>
       <Text style={styles.netsuLabel}>{label}</Text>
-    </View>
-  );
-}
-
-/** 🥋 段位の表示と昇段・降段のお知らせ */
-function DanBanner({ before, after }: { before: number; after: number }) {
-  const fromIdx = danIndexOf(before);
-  const toIdx = danIndexOf(after);
-  const promoted = toIdx > fromIdx;
-  const demoted = toIdx < fromIdx;
-  useEffect(() => {
-    if (promoted) {
-      playSe("achievement");
-      const t = setTimeout(() => playSe("cheer"), 300);
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const next = DAN_STEPS[toIdx + 1];
-  return (
-    <View
-      style={[
-        styles.danBox,
-        promoted && styles.danBoxUp,
-        demoted && styles.danBoxDown,
-      ]}
-    >
-      {promoted ? (
-        <Text style={styles.danUpText} allowFontScaling={false}>
-          🎉 昇段！！「{DAN_STEPS[toIdx].name}」に到達！
-        </Text>
-      ) : demoted ? (
-        <Text style={styles.danDownText} allowFontScaling={false}>
-          🥋 降段…「{DAN_STEPS[toIdx].name}」に。巻き返そう！
-        </Text>
-      ) : (
-        <Text style={styles.danKeepText} allowFontScaling={false}>
-          🥋 段位: {danNameOf(after)}
-          {next ? `（「${next.name}」まであと${next.at - after}勝）` : "（最高位！）"}
-        </Text>
-      )}
     </View>
   );
 }
@@ -5993,19 +5923,6 @@ const styles = StyleSheet.create({
   },
   netsuBarFill: { height: 8, borderRadius: 999 },
   netsuLabel: { fontSize: 12, fontWeight: "700", color: "#7a6a4a" },
-  danBox: {
-    alignSelf: "stretch",
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    backgroundColor: "#eef2f8",
-  },
-  danBoxUp: { backgroundColor: "#c9971b" },
-  danBoxDown: { backgroundColor: "#4a5568" },
-  danUpText: { color: "#fff", fontSize: 16, fontWeight: "900" },
-  danDownText: { color: "#fff", fontSize: 13, fontWeight: "800" },
-  danKeepText: { color: "#44586c", fontSize: 13, fontWeight: "800" },
   specChip: {
     position: "absolute",
     top: 40,

@@ -496,7 +496,7 @@ function StatsPanel() {
   }
   interface AdminRanking {
     week: string;
-    top: { name: string; wins: number; losses: number; bestStreak: number; dan: number }[];
+    top: { name: string; wins: number; losses: number; bestStreak: number }[];
     prevWeek: string;
     prevTop: { name: string; wins: number }[];
   }
