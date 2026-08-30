@@ -348,6 +348,18 @@ export default function HomeScreen() {
   const lineLinked = useLineStore((s) => s.linked);
   const lineLock = LINE_GATE_ENABLED && !lineLinked;
 
+  // CPU系のボタンを押したとき、オンラインで誰かが待っていたら参加を誘う。
+  // go は「このままCPUと遊ぶ」を選んだときに進む元の行き先
+  const [onlineInvite, setOnlineInvite] = useState<{ go: () => void } | null>(null);
+  const maybeInviteOnline = (go: () => void) => {
+    if (!lineLock && (lobbyWaiting.waiting > 0 || lobbyWaiting.tourney > 0)) {
+      haptic("light");
+      setOnlineInvite({ go });
+    } else {
+      go();
+    }
+  };
+
   // 入校式（初回起動ガイド）。すでに遊んでいる人には出さない。
   // 保存値（既読フラグ・勝敗数）は端末から直接読んで確認する
   // （読み込みが遅い端末で毎回表示されるのを防ぐ二重化）
@@ -690,7 +702,7 @@ export default function HomeScreen() {
               size="lg"
               feel="medium"
               fullWidth
-              onPress={() => router.push("/prematch")}
+              onPress={() => maybeInviteOnline(() => router.push("/prematch"))}
             />
             <View style={styles.matchupCard}>
               <Text style={styles.matchupSide} numberOfLines={1}>
@@ -705,13 +717,21 @@ export default function HomeScreen() {
               label={lineLock ? "🔒 インストラクターに挑戦" : "👨‍🏫 インストラクターに挑戦"}
               custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
-              onPress={() => router.push(lineLock ? "/line" : "/kyokan")}
+              onPress={() =>
+                lineLock
+                  ? router.push("/line")
+                  : maybeInviteOnline(() => router.push("/kyokan"))
+              }
             />
             <AppButton
               label={lineLock ? "🔒 トーナメント（4連戦）" : "🏆 トーナメント（4連戦）"}
               custom={{ bg: PALE_BG, fg: brand.blue, border: brand.blue }}
               fullWidth
-              onPress={() => router.push(lineLock ? "/line" : "/tournament")}
+              onPress={() =>
+                lineLock
+                  ? router.push("/line")
+                  : maybeInviteOnline(() => router.push("/tournament"))
+              }
             />
           </View>
           <AppButton
@@ -908,6 +928,56 @@ export default function HomeScreen() {
                 <Text style={styles.rankUpHankoText}>認定</Text>
               </View>
               <Text style={styles.rankUpClose}>タップで閉じる</Text>
+            </Animated.View>
+          </Pressable>
+        )}
+
+        {/* オンラインで誰かが待っているときの参加のお誘い */}
+        {onlineInvite && (
+          <Pressable style={styles.rankUpLayer} onPress={() => setOnlineInvite(null)}>
+            <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.rankUpCard}>
+              <Text style={styles.rankUpTitle}>🌐 待っている人がいます！</Text>
+              <Text style={styles.rankUpMessage}>
+                {lobbyWaiting.waiting > 0 && lobbyWaiting.tourney > 0
+                  ? "オンライン対戦とトーナメントの両方で、いま参加者を待っています。あなたも参加しませんか？"
+                  : lobbyWaiting.waiting > 0
+                    ? "いまオンライン対戦で対戦相手を募集中の人がいます。あなたも参加しませんか？"
+                    : `オンライントーナメントが参加待ち ${lobbyWaiting.tourney}/4人 で開催を待っています。あなたも参加しませんか？`}
+              </Text>
+              <View style={styles.inviteButtons}>
+                {lobbyWaiting.waiting > 0 && (
+                  <AppButton
+                    label="🌐 オンライン対戦に参加する"
+                    custom={{ bg: brand.red }}
+                    fullWidth
+                    onPress={() => {
+                      setOnlineInvite(null);
+                      router.push("/online");
+                    }}
+                  />
+                )}
+                {lobbyWaiting.tourney > 0 && (
+                  <AppButton
+                    label="🏆 トーナメントに参加する"
+                    custom={{ bg: "#7a5a00" }}
+                    fullWidth
+                    onPress={() => {
+                      setOnlineInvite(null);
+                      router.push("/tourney");
+                    }}
+                  />
+                )}
+                <AppButton
+                  label="このままCPUと遊ぶ"
+                  custom={{ bg: PALE_BG, fg: colors.textMuted, border: colors.border }}
+                  fullWidth
+                  onPress={() => {
+                    const go = onlineInvite.go;
+                    setOnlineInvite(null);
+                    go();
+                  }}
+                />
+              </View>
             </Animated.View>
           </Pressable>
         )}
@@ -1288,6 +1358,7 @@ const styles = StyleSheet.create({
   },
   rankUpHankoText: { color: "#d02020", fontSize: 16, fontWeight: "900", letterSpacing: 4 },
   rankUpClose: { fontSize: 11, color: "#8a7a30", marginTop: 6 },
+  inviteButtons: { alignSelf: "stretch", gap: 8, marginTop: 10 },
   gradName: { fontSize: 22, fontWeight: "900", color: "#1c3a5e" },
   gradCards: { flexDirection: "row", gap: 4, marginVertical: 4 },
   gradCardThumb: { transform: [{ scale: 0.8 }] },
