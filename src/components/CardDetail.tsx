@@ -195,7 +195,9 @@ export function CardDetail({ cardId, scroll = true }: { cardId: string; scroll?:
 }
 
 // 画面が低い端末（iPhone縦持ちなど）ではカードを縮めて効果文が隠れないようにする
-const COMPACT = Dimensions.get("window").height < 900;
+// 縦1000px未満（iPhone Pro Max含むスマホ全般）はカードを縮小して、
+// 効果の説明とボタンまでスクロールなしで収まるようにする
+const COMPACT = Dimensions.get("window").height < 1000;
 const COMPACT_SCALE = 0.74;
 
 const styles = StyleSheet.create({
