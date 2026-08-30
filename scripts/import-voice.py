@@ -22,6 +22,7 @@ assets/audio/<ボイス名>.wav に書き出す。
 """
 
 import os
+import re
 import subprocess
 import sys
 
@@ -118,8 +119,22 @@ MAX_SEC = {
 }
 
 
+def trimmed_len(path: str) -> float:
+    """頭の無音カット後の実長（秒）。上限の自動決定に使う"""
+    r = subprocess.run(
+        ["ffmpeg", "-i", path, "-af",
+         "silenceremove=start_periods=1:start_threshold=-45dB", "-f", "null", "-"],
+        capture_output=True, text=True,
+    )
+    m = re.findall(r"time=(\d+):(\d+):([\d.]+)", r.stderr)
+    if not m:
+        return 3.0
+    h, mi, sec = m[-1]
+    return int(h) * 3600 + int(mi) * 60 + float(sec)
+
+
 def main() -> None:
-    if len(sys.argv) != 3 or sys.argv[1] not in MAX_SEC:
+    if len(sys.argv) != 3 or (sys.argv[1] not in MAX_SEC and not sys.argv[1].startswith("voice_c_")):
         print(__doc__)
         sys.exit(1)
     name = sys.argv[1]
@@ -127,7 +142,9 @@ def main() -> None:
     if not os.path.exists(src):
         print(f"ファイルが見つかりません: {src}")
         sys.exit(1)
-    max_sec = MAX_SEC[name]
+    # カード個別実況（voice_c_<カードID>）は素材の長さに合わせて自動設定。
+    # 台詞が途中で切れる事故を防ぐため、実長+0.3秒（最大5秒）とする
+    max_sec = MAX_SEC.get(name) or min(5.0, trimmed_len(src) + 0.3)
     out = os.path.join(OUT, f"{name}.wav")
     subprocess.run(
         [
