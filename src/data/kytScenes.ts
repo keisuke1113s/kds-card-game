@@ -23,6 +23,8 @@ export interface KytScene {
   spots: KytSpot[];
   correctIndex: number;
   explain: string;
+  /** ✅どうする: 具体的な行動指針（3段階解説の最終ステップ） */
+  action?: string;
 }
 
 export const KYT_SCENES: KytScene[] = [
@@ -40,6 +42,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 1,
     explain: "ボールの後には、追いかける子どもが飛び出してくる可能性が高い！すぐ止まれる速度に落とそう。",
+    action: "すぐ止まれる速度（徐行）まで落とし、足をブレーキに置く",
   },
   {
     id: "parked_shadow",
@@ -54,6 +57,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "駐車車両のかげは完全な死角。人の飛び出しやドアの開放に備えて、間隔をあけて徐行しよう。",
+    action: "1m以上間隔をあけ、いつでも止まれる速度で通過する",
   },
   {
     id: "genkan",
@@ -68,6 +72,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "塀の切れ目は歩行者の飛び出し口。特に朝夕は出入りが多い。中央寄りを徐行して備えよう。",
+    action: "中央寄りを徐行し、塀の切れ目ごとに警戒する",
   },
   {
     id: "gakudou",
@@ -82,6 +87,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "子どもはふざけて急に車道へ出ることがある。予測不能な動きを前提に、大きく間隔をとって徐行を。",
+    action: "子どもとの間隔を大きくとり、徐行する",
   },
   {
     id: "jihanki",
@@ -96,6 +102,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "公園の出入口は子どもの飛び出しスポット。ボール遊びの延長で車道に出てくることも。",
+    action: "出入口の手前でアクセルを緩め、足はブレーキへ",
   },
   {
     id: "gomi",
@@ -110,6 +117,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "ゴミ出しの人は「ちょっとだけ」と左右確認せず渡りがち。生活時間帯の住宅街は最徐行で。",
+    action: "生活時間帯の住宅街は最徐行で走る",
   },
   {
     id: "kyushajo",
@@ -124,6 +132,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "車庫から出る車は歩道と車道を横切る。運転者からこちらが見えていない前提で、速度を落として様子を見よう。",
+    action: "速度を落とし、相手が止まるのを確かめてから通過する",
   },
   {
     id: "takuhai",
@@ -138,6 +147,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "配達員は荷物を持って急に車道へ出てくる。トラックの前後どちらからも現れる前提で徐行を。",
+    action: "トラックの前後から人が出る前提で徐行する",
   },
 
   // ================= 交差点 =================
@@ -154,6 +164,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 1,
     explain: "対向車の陰からバイクがすり抜けてくる「サンキュー事故」の典型場面！死角のバイクを最優先で警戒。",
+    action: "対向車の陰が見えるまで発進しない",
   },
   {
     id: "left_bike",
@@ -168,6 +179,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "左折時の巻き込みは自転車が最多。ミラーと目視で左後方を確認し、横断歩道の歩行者にも譲ろう。",
+    action: "ミラー＋目視で左後方を確認してから左折する",
   },
   {
     id: "yellow",
@@ -182,6 +194,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "黄色は原則「止まれ」。無理に通過せず、安全に止まれるかを瞬時に判断。急ブレーキは後続にも危険。",
+    action: "安全に止まれるなら止まる。急ブレーキはしない",
   },
   {
     id: "deaigashira",
@@ -196,6 +209,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "出会い頭事故の最多ポイント。ミラーに映らない死角が必ずあるので、停止線がなくても止まる心構えで。",
+    action: "停止線がなくても止まるつもりで進入する",
   },
   {
     id: "migi_chokushin",
@@ -210,6 +224,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "バイクは実際より遠く・遅く見える。右直事故は最多パターン。「行ける」と思っても待つが勝ち！",
+    action: "バイクが通過しきるまで待つ",
   },
   {
     id: "hodou_jitensha",
@@ -224,6 +239,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "横断歩道に歩行者がいたら停止は義務。「迷っている人」は渡る前提で減速・停止しよう。",
+    action: "横断歩道の手前で減速し、渡る人がいれば必ず停止する",
   },
   {
     id: "kansei",
@@ -238,6 +254,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "青になった直後は、黄〜赤で駆け込んでくる車が残っていることが。左右をひと目確認してから発進を。",
+    action: "青になっても左右をひと目確認してから発進する",
   },
   {
     id: "fumikiri",
@@ -252,6 +269,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "踏切の先に自分の車が入るスペースがなければ進入しない。閉じ込められるのが最悪の事故。一時停止も忘れずに。",
+    action: "一時停止し、先のスペースを確かめてから進入する",
   },
 
   // ================= 夜間 =================
@@ -268,6 +286,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "無灯火の自転車は直前まで見えない最大の危険。ハイビームを活用し、路肩側を特に警戒しよう。",
+    action: "対向車がいなければハイビームで早めに見つける",
   },
   {
     id: "night_black",
@@ -282,6 +301,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "夜の黒っぽい服は本当に見えない。お酒が入った人はふらっと車道に出ることも。繁華街は最徐行で。",
+    action: "繁華街の夜は最徐行で走る",
   },
   {
     id: "night_glare",
@@ -296,6 +316,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "まぶしさで一瞬見えなくなる「蒸発現象」の間に、路肩の歩行者を見落とすのが怖い。視線をやや左に、速度を落とす。",
+    action: "視線をやや左下へ移し、速度を落とす",
   },
   {
     id: "night_deer",
@@ -310,6 +331,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "北海道の夜道はシカが本当に出る！茂みの目が光ったら減速。飛び出しても急ハンドルせずブレーキで。",
+    action: "光る目を見たら減速。急ハンドルではなくブレーキで対処",
   },
   {
     id: "night_station",
@@ -324,6 +346,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "歩きスマホの人は車に全く気づいていない前提で。ふらっと車道に降りてくることもある。",
+    action: "駅前は人が車道に出てくる前提で徐行する",
   },
   {
     id: "dusk",
@@ -338,6 +361,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "薄暮は事故が1日で最も多い時間帯。「見えているのに見られていない」が起きる。早めのライト点灯を！",
+    action: "暗くなる前からライトを点ける",
   },
 
   // ================= 雪・冬 =================
@@ -354,6 +378,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "橋の上は地面より冷えて凍結しやすい代表的な場所。黒く濡れて見えるだけでも凍結を疑い、手前で減速を。",
+    action: "橋の手前で減速を済ませ、橋の上ではハンドル・ブレーキ操作をしない",
   },
   {
     id: "snow_wall",
@@ -368,6 +393,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "雪山の陰は車も人も全く見えない。少しずつ鼻先を出して、何度も確認しながら進もう。",
+    action: "鼻先を少しずつ出し、何度も確認しながら進む",
   },
   {
     id: "snow_shadow",
@@ -382,6 +408,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "晴れた朝ほど放射冷却で日陰はツルツル。日なたと日陰で路面が急変する。釧路の冬の定番の危険！",
+    action: "日陰に入る前に減速を終わらせる",
   },
   {
     id: "snow_stop",
@@ -396,6 +423,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "雪の下り坂は止まりたい場所で止まれない。停止位置のずっと手前から、エンジンブレーキでそっと減速。",
+    action: "かなり手前からエンジンブレーキでそっと減速する",
   },
   {
     id: "snow_bus",
@@ -410,6 +438,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "雪の日の歩行者は傘やフードで視界も聴覚もふさがっている。こちらに気づかない前提で大きく間隔を。",
+    action: "歩行者に気づかれていない前提で大きく間隔をとる",
   },
   {
     id: "snow_wiper",
@@ -424,6 +453,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "吹雪は前が見えた瞬間に先行車が目前にいることがある。車間を普段の3倍、ライト点灯で自分の存在も知らせる。",
+    action: "車間を普段の3倍とり、ライトを点けて自分の存在を知らせる",
   },
 
   // ================= 雨 =================
@@ -440,6 +470,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "降り始めは路面の油が浮いて一番滑る。歩行者も急ぎだす。速度を落として車間を広く。",
+    action: "速度を落とし、車間を広くとる",
   },
   {
     id: "rain_umbrella",
@@ -454,6 +485,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "子どもの傘は視界ゼロ＋風でふらつく。水はねも迷惑になる。徐行して大きく間隔をあけよう。",
+    action: "徐行し、水はねしない速度と距離で通過する",
   },
   {
     id: "rain_night",
@@ -468,6 +500,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "雨の夜は路面反射のギラつきで歩行者が消える。ワイパー越しの視界を過信せず、交差点は特に減速を。",
+    action: "交差点の手前でしっかり減速する",
   },
   {
     id: "rain_hydro",
@@ -482,6 +515,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "速度が高いまま水たまりに入るとハンドルが効かなくなる（ハイドロプレーニング）。慌てずアクセルを緩めて。",
+    action: "アクセルをそっと緩め、ハンドルは動かさない",
   },
 
   // ================= 駐車場 =================
@@ -498,6 +532,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "子どもは車より背が低く、車の間から突然現れる。駐車場は歩く速さで、いつでも止まれるように。",
+    action: "駐車場の中は歩く速さで進む",
   },
   {
     id: "park_back",
@@ -512,6 +547,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "バック中の後方横断はモニターの死角から来る。入れる前に周囲一周の目視、下がるときは窓を開けて音も聞く。",
+    action: "乗る前に周囲を一周目視し、窓を開けてバックする",
   },
   {
     id: "park_door",
@@ -526,6 +562,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "乗り降りのドアは予告なく開く。停まっている車のそばは、人が乗っているかをチラ見しながら徐行。",
+    action: "停車車両の横は人の有無を見ながら徐行する",
   },
   {
     id: "park_conv",
@@ -540,6 +577,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "店の出入口は人が最優先。入店を急がず、歩道を横切るときは一時停止のつもりで。踏み間違い防止に「ブレーキで進入」！",
+    action: "ブレーキに足を置いたまま、ゆっくり進入する",
   },
 
   // ================= バス・大型車 =================
@@ -556,6 +594,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 1,
     explain: "バスを降りた人がバスの前を横切って渡ってくるのが最も危険。バスの陰は完全な死角、徐行で備えを。",
+    action: "バスの前が見えるまで徐行で備える",
   },
   {
     id: "truck_left",
@@ -570,6 +609,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "大型車の左折は後輪がぐっと内側を通る（内輪差）。左横に並ぶのは危険。前か後ろに離れて待とう。",
+    action: "大型車の左横に並ばず、前か後ろに離れる",
   },
   {
     id: "truck_mirror",
@@ -584,6 +624,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "トラックの後ろは前が全く見えない。急ブレーキに気づくのが遅れる。車間を広げれば視界も広がる。",
+    action: "車間を広げて視界を確保する",
   },
   {
     id: "bus_start",
@@ -598,6 +639,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 1,
     explain: "バスの発進は譲る義務があるけれど、最も危ないのは後ろから駆け込んでくる人。バスの周囲の人の動きを最優先で。",
+    action: "バス周囲の人の動きを確認してから譲る",
   },
 
   // ================= 自転車・二輪 =================
@@ -614,6 +656,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "自転車のふらつきは「起きるもの」。段差や風で急に膨らむ。間隔1.5m以上、無理なら追い越さない。",
+    action: "1.5m以上あけ、無理なら追い越さない",
   },
   {
     id: "bike_reverse",
@@ -628,6 +671,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "自転車の逆走は珍しくない。左折時も「右からも来る」前提で両方向を確認しよう。",
+    action: "左右の両方向を確認してから曲がる",
   },
   {
     id: "bike_earphone",
@@ -642,6 +686,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "イヤホンの人はクラクションも聞こえない。急な進路変更に備えて、距離で守るしかない。",
+    action: "距離をとって静かに追い越す",
   },
   {
     id: "bike_kids",
@@ -656,6 +701,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "子どもの自転車は合図なしで急に右折・Uターンする。友だちを見つけて突然渡ることも。大きく車間を。",
+    action: "車間を大きくとり、急な動きに備える",
   },
   {
     id: "scooter_slip",
@@ -670,6 +716,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "雨の二輪はマンホールや白線で簡単に滑って転ぶ。転倒に巻き込まれない車間を。いつもの倍が目安。",
+    action: "車間をいつもの倍にとる",
   },
 
   // ================= 幹線道路・その他 =================
@@ -686,6 +733,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "渋滞最後尾は追突事故の名所。早めの減速＋ハザードで後続に知らせる。ミラーで後ろを確認しながら停止。",
+    action: "早めに減速し、ハザードで後続に知らせる",
   },
   {
     id: "gs_exit",
@@ -700,6 +748,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "スタンドから出る車は流れを見るのに必死で歩行者・自転車を見落としがち。こちらも出てくる前提で。",
+    action: "車が出てくる前提で減速して通過する",
   },
   {
     id: "narrow_pass",
@@ -714,6 +763,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "狭い道は「待つ側に回るほうが早くて安全」。無理にすれ違わず、広い場所で先に譲ろう。",
+    action: "広い場所で先に譲って待つ",
   },
   {
     id: "animal_road",
@@ -728,6 +778,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "農作業車は自分の畑の前で合図なく急に曲がることがある。追い越しは動きをよく見てから。",
+    action: "動きを見極めるまで追い越さない",
   },
   {
     id: "sunset_glare",
@@ -742,6 +793,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "逆光では歩行者も信号も見えなくなる。サンバイザー＋減速。「見えないときは徐行」が鉄則。",
+    action: "サンバイザーを使い、見えないぶん減速する",
   },
   {
     id: "door_zone",
@@ -756,6 +808,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "駐車の列は「ドアゾーン」。1m以上離れて走り、離れられないときは速度を落とす。",
+    action: "1m以上離れて走る。離れられなければ減速",
   },
   {
     id: "phone_walk",
@@ -770,6 +823,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "画面に夢中の人は信号も車も見ていない。急に渡り出す前提で、いつでも止まれる速度に。",
+    action: "いつでも止まれる速度まで落とす",
   },
   {
     id: "silver_car",
@@ -784,6 +838,7 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "高齢の方は途中で止まったり戻ったりすることも。急かさず、完全に渡り終えるまで待とう。",
+    action: "渡り終えるまで静かに待つ",
   },
   {
     id: "reverse_out",
@@ -798,5 +853,347 @@ export const KYT_SCENES: KytScene[] = [
     ],
     correctIndex: 0,
     explain: "歩道の自転車は意外と速い。1日の最初の運転こそ丁寧に。バックは目視＋窓を開けて音でも確認。",
+    action: "目視＋窓を開けて音でも確認しながらバックする",
+  },
+  // ================= 追加場面: 釧路の冬道 =================
+  {
+    id: "snow_rut", bg: "snow", title: "わだちの残る雪道",
+    desc: "圧雪のわだちができた道を走行中。最も注意すべきなのはどれ？",
+    deco: [{ x: 10, y: 10, emoji: "🏔" }, { x: 75, y: 8, emoji: "🌲" }],
+    spots: [
+      { x: 30, y: 62, emoji: "🛞", label: "深いわだち" },
+      { x: 70, y: 40, emoji: "🚗", label: "対向車" },
+      { x: 15, y: 35, emoji: "🌲", label: "路肩の木" },
+    ],
+    correctIndex: 0,
+    explain: "わだちから出ようとハンドルを切ると、雪の壁に取られて一気に車が振られる。車線変更や右左折の直前が特に危ない。",
+    action: "わだちの中では速度を落とし、出るときはゆっくり大きめにハンドルを切る",
+  },
+  {
+    id: "snow_whiteout", bg: "snow", title: "地吹雪のホワイトアウト",
+    desc: "突然、地吹雪で視界が真っ白に。最も注意すべきなのはどれ？",
+    deco: [{ x: 40, y: 12, emoji: "🌬" }, { x: 70, y: 20, emoji: "❄️" }],
+    spots: [
+      { x: 50, y: 45, emoji: "🚗", label: "見えない先行車" },
+      { x: 15, y: 60, emoji: "🧱", label: "路肩の雪壁" },
+      { x: 80, y: 65, emoji: "📱", label: "ナビの画面" },
+    ],
+    correctIndex: 0,
+    explain: "ホワイトアウトの多重事故は「見えないのに走り続ける」ことで起きる。先行車は突然目の前に現れる。",
+    action: "ハザードを点け速度を大きく落とす。ひどければ安全な場所に停めて待つ",
+  },
+  {
+    id: "snow_cross_walker", bg: "snow", title: "雪の歩道のない道",
+    desc: "除雪で歩道が埋まった道。最も注意すべきなのはどれ？",
+    deco: [{ x: 12, y: 10, emoji: "🏠" }, { x: 76, y: 12, emoji: "🏠" }],
+    spots: [
+      { x: 25, y: 55, emoji: "🚶", label: "車道を歩く人" },
+      { x: 65, y: 38, emoji: "🧱", label: "雪山" },
+      { x: 85, y: 60, emoji: "🚙", label: "後続車" },
+    ],
+    correctIndex: 0,
+    explain: "冬は歩道が雪で埋まり、歩行者が車道を歩くのが当たり前になる。すべって転ぶこともある。",
+    action: "歩行者の横は大きく間隔をとり、追い抜きは徐行で",
+  },
+  {
+    id: "snow_melt", bg: "snow", title: "日中とけて夜また凍る",
+    desc: "夕方、日中とけた雪が再び凍り始める時間。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🌆" }],
+    spots: [
+      { x: 45, y: 65, emoji: "🧊", label: "黒く光る路面（ブラックアイスバーン）" },
+      { x: 20, y: 40, emoji: "🚗", label: "対向車のライト" },
+      { x: 78, y: 45, emoji: "🏪", label: "コンビニの灯り" },
+    ],
+    correctIndex: 0,
+    explain: "濡れて見えるだけの路面が実は氷、が夕方の再凍結。ブレーキが全く効かないことも。",
+    action: "「濡れている＝凍っているかも」と考えて早めに減速する",
+  },
+  {
+    id: "snow_corner_kid", bg: "snow", title: "雪山かげの通学路",
+    desc: "朝の通学時間、交差点の雪山の横を通過します。最も注意すべきなのはどれ？",
+    deco: [{ x: 8, y: 12, emoji: "🏫" }, { x: 70, y: 8, emoji: "🚩" }],
+    spots: [
+      { x: 30, y: 55, emoji: "🧱", label: "雪山のかげ" },
+      { x: 65, y: 62, emoji: "🚌", label: "スクールバス" },
+      { x: 85, y: 40, emoji: "☀️", label: "朝日のまぶしさ" },
+    ],
+    correctIndex: 0,
+    explain: "背の低い子どもは雪山に完全に隠れる。雪山のかげから飛び出す通学児は冬の通学路で最も危ない。",
+    action: "雪山の交差点は「見えない子どもがいる」前提で徐行する",
+  },
+  {
+    id: "snow_spin_hill", bg: "snow", title: "凍った上り坂",
+    desc: "前の車が上り坂の途中で止まりそう。最も注意すべきなのはどれ？",
+    deco: [{ x: 20, y: 10, emoji: "⛰" }],
+    spots: [
+      { x: 50, y: 40, emoji: "🚗", label: "登れず止まる前の車" },
+      { x: 20, y: 60, emoji: "🧊", label: "路面の凍結" },
+      { x: 80, y: 55, emoji: "🌲", label: "路肩の木" },
+    ],
+    correctIndex: 0,
+    explain: "凍った坂で前の車が止まると、自分も止まる→再発進できない→ずり下がる連鎖に。",
+    action: "坂の手前で十分な車間をとり、前の車が登り切ってから進入する",
+  },
+  {
+    id: "snow_tunnel_exit", bg: "snow", title: "トンネルの出口",
+    desc: "冬のトンネルを抜けます。最も注意すべきなのはどれ？",
+    deco: [{ x: 40, y: 15, emoji: "🕳" }],
+    spots: [
+      { x: 55, y: 55, emoji: "🌬", label: "出口の横風と凍結" },
+      { x: 25, y: 40, emoji: "💡", label: "トンネル内の照明" },
+      { x: 80, y: 60, emoji: "🚛", label: "後続のトラック" },
+    ],
+    correctIndex: 0,
+    explain: "トンネル内は乾いていても、出口の先だけ凍結＋横風はよくある。出た瞬間に車が流される。",
+    action: "出口の手前で減速し、ハンドルをしっかり保持する",
+  },
+  {
+    id: "snow_parking_lot", bg: "snow", title: "凍った駐車場",
+    desc: "ツルツルの駐車場を歩く人がいます。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🏬" }],
+    spots: [
+      { x: 40, y: 55, emoji: "🧓", label: "すべって転びそうな歩行者" },
+      { x: 70, y: 40, emoji: "🚙", label: "出庫する車" },
+      { x: 20, y: 65, emoji: "🛒", label: "置き去りのカート" },
+    ],
+    correctIndex: 0,
+    explain: "凍った駐車場では歩行者が突然転ぶ。車のすぐ前で転ばれると避けられない。",
+    action: "人のそばは止まれる速さで進み、転んでも当たらない間隔をとる",
+  },
+  {
+    id: "snow_wild", bg: "snow", title: "冬の郊外道路",
+    desc: "夕暮れの雪の郊外を走行中。最も注意すべきなのはどれ？",
+    deco: [{ x: 12, y: 10, emoji: "🌲" }, { x: 80, y: 12, emoji: "🌲" }],
+    spots: [
+      { x: 60, y: 50, emoji: "🦌", label: "道路脇のエゾシカ" },
+      { x: 25, y: 60, emoji: "🧊", label: "路面の凍結" },
+      { x: 45, y: 30, emoji: "🌙", label: "暗くなる空" },
+    ],
+    correctIndex: 0,
+    explain: "冬のシカは餌を求めて道路に出やすく、凍結路では急ブレーキも効かない。1頭いたら群れがいる。",
+    action: "シカを見たら仲間が続く前提で減速。凍結路なら特に早めに",
+  },
+  {
+    id: "snow_windshield", bg: "snow", title: "出発前の雪下ろし",
+    desc: "急いでいて、フロントガラスの雪を少しだけ払って出発しようとしています。最も危ないのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🏠" }],
+    spots: [
+      { x: 50, y: 40, emoji: "🧊", label: "視界をふさぐ雪と屋根の雪" },
+      { x: 20, y: 60, emoji: "⏰", label: "遅刻しそうな時間" },
+      { x: 80, y: 55, emoji: "🚗", label: "隣の車" },
+    ],
+    correctIndex: 0,
+    explain: "少しの雪でも走れば視界を塞ぎ、屋根の雪はブレーキで前に落ちてくる。「ちょっとだけ」が一番危ない。",
+    action: "急いでいても雪は全部下ろしてから出発する",
+  },
+  // ================= 追加場面: 夜・雨 =================
+  {
+    id: "night_crosswalk", bg: "night", title: "夜の信号のない横断歩道",
+    desc: "街灯の少ない道の横断歩道に近づきます。最も注意すべきなのはどれ？",
+    deco: [{ x: 20, y: 10, emoji: "🌙" }],
+    spots: [
+      { x: 45, y: 55, emoji: "🚶", label: "渡ろうと待つ人" },
+      { x: 75, y: 40, emoji: "🚗", label: "対向車" },
+      { x: 15, y: 45, emoji: "🏠", label: "沿道の家" },
+    ],
+    correctIndex: 0,
+    explain: "夜の横断歩道は「いないだろう」で通過しがち。暗い服の歩行者は直前まで見えない。",
+    action: "横断歩道の手前では毎回「いるかも」と減速して確かめる",
+  },
+  {
+    id: "night_truck_park", bg: "night", title: "夜の路肩の駐車車両",
+    desc: "夜道の先に何かが見えます。最も注意すべきなのはどれ？",
+    deco: [{ x: 30, y: 12, emoji: "🌙" }],
+    spots: [
+      { x: 55, y: 50, emoji: "🚛", label: "無灯火の駐車トラック" },
+      { x: 20, y: 40, emoji: "💡", label: "遠くの街灯" },
+      { x: 80, y: 60, emoji: "🐈", label: "路肩の猫" },
+    ],
+    correctIndex: 0,
+    explain: "夜の無灯火駐車車両への追突は死亡事故の定番。気づいたときには目の前ということも。",
+    action: "夜はライトの届く範囲で止まれる速度まで落とす",
+  },
+  {
+    id: "rain_brake", bg: "rain", title: "雨の下り坂カーブ",
+    desc: "雨の下り坂、先にカーブが見えます。最も注意すべきなのはどれ？",
+    deco: [{ x: 20, y: 10, emoji: "🌧" }],
+    spots: [
+      { x: 50, y: 55, emoji: "🌀", label: "濡れたカーブ" },
+      { x: 20, y: 40, emoji: "🚗", label: "対向車" },
+      { x: 80, y: 35, emoji: "🌲", label: "路肩の草木" },
+    ],
+    correctIndex: 0,
+    explain: "雨のカーブ中のブレーキはスリップのもと。下り坂はさらに止まりにくい。",
+    action: "カーブの手前の直線で減速を終わらせておく",
+  },
+  {
+    id: "rain_visor", bg: "rain", title: "雨のバス停の水たまり",
+    desc: "バス停の横に大きな水たまり。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🌧" }, { x: 70, y: 12, emoji: "🚏" }],
+    spots: [
+      { x: 60, y: 60, emoji: "🚶", label: "バスを待つ人と水たまり" },
+      { x: 25, y: 45, emoji: "🚌", label: "接近するバス" },
+      { x: 85, y: 40, emoji: "☂️", label: "傘の列" },
+    ],
+    correctIndex: 0,
+    explain: "水はねは迷惑なだけでなく違反（泥はね運転）。よけようと急ハンドルを切るのも危ない。",
+    action: "手前で減速し、はねない速度で静かに通過する",
+  },
+  // ================= 追加場面: 市街地・その他 =================
+  {
+    id: "kei_truck", bg: "day", title: "農道の軽トラック",
+    desc: "前をゆっくり走る軽トラック。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🌾" }],
+    spots: [
+      { x: 50, y: 45, emoji: "🛻", label: "合図なしで曲がるかもしれない軽トラ" },
+      { x: 20, y: 60, emoji: "🌾", label: "畑" },
+      { x: 80, y: 55, emoji: "🚜", label: "遠くのトラクター" },
+    ],
+    correctIndex: 0,
+    explain: "農道の軽トラは自分の畑の前で合図なく急に止まる・曲がることがある。",
+    action: "車間を広くとり、追い越しは動きを見極めてから",
+  },
+  {
+    id: "open_door_taxi", bg: "day", title: "客待ちのタクシー",
+    desc: "路肩に客待ちのタクシーが並んでいます。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🏢" }],
+    spots: [
+      { x: 45, y: 55, emoji: "🚕", label: "急に開くドアと発進" },
+      { x: 20, y: 40, emoji: "🚶", label: "歩道の通行人" },
+      { x: 80, y: 45, emoji: "🏪", label: "沿道の店" },
+    ],
+    correctIndex: 0,
+    explain: "タクシーは客を見つけると急に発進・急停車する。降車ドアも突然開く。",
+    action: "タクシーの列の横は間隔をあけ、動き出す前提で通過する",
+  },
+  {
+    id: "garbage_truck", bg: "day", title: "作業中のごみ収集車",
+    desc: "前方でごみ収集車が作業しています。最も注意すべきなのはどれ？",
+    deco: [{ x: 12, y: 10, emoji: "🏠" }, { x: 75, y: 10, emoji: "🏠" }],
+    spots: [
+      { x: 50, y: 50, emoji: "🚮", label: "車の周りで作業する人" },
+      { x: 20, y: 40, emoji: "🚗", label: "対向車" },
+      { x: 82, y: 60, emoji: "🐕", label: "散歩中の犬" },
+    ],
+    correctIndex: 0,
+    explain: "作業員は運搬に集中していて車を見ていない。車体の陰から急に出てくる。",
+    action: "作業車の横は徐行し、人が出てくる前提で大きく避ける",
+  },
+  {
+    id: "school_gate", bg: "day", title: "校門前の送迎ラッシュ",
+    desc: "登校時間の校門前、送迎の車が並んでいます。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 8, emoji: "🏫" }, { x: 70, y: 10, emoji: "🚩" }],
+    spots: [
+      { x: 40, y: 58, emoji: "🚗", label: "送迎車の間から出る子ども" },
+      { x: 70, y: 42, emoji: "👮", label: "旗振りの保護者" },
+      { x: 15, y: 45, emoji: "🚌", label: "スクールバス" },
+    ],
+    correctIndex: 0,
+    explain: "停車中の送迎車の列は死角だらけ。降りた子どもが車の間から車道へ出てくる。",
+    action: "校門前は最徐行し、車列の切れ目ごとに警戒する",
+  },
+  {
+    id: "shopping_street", bg: "day", title: "アーケードの商店街",
+    desc: "人通りの多い商店街の道。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 8, emoji: "🏪" }, { x: 70, y: 8, emoji: "🏬" }],
+    spots: [
+      { x: 45, y: 55, emoji: "👜", label: "店から出てくる買い物客" },
+      { x: 20, y: 45, emoji: "🚲", label: "店先の自転車" },
+      { x: 80, y: 40, emoji: "📦", label: "荷さばきの台車" },
+    ],
+    correctIndex: 0,
+    explain: "買い物客は店を出た勢いのまま車道へ。荷物で視界がふさがっていることも多い。",
+    action: "商店街は歩行者最優先。人が出てくる前提で徐行する",
+  },
+  {
+    id: "u_turn_car", bg: "day", title: "前の車の急なUターン",
+    desc: "前の車がスピードを落としてふらついています。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🏢" }],
+    spots: [
+      { x: 50, y: 45, emoji: "🚗", label: "合図なしでUターンしそうな前の車" },
+      { x: 20, y: 60, emoji: "🅿️", label: "反対側の駐車場" },
+      { x: 80, y: 55, emoji: "🚙", label: "後続車" },
+    ],
+    correctIndex: 0,
+    explain: "道を探している車は突然Uターンや右折をする。「ふらつき＋減速」はその前ぶれ。",
+    action: "様子のおかしい車には近づかず、車間を広くとる",
+  },
+  {
+    id: "green_arrow", bg: "crossing", title: "右折矢印の消えぎわ",
+    desc: "右折の矢印信号が消えそうです。最も注意すべきなのはどれ？",
+    deco: [{ x: 40, y: 8, emoji: "🚦" }],
+    spots: [
+      { x: 55, y: 50, emoji: "🚗", label: "無理に続いて右折する後続" },
+      { x: 25, y: 45, emoji: "🚶", label: "横断歩道の歩行者" },
+      { x: 75, y: 60, emoji: "🏍", label: "対向のバイク" },
+    ],
+    correctIndex: 2,
+    explain: "矢印の消えぎわは対向の直進車・バイクが動き出すタイミングと重なる。焦った右折が最も危ない。",
+    action: "消えそうなら次の矢印を待つ。「1回待つ」が最強の安全策",
+  },
+  {
+    id: "ambulance", bg: "crossing", title: "緊急車両のサイレン",
+    desc: "後方から救急車のサイレンが聞こえます。最も注意すべきなのはどれ？",
+    deco: [{ x: 40, y: 10, emoji: "🚦" }],
+    spots: [
+      { x: 60, y: 50, emoji: "🚑", label: "接近する救急車" },
+      { x: 25, y: 55, emoji: "🚗", label: "急に停まる周囲の車" },
+      { x: 80, y: 40, emoji: "🚶", label: "立ち止まる歩行者" },
+    ],
+    correctIndex: 1,
+    explain: "救急車そのものより、慌てて急停車・急ハンドルする周囲の車との接触が多い。",
+    action: "ウインカーを出して左に寄り、周囲と合わせて静かに譲る",
+  },
+  {
+    id: "bridge_wind", bg: "day", title: "海沿いの橋の上",
+    desc: "釧路の海沿いの橋を渡ります。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 12, emoji: "🌊" }, { x: 70, y: 10, emoji: "🌉" }],
+    spots: [
+      { x: 50, y: 40, emoji: "🌬", label: "橋の上の強い横風" },
+      { x: 20, y: 60, emoji: "🚲", label: "並走する自転車" },
+      { x: 80, y: 55, emoji: "🐦", label: "カモメ" },
+    ],
+    correctIndex: 0,
+    explain: "橋の上は風をさえぎる物がなく、突風でハンドルを取られる。軽い車や二輪は特に流される。",
+    action: "橋の手前で減速し、ハンドルを両手でしっかり握る",
+  },
+  {
+    id: "fog_road", bg: "day", title: "釧路名物の海霧",
+    desc: "夏の朝、海霧（じり）で視界が悪くなってきました。最も注意すべきなのはどれ？",
+    deco: [{ x: 30, y: 10, emoji: "🌫" }, { x: 70, y: 15, emoji: "🌫" }],
+    spots: [
+      { x: 50, y: 50, emoji: "🚗", label: "霧の中の先行車" },
+      { x: 20, y: 60, emoji: "🚶", label: "路肩の歩行者" },
+      { x: 80, y: 40, emoji: "🌫", label: "濃くなる霧" },
+    ],
+    correctIndex: 0,
+    explain: "釧路の海霧は一瞬で視界を奪う。先行車のブレーキに気づくのが遅れて追突しやすい。",
+    action: "ライトを点け車間を倍にとる。フォグランプがあれば活用",
+  },
+  {
+    id: "long_drive", bg: "day", title: "長距離運転の午後",
+    desc: "2時間走り続けて少し眠くなってきました。最も危ないのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🛣" }],
+    spots: [
+      { x: 50, y: 45, emoji: "😪", label: "自分の眠気" },
+      { x: 20, y: 55, emoji: "🚛", label: "前のトラック" },
+      { x: 80, y: 40, emoji: "☀️", label: "午後の日差し" },
+    ],
+    correctIndex: 0,
+    explain: "居眠り運転は「まだ大丈夫」と思っているうちに一瞬落ちる。景色が単調な北海道の長距離は特に危ない。",
+    action: "眠気を感じたら我慢せず、次の休憩所で必ず止まる",
+  },
+  {
+    id: "senior_driver", bg: "parking", title: "高齢マークの車の後ろ",
+    desc: "駐車場で高齢運転者マークの車が出庫しようとしています。最も注意すべきなのはどれ？",
+    deco: [{ x: 15, y: 10, emoji: "🅿️" }],
+    spots: [
+      { x: 50, y: 45, emoji: "🚗", label: "急発進・急な方向転換の可能性" },
+      { x: 20, y: 60, emoji: "🛒", label: "カート置き場" },
+      { x: 80, y: 55, emoji: "🚶", label: "通路の歩行者" },
+    ],
+    correctIndex: 0,
+    explain: "ペダルの踏み間違いによる急発進は駐車場で最も多い。予想外の方向に動くことがある。",
+    action: "出庫中の車の後ろ・横で待たない。動きが終わるまで距離をとる",
   },
 ];

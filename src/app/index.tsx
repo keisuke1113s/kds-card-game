@@ -894,7 +894,11 @@ export default function HomeScreen() {
           <InstallPrompt />
         </ScreenEnter>
 
-        <Text style={styles.footer}>Powered by KDS釧路自動車学校</Text>
+        <View style={styles.footerBox}>
+          <Text style={styles.footerMain}>KDS釧路自動車学校</Text>
+          <Text style={styles.footer}>© 2026 KUSHIRO DRIVING SCHOOL. All Rights Reserved.</Text>
+          <Text style={styles.footer}>Designed & Developed by KDS</Text>
+        </View>
         </Animated.ScrollView>
 
         {/* ランダムマッチの相手待ちをやめて戻ってきたときの全画面のお知らせ */}
@@ -1664,4 +1668,6 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
   },
+  footerBox: { alignItems: "center", gap: 2, paddingBottom: 8 },
+  footerMain: { fontSize: 12, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
 });
