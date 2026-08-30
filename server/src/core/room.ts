@@ -33,7 +33,7 @@ export type JankenHand = "rock" | "scissors" | "paper";
 
 /** サーバー→クライアントのメッセージ */
 export type ServerMessage =
-  | { type: "joined"; seat: PlayerId; sessionToken: string }
+  | { type: "joined"; seat: PlayerId; sessionToken: string; code?: string }
   | { type: "opponentJoined"; name: string; title?: string; device?: string }
   | { type: "jankenStart" }
   | { type: "jankenResult"; hands: [JankenHand, JankenHand]; winner: PlayerId | null }
@@ -240,7 +240,12 @@ export class RoomCore {
       send,
     };
     this.seats[seatIndex] = seat;
-    seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken: seat.sessionToken });
+    seat.send({
+      type: "joined",
+      seat: seatIndex as PlayerId,
+      sessionToken: seat.sessionToken,
+      code: this.id,
+    });
     const other = this.seats[1 - seatIndex];
     if (other) {
       other.send({ type: "opponentJoined", name, title, device });
@@ -269,7 +274,7 @@ export class RoomCore {
       this.clearTimer(timer);
       this.graceTimers[seatIndex] = null;
     }
-    seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken });
+    seat.send({ type: "joined", seat: seatIndex as PlayerId, sessionToken, code: this.id });
     // じゃんけんの途中で復帰したら、手の選択画面を出し直す
     if (this.jankenActive && this.jankenHands[seatIndex] === null) {
       seat.send({ type: "jankenStart" });
