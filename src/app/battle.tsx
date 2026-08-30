@@ -7279,9 +7279,10 @@ const styles = StyleSheet.create({
     paddingVertical: 5,
     paddingHorizontal: 12,
     alignItems: "center",
-    backgroundColor: "#d0202008",
+    // 結果の箱が半透明になったため、判子の紙は不透明にして透けを防ぐ
+    backgroundColor: "#fff6f3",
   },
-  hankoRetry: { borderColor: "#b04030", backgroundColor: "#b0403008" },
+  hankoRetry: { borderColor: "#b04030", backgroundColor: "#fdf4f1" },
   hankoText: { color: "#d02020", fontSize: 26, fontWeight: "900", letterSpacing: 6 },
   hankoTextRetry: { color: "#b04030", letterSpacing: 2 },
   hankoSub: { color: "#d02020aa", fontSize: 8, fontWeight: "700", marginTop: 1 },
