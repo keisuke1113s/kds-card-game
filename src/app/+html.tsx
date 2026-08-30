@@ -126,10 +126,11 @@ html, body { overflow-x: hidden; }
 }
 /* 3D回転（rotateY）だと真横を向いた瞬間や描画の相性でカードが
  * 見えなくなる端末があるため、常に見えている2D回転にしている */
-/* ---- タブレット・PCなど広い画面: アプリを適正幅で中央に表示する ----
- * スマホ向けレイアウトが横に間延びしないよう、ゲームアプリ定番の
- * 「中央カラム」方式。演出のはみ出しは overflow で抑える */
-@media (min-width: 700px) {
+/* ---- PCの大画面: アプリを適正幅で中央に表示する ----
+ * スマホ向けレイアウトが極端に間延びしないよう、ゲームアプリ定番の
+ * 「中央カラム」方式。iPadなどのタブレット（〜1024px）は画面いっぱいに
+ * 表示したいという要望のため、発動はパソコンの広い画面だけにする */
+@media (min-width: 1100px) {
   body { background: #cfd9ea; }
   #root {
     max-width: 560px;
@@ -139,7 +140,7 @@ html, body { overflow-x: hidden; }
     box-shadow: 0 0 44px rgba(20, 40, 80, 0.28);
   }
 }
-@media (min-width: 700px) and (prefers-color-scheme: dark) {
+@media (min-width: 1100px) and (prefers-color-scheme: dark) {
   body { background: #0b1220; }
 }
 /* ループ演出用（アプリ側から data-kdsanim 属性で使う。
