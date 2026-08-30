@@ -32,6 +32,7 @@ import { tipOfToday } from "@/data/tips";
 import { todayMissions, useMissionStore } from "@/store/missionStore";
 import { RANKS, lastMilestone, nextMilestone, rankIndexFor, totalDistanceKm, winsToNextRank } from "@/data/rank";
 import { useRankStore } from "@/store/rankStore";
+import { readPersisted, writePersisted } from "@/store/persistDirect";
 import { QUIZ_QUESTIONS } from "@/data/quizQuestions";
 import { useQuizStore } from "@/store/quizStore";
 import { useLineStore } from "@/store/lineStore";
@@ -309,20 +310,37 @@ export default function HomeScreen() {
   const lineLinked = useLineStore((s) => s.linked);
   const lineLock = LINE_GATE_ENABLED && !lineLinked;
 
-  // 入校式（初回起動ガイド）。すでに遊んでいる人には出さない
+  // 入校式（初回起動ガイド）。すでに遊んでいる人には出さない。
+  // 保存値（既読フラグ・勝敗数）は端末から直接読んで確認する
+  // （読み込みが遅い端末で毎回表示されるのを防ぐ二重化）
   const entranceDone = useRankStore((s) => s.entranceDone);
   const setEntranceDone = useRankStore((s) => s.setEntranceDone);
   const [entranceOpen, setEntranceOpen] = useState(false);
+  const [storedOnce, setStoredOnce] = useState<{ seen: number; entrance: boolean } | null>(null);
   useEffect(() => {
-    if (entranceDone) return;
+    let alive = true;
+    void Promise.all([
+      readPersisted("kds-rank", "seenRankIndex", 0),
+      readPersisted("kds-rank", "entranceDone", false),
+    ]).then(([seen, entrance]) => {
+      if (alive) setStoredOnce({ seen: Number(seen) || 0, entrance: Boolean(entrance) });
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!storedOnce) return;
+    if (storedOnce.entrance || entranceDone) return;
     if (record.wins + record.losses > 0) {
       setEntranceDone();
+      void writePersisted("kds-rank", "entranceDone", true);
       return;
     }
     const t = setTimeout(() => setEntranceOpen(true), 900);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [storedOnce, entranceDone, record.wins, record.losses]);
 
   // 進級システム（通算勝利数で段階が上がる）
   const rankIdx = rankIndexFor(record.wins);
@@ -342,7 +360,9 @@ export default function HomeScreen() {
     return () => unsub?.();
   }, []);
   useEffect(() => {
-    if (rankHydrated && rankIdx > seenRankIndex) {
+    if (!rankHydrated || !storedOnce) return;
+    // zustandの読み込み結果と、端末の保存の直接読みの両方で「見せた段階」を確認
+    if (rankIdx > Math.max(seenRankIndex, storedOnce.seen)) {
       const t = setTimeout(() => {
         playSe("achievement");
         haptic("success");
@@ -351,7 +371,15 @@ export default function HomeScreen() {
       return () => clearTimeout(t);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rankHydrated, rankIdx, seenRankIndex]);
+  }, [rankHydrated, rankIdx, seenRankIndex, storedOnce]);
+
+  /** 進級お祝いを閉じる（既読は保存へ直接も書き込んで確実に残す） */
+  const closeRankUp = () => {
+    setSeenRankIndex(rankIdx);
+    setStoredOnce((cur) => (cur ? { ...cur, seen: rankIdx } : { seen: rankIdx, entrance: false }));
+    void writePersisted("kds-rank", "seenRankIndex", rankIdx);
+    setRankUpShow(false);
+  };
 
   // 総走行距離（対戦数から換算）とご当地マイルストーン
   const km = totalDistanceKm(record.wins + record.losses);
@@ -780,10 +808,7 @@ export default function HomeScreen() {
         {rankUpShow && rankIdx >= RANKS.length - 1 && (
           <Pressable
             style={styles.rankUpLayer}
-            onPress={() => {
-              setSeenRankIndex(rankIdx);
-              setRankUpShow(false);
-            }}
+            onPress={closeRankUp}
           >
             {/* 紙吹雪（CSSアニメで降らせる） */}
             {Array.from({ length: 14 }, (_, i) => (
@@ -831,10 +856,7 @@ export default function HomeScreen() {
         {rankUpShow && rankIdx < RANKS.length - 1 && (
           <Pressable
             style={styles.rankUpLayer}
-            onPress={() => {
-              setSeenRankIndex(rankIdx);
-              setRankUpShow(false);
-            }}
+            onPress={closeRankUp}
           >
             <Animated.View entering={ZoomIn.springify().damping(12)} style={styles.rankUpCard}>
               <Text style={styles.rankUpSmall}>KDS釧路自動車学校</Text>
@@ -868,6 +890,7 @@ export default function HomeScreen() {
                 fullWidth
                 onPress={() => {
                   setEntranceDone();
+                  void writePersisted("kds-rank", "entranceDone", true);
                   setEntranceOpen(false);
                   router.push("/shindan");
                 }}
@@ -878,6 +901,7 @@ export default function HomeScreen() {
                 fullWidth
                 onPress={() => {
                   setEntranceDone();
+                  void writePersisted("kds-rank", "entranceDone", true);
                   setEntranceOpen(false);
                   router.push("/tutorial");
                 }}
@@ -885,6 +909,7 @@ export default function HomeScreen() {
               <Pressable
                 onPress={() => {
                   setEntranceDone();
+                  void writePersisted("kds-rank", "entranceDone", true);
                   setEntranceOpen(false);
                 }}
                 hitSlop={8}

@@ -1,3 +1,4 @@
+import { readPersisted, writePersisted } from "@/store/persistDirect";
 import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View, TextInput } from "react-native";
@@ -58,20 +59,35 @@ export default function LibraryScreen() {
   const [query, setQuery] = useState("");
   const unlockState = useUnlockStore();
   const unlocked = unlockedSet(unlockState);
-  // 図鑑コンプリートの祝祭（正式仕様＝通常配布モードで全カード開放した最初の1回だけ）
+  // 図鑑コンプリートの祝祭（正式仕様＝通常配布モードで全カード開放した最初の1回だけ）。
+  // 既読フラグは端末の保存からも直接確認する（読み込み遅延で毎回出るのを防ぐ）
   const [completeFx, setCompleteFx] = useState(false);
+  const [storedCelebrated, setStoredCelebrated] = useState<boolean | null>(null);
   useEffect(() => {
+    let alive = true;
+    void readPersisted("kds-unlocks", "celebratedComplete", false).then((v) => {
+      if (alive) setStoredCelebrated(Boolean(v));
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (storedCelebrated === null) return;
     if (
       !unlockState.allOpenMode &&
       unlocked.size >= allCards.length &&
-      !unlockState.celebratedComplete
+      !unlockState.celebratedComplete &&
+      !storedCelebrated
     ) {
       setCompleteFx(true);
+      setStoredCelebrated(true);
       playSe("win");
       unlockState.setCelebratedComplete();
+      void writePersisted("kds-unlocks", "celebratedComplete", true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked.size]);
+  }, [unlocked.size, storedCelebrated]);
 
   // 3日以内にQRで開放したカードにはNEWバッジ＋輝きを出す
   const isNew = (id: string) => {
