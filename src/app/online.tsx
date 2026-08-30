@@ -7,7 +7,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { DIFFICULTY_LABELS } from "@/ai/difficulty";
-import { stopBgm } from "@/audio/sound";
+import { stopBgm, warmVoices } from "@/audio/sound";
 import { Difficulty } from "@/ai/types";
 import { HAPTICS_AVAILABLE, haptic } from "@/audio/haptics";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -145,6 +145,8 @@ export default function OnlineScreen() {
     void getDeviceId().then((d) => {
       if (alive) setMyDevice(d);
     });
+    // 対戦前にボイスを裏読みしておく
+    warmVoices();
     return () => {
       alive = false;
     };

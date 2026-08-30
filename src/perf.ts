@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { create } from "zustand";
+import { voicesWarming } from "@/audio/sound";
 
 /**
  * 演出の自動軽量化。
@@ -56,8 +57,8 @@ export function startFrameWatch(): () => void {
     if (last > 0) {
       const dt = t - last;
       // 50ms超 = 20fps未満のフレーム。1秒超はタブ非表示や休止なので数えない。
-      // 開始直後2秒は読み込みで乱れるため対象外
-      if (dt > 50 && dt < 1000 && t - startedAt > 2000) {
+      // 開始直後2秒と、実況ボイスの先読み中は読み込みで乱れるため対象外
+      if (dt > 50 && dt < 1000 && t - startedAt > 2000 && !voicesWarming()) {
         longCount++;
         longFrames.push(t);
         longFrames = longFrames.filter((x) => t - x < 5000);
