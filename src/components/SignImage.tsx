@@ -1,10 +1,12 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { StyleSheet, View } from "react-native";
+import { Image } from "expo-image";
 
 /**
- * 学科クイズ用の道路標識（コード描画）。
- * 画像生成だと形が不正確になりがちなので、単純な図形の組み合わせで
- * 教習で扱う代表的な標識を正確に描く。
+ * 学科クイズ用の道路標識。
+ * 標識のデザインは法令（道路標識、区画線及び道路標示に関する命令）で
+ * 定められた公的なもので著作権の対象にならないため、正式デザインの画像
+ * （Wikimedia Commons のパブリックドメイン素材）をそのまま表示する。
  */
 
 export type SignId =
@@ -19,165 +21,32 @@ export type SignId =
   | "hokousha_senyou" // 歩行者専用
   | "jitensha_hokousha"; // 自転車及び歩行者専用
 
-const RED = "#c81e2b";
-const BLUE = "#1a5fb4";
+const SIGN_IMAGES: Record<SignId, number> = {
+  tomare: require("../../assets/images/signs/tomare.webp"),
+  jokou: require("../../assets/images/signs/jokou.webp"),
+  shinnyu_kinshi: require("../../assets/images/signs/shinnyu_kinshi.webp"),
+  chusha_kinshi: require("../../assets/images/signs/chusha_kinshi.webp"),
+  chuteisha_kinshi: require("../../assets/images/signs/chuteisha_kinshi.webp"),
+  saikou_50: require("../../assets/images/signs/saikou_50.webp"),
+  ippou_tsukou: require("../../assets/images/signs/ippou_tsukou.webp"),
+  sharyou_tsukoudome: require("../../assets/images/signs/sharyou_tsukoudome.webp"),
+  hokousha_senyou: require("../../assets/images/signs/hokousha_senyou.webp"),
+  jitensha_hokousha: require("../../assets/images/signs/jitensha_hokousha.webp"),
+};
 
-/** 逆三角形（止まれ・徐行） */
-function TriangleSign({ label }: { label: string }) {
-  return (
-    <View style={s.triWrap}>
-      <View style={s.triangle} />
-      <Text style={s.triText} allowFontScaling={false}>
-        {label}
-      </Text>
-    </View>
-  );
-}
-
-/** 赤い縁の円形標識 */
-function CircleSign({
-  bg,
-  border,
-  slash,
-  cross,
-  children,
-}: {
-  bg: string;
-  border: string;
-  slash?: boolean;
-  cross?: boolean;
-  children?: React.ReactNode;
-}) {
-  return (
-    <View style={[s.circle, { backgroundColor: bg, borderColor: border }]}>
-      {children}
-      {slash && <View style={s.slash} />}
-      {cross && (
-        <>
-          <View style={s.slash} />
-          <View style={[s.slash, { transform: [{ rotate: "45deg" }] }]} />
-        </>
-      )}
-    </View>
-  );
-}
+const SIZE = 96;
 
 export function SignImage({ id }: { id: SignId | string }) {
-  switch (id) {
-    case "tomare":
-      return <TriangleSign label="止まれ" />;
-    case "jokou":
-      return <TriangleSign label="徐行" />;
-    case "shinnyu_kinshi":
-      return (
-        <CircleSign bg={RED} border={RED}>
-          <View style={s.whiteBar} />
-        </CircleSign>
-      );
-    case "chusha_kinshi":
-      return <CircleSign bg={BLUE} border={RED} slash />;
-    case "chuteisha_kinshi":
-      return <CircleSign bg={BLUE} border={RED} cross />;
-    case "saikou_50":
-      return (
-        <CircleSign bg="#fff" border={RED}>
-          <Text style={s.speedText} allowFontScaling={false}>
-            50
-          </Text>
-        </CircleSign>
-      );
-    case "ippou_tsukou":
-      return (
-        <View style={s.rect}>
-          <Text style={s.arrowText} allowFontScaling={false}>
-            ➜
-          </Text>
-          <Text style={s.rectLabel} allowFontScaling={false}>
-            一方通行
-          </Text>
-        </View>
-      );
-    case "sharyou_tsukoudome":
-      return (
-        <CircleSign bg="#fff" border={RED}>
-          <Text style={s.carIcon} allowFontScaling={false}>
-            🚗
-          </Text>
-          <View style={s.slash} />
-        </CircleSign>
-      );
-    case "hokousha_senyou":
-      return (
-        <CircleSign bg={BLUE} border={BLUE}>
-          <Text style={s.personIcon} allowFontScaling={false}>
-            🚶
-          </Text>
-        </CircleSign>
-      );
-    case "jitensha_hokousha":
-      return (
-        <CircleSign bg={BLUE} border={BLUE}>
-          <Text style={s.personIconSmall} allowFontScaling={false}>
-            🚲🚶
-          </Text>
-        </CircleSign>
-      );
-    default:
-      return null;
-  }
+  const src = SIGN_IMAGES[id as SignId];
+  if (!src) return null;
+  return (
+    <View style={s.wrap}>
+      <Image source={src} style={s.image} contentFit="contain" />
+    </View>
+  );
 }
 
-const SIZE = 84;
-
 const s = StyleSheet.create({
-  triWrap: { width: SIZE, height: SIZE, alignItems: "center", justifyContent: "flex-start" },
-  triangle: {
-    width: 0,
-    height: 0,
-    borderLeftWidth: SIZE / 2,
-    borderRightWidth: SIZE / 2,
-    borderTopWidth: SIZE - 8,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderTopColor: RED,
-  },
-  triText: {
-    position: "absolute",
-    top: 14,
-    color: "#fff",
-    fontSize: 17,
-    fontWeight: "900",
-    letterSpacing: 1,
-  },
-  circle: {
-    width: SIZE,
-    height: SIZE,
-    borderRadius: SIZE / 2,
-    borderWidth: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-  },
-  whiteBar: { width: SIZE * 0.62, height: 13, backgroundColor: "#fff", borderRadius: 2 },
-  slash: {
-    position: "absolute",
-    width: SIZE * 0.95,
-    height: 8,
-    backgroundColor: RED,
-    transform: [{ rotate: "-45deg" }],
-  },
-  speedText: { color: RED, fontSize: 30, fontWeight: "900" },
-  carIcon: { fontSize: 30 },
-  personIcon: { fontSize: 32 },
-  personIconSmall: { fontSize: 20 },
-  rect: {
-    width: SIZE + 20,
-    height: SIZE * 0.56,
-    backgroundColor: BLUE,
-    borderRadius: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  arrowText: { color: "#fff", fontSize: 26, fontWeight: "900", lineHeight: 28 },
-  rectLabel: { color: "#fff", fontSize: 9, fontWeight: "700" },
+  wrap: { alignItems: "center", justifyContent: "center" },
+  image: { width: SIZE, height: SIZE },
 });
