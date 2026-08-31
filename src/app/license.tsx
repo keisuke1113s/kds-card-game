@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { haptic } from "@/audio/haptics";
 import { AppButton } from "@/components/AppButton";
 import { CardFace } from "@/components/CardFace";
@@ -54,6 +54,45 @@ export default function LicenseScreen() {
   const [draft, setDraft] = useState(rankStore.playerName);
 
   const name = rankStore.playerName || "教習生";
+
+  /** 自分の写真をアップロード（Webのみ）。中央を3:4に切り抜き縮小して保存する */
+  const pickOwnPhoto = () => {
+    if (Platform.OS !== "web") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.onchange = () => {
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        const el = new window.Image();
+        el.onload = () => {
+          const bw = 360;
+          const bh = 480;
+          const canvas = document.createElement("canvas");
+          canvas.width = bw;
+          canvas.height = bh;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          const sc = Math.max(bw / el.width, bh / el.height);
+          ctx.drawImage(
+            el,
+            (bw - el.width * sc) / 2,
+            (bh - el.height * sc) / 2,
+            el.width * sc,
+            el.height * sc
+          );
+          rankStore.setPlayerPhoto(canvas.toDataURL("image/jpeg", 0.85));
+          setPhotoPicker(false);
+          haptic("light");
+        };
+        el.src = String(reader.result);
+      };
+      reader.readAsDataURL(file);
+    };
+    input.click();
+  };
 
   return (
     <ScreenEnter style={styles.root}>
@@ -160,7 +199,11 @@ export default function LicenseScreen() {
             </View>
             {/* 顔写真の枠。タップでお気に入りカードに変更できる */}
             <Pressable style={styles.photoBox} onPress={() => setPhotoPicker(true)}>
-              <CardFace cardId={photoCard} size="md" />
+              {rankStore.playerPhoto ? (
+                <Image source={{ uri: rankStore.playerPhoto }} style={styles.photoImg} />
+              ) : (
+                <CardFace cardId={photoCard} size="md" />
+              )}
               <Text style={styles.photoLabel}>写真（タップで変更）</Text>
             </Pressable>
           </View>
@@ -192,6 +235,7 @@ export default function LicenseScreen() {
               losses: record.losses,
               km,
               gold,
+              photo: rankStore.playerPhoto || undefined,
             })
           }
         />
@@ -234,7 +278,25 @@ export default function LicenseScreen() {
         {photoPicker && (
           <Pressable style={styles.pickerLayer} onPress={() => setPhotoPicker(false)}>
             <Pressable style={styles.pickerBox} onPress={() => {}}>
-              <Text style={styles.pickerTitle}>📷 写真にするカードをえらぶ</Text>
+              <Text style={styles.pickerTitle}>📷 写真をえらぶ</Text>
+              {Platform.OS === "web" && (
+                <Pressable style={styles.uploadButton} onPress={pickOwnPhoto}>
+                  <Text style={styles.uploadButtonText}>📸 自分の写真をアップロード</Text>
+                </Pressable>
+              )}
+              {!!rankStore.playerPhoto && (
+                <Pressable
+                  style={styles.uploadReset}
+                  onPress={() => {
+                    haptic("light");
+                    rankStore.setPlayerPhoto("");
+                    setPhotoPicker(false);
+                  }}
+                >
+                  <Text style={styles.uploadResetText}>写真を消してカードにもどす</Text>
+                </Pressable>
+              )}
+              <Text style={styles.pickerSub}>またはカードをえらぶ</Text>
               <ScrollView style={styles.pickerScroll}>
                 <View style={styles.photoGrid}>
                   {owned.map((id) => (
@@ -243,6 +305,7 @@ export default function LicenseScreen() {
                       onPress={() => {
                         haptic("light");
                         rankStore.setFavoriteCard(id);
+                        rankStore.setPlayerPhoto("");
                         setPhotoPicker(false);
                       }}
                     >
@@ -354,6 +417,24 @@ const styles = StyleSheet.create({
   pickerRowActive: { backgroundColor: colors.surfaceAlt, borderRadius: 8 },
   pickerRowText: { fontSize: 15, fontWeight: "700", color: colors.text },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, justifyContent: "center" },
+  photoImg: {
+    width: 96,
+    height: 128,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: "#9db48a",
+    backgroundColor: "#fff",
+  },
+  uploadButton: {
+    backgroundColor: "#1a5fb4",
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  uploadButtonText: { color: "#fff", fontWeight: "900", fontSize: 14 },
+  uploadReset: { alignItems: "center", paddingVertical: 6 },
+  uploadResetText: { color: "#c62828", fontWeight: "800", fontSize: 12 },
+  pickerSub: { fontSize: 12, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
 });
 
 /** LINE連携が必要な機能のロック画面 */

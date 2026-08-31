@@ -396,7 +396,7 @@ function DevLineReset() {
     <View style={{ gap: 8 }}>
       <Text style={styles.sectionTitle}>LINE連携（テスト用）</Text>
       <Text style={styles.note}>
-        いまは連携ずみです。連携前のロック状態を確認したいときは解除できます。
+        いまは連携済みです。連携前のロック状態を確認したいときは解除できます。
         再連携用の連携コード: <Text style={{ fontWeight: "900" }} selectable>{LINE_LINK_CODES[0]}</Text>
       </Text>
       <Pressable

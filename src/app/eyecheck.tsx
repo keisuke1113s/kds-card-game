@@ -170,7 +170,7 @@ export default function EyeCheckScreen() {
             <View style={styles.menuBox}>
               <Text style={styles.menuTitle}>⚡ 反応速度テスト</Text>
               <Text style={styles.menuNote}>
-                信号が青に変わったら素早くタップ×5回。フライングは無効！
+                信号が緑に変わったら素早くタップ×5回。フライングは無効！
                 {vision.bestReaction !== null &&
                   `　自己ベスト: 平均${vision.bestReaction.toFixed(2)}秒`}
               </Text>
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
   resultTotal: { fontSize: 16, color: colors.textMuted },
 });
 
-/** ⚡ 反応速度テスト: 信号が青になったらタップ×5回 */
+/** ⚡ 反応速度テスト: 信号が緑になったらタップ×5回 */
 function ReactionTest({ onClose }: { onClose: () => void }) {
   const addReaction = useVisionStore((s) => s.addReaction);
   const [stage, setStage] = useState<"idle" | "wait" | "go" | "false" | "done">("idle");
@@ -464,7 +464,7 @@ function ReactionTest({ onClose }: { onClose: () => void }) {
       ) : (
         <>
           <Text style={styles.note}>
-            赤の間は待って、青になった瞬間にタップ！（{times.length}/5回）
+            赤の間は待って、緑になった瞬間にタップ！（{times.length}/5回）
           </Text>
           <Pressable
             style={[
