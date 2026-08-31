@@ -160,6 +160,8 @@ export default function KytScreen() {
   const [rushTime, setRushTime] = useState(60);
   const [scenes, setScenes] = useState<KytScene[]>([]);
   const [index, setIndex] = useState(0);
+  /** マーカーを一時的に隠してイラスト全体を確認する */
+  const [hideSpots, setHideSpots] = useState(false);
   const [correctCount, setCorrectCount] = useState(0);
   const [picked, setPicked] = useState<number | null>(null);
   const [runMastered, setRunMastered] = useState<string[]>([]);
@@ -312,7 +314,7 @@ export default function KytScreen() {
                 style={StyleSheet.absoluteFill}
                 contentFit="cover"
               />
-              {scene.spots.map((sp, i) => (
+              {!hideSpots && scene.spots.map((sp, i) => (
                 <Pressable
                   key={`s${i}`}
                   style={[styles.spot, { left: `${sp.x}%`, top: `${sp.y}%` }]}
@@ -330,6 +332,17 @@ export default function KytScreen() {
                   )}
                 </Pressable>
               ))}
+              <Pressable
+                style={styles.eyeChip}
+                onPress={() => {
+                  haptic("light");
+                  setHideSpots((v) => !v);
+                }}
+              >
+                <Text style={styles.eyeChipText} allowFontScaling={false}>
+                  {hideSpots ? "📍 マーカーを表示" : "👁 イラストを見る"}
+                </Text>
+              </Pressable>
             </View>
 
             {picked === null ? (
@@ -516,15 +529,25 @@ const styles = StyleSheet.create({
   rainMark: { position: "absolute", top: "20%", left: "18%", fontSize: 18, opacity: 0.7 },
   spot: { position: "absolute", alignItems: "center" },
   spotBadge: {
-    backgroundColor: "#ffffffd9",
+    backgroundColor: "#ffffff99",
     borderRadius: 999,
     borderWidth: 2,
-    borderColor: "#e8590c",
-    paddingHorizontal: 6,
-    paddingVertical: 3,
+    borderColor: "#e8590cdd",
+    paddingHorizontal: 4,
+    paddingVertical: 2,
   },
-  spotEmoji: { fontSize: 34 },
+  spotEmoji: { fontSize: 24 },
   spotMark: { position: "absolute", top: -18, fontSize: 22 },
+  eyeChip: {
+    position: "absolute",
+    right: 8,
+    bottom: 8,
+    backgroundColor: "#000000a0",
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  eyeChipText: { color: "#fff", fontSize: 12, fontWeight: "800" },
   labelList: { gap: 8 },
   labelButton: {
     borderWidth: 1.5,

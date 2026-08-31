@@ -1662,12 +1662,11 @@ const styles = StyleSheet.create({
   matchupSide: { fontSize: 12, fontWeight: "600", color: colors.textMuted, flexShrink: 1 },
   matchupVs: { fontSize: 11, fontWeight: "900", color: colors.accent },
   footer: {
-    marginTop: spacing.lg,
     textAlign: "center",
     color: colors.textMuted,
     fontSize: 10,
     fontWeight: "700",
   },
-  footerBox: { alignItems: "center", gap: 2, paddingBottom: 8 },
+  footerBox: { alignItems: "center", gap: 2, marginTop: spacing.lg, paddingBottom: 8 },
   footerMain: { fontSize: 12, fontWeight: "800", color: colors.textMuted, textAlign: "center" },
 });
