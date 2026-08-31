@@ -951,7 +951,9 @@ const styles = StyleSheet.create({
   bigButtonText: { color: "#fff", fontSize: 17, fontWeight: "900" },
   bigButtonSub: { color: "#ffffffcc", fontSize: 12, fontWeight: "700" },
   joinRow: { flexDirection: "row", gap: spacing.sm, alignItems: "center" },
-  joinInput: { flex: 1, letterSpacing: 4, fontWeight: "800" },
+  // minWidth:0 が無いとWebでTextInputの固有幅が優先され「入る」が画面外へはみ出す
+  joinInput: { flex: 1, minWidth: 0, letterSpacing: 4, fontWeight: "800" },
+
   joinButton: {
     backgroundColor: colors.accent,
     borderRadius: radius.md,
