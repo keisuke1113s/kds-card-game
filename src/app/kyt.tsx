@@ -1,4 +1,5 @@
 import { useRouter } from "expo-router";
+import { Image } from "expo-image";
 import React, { useEffect, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import Animated, {
@@ -51,6 +52,16 @@ const BG_COLORS: Record<KytBg, { sky: string; side: string; road: string }> = {
   snow: { sky: "#dfe8f2", side: "#eef3f9", road: "#c6d2dd" },
   rain: { sky: "#9fb0c0", side: "#7f9f78", road: "#535e6b" },
   parking: { sky: "#d7dde5", side: "#d7dde5", road: "#8b95a1" },
+};
+
+/** 運転席視点のリアル背景（fal.ai生成・アプリに焼き込み） */
+const BG_IMAGES: Record<KytBg, number> = {
+  day: require("../../assets/images/kyt/kyt_day.webp"),
+  crossing: require("../../assets/images/kyt/kyt_crossing.webp"),
+  night: require("../../assets/images/kyt/kyt_night.webp"),
+  snow: require("../../assets/images/kyt/kyt_snow.webp"),
+  rain: require("../../assets/images/kyt/kyt_rain.webp"),
+  parking: require("../../assets/images/kyt/kyt_parking.webp"),
 };
 
 export default function KytScreen() {
@@ -210,42 +221,24 @@ export default function KytScreen() {
             <Text style={styles.sceneTitle}>{scene.title}</Text>
             <Text style={styles.note}>{scene.desc}</Text>
 
-            {/* 場面イラスト（道路の上に危険ポイントを配置） */}
+            {/* 場面イラスト（運転席視点のリアル背景の上に危険ポイントを配置） */}
             <View style={[styles.scene, { backgroundColor: BG_COLORS[scene.bg].sky }]}>
-              <View style={[styles.sky, { backgroundColor: BG_COLORS[scene.bg].sky }]} />
-              <View style={[styles.roadside, { backgroundColor: BG_COLORS[scene.bg].side }]} />
-              <View style={[styles.road, { backgroundColor: BG_COLORS[scene.bg].road }]}>
-                <View style={styles.centerLine} />
-              </View>
-              {/* 交差点: 縦の道を足す / 駐車場: 白枠線を敷く */}
-              {scene.bg === "crossing" && (
-                <View style={[styles.crossRoad, { backgroundColor: BG_COLORS[scene.bg].road }]} />
-              )}
-              {scene.bg === "parking" &&
-                [15, 35, 55, 75].map((x) => (
-                  <View key={x} style={[styles.parkLine, { left: `${x}%` }]} />
-                ))}
-              {scene.bg === "rain" && (
-                <Text style={styles.rainMark} allowFontScaling={false}>💧　💧　💧</Text>
-              )}
-              {scene.deco.map((d, i) => (
-                <Text
-                  key={`d${i}`}
-                  style={[styles.deco, { left: `${d.x}%`, top: `${d.y}%`, fontSize: d.size ?? 26 }]}
-                  allowFontScaling={false}
-                >
-                  {d.emoji}
-                </Text>
-              ))}
+              <Image
+                source={BG_IMAGES[scene.bg]}
+                style={StyleSheet.absoluteFill}
+                contentFit="cover"
+              />
               {scene.spots.map((sp, i) => (
                 <Pressable
                   key={`s${i}`}
                   style={[styles.spot, { left: `${sp.x}%`, top: `${sp.y}%` }]}
                   onPress={() => choose(i)}
                 >
-                  <Text style={styles.spotEmoji} allowFontScaling={false}>
-                    {sp.emoji}
-                  </Text>
+                  <View style={styles.spotBadge}>
+                    <Text style={styles.spotEmoji} allowFontScaling={false}>
+                      {sp.emoji}
+                    </Text>
+                  </View>
                   {picked !== null && i === scene.correctIndex && (
                     <Animated.Text entering={ZoomIn.springify().damping(10)} style={styles.spotMark}>
                       ⚠️
@@ -438,6 +431,14 @@ const styles = StyleSheet.create({
   },
   rainMark: { position: "absolute", top: "20%", left: "18%", fontSize: 18, opacity: 0.7 },
   spot: { position: "absolute", alignItems: "center" },
+  spotBadge: {
+    backgroundColor: "#ffffffd9",
+    borderRadius: 999,
+    borderWidth: 2,
+    borderColor: "#e8590c",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+  },
   spotEmoji: { fontSize: 34 },
   spotMark: { position: "absolute", top: -18, fontSize: 22 },
   labelList: { gap: 8 },
