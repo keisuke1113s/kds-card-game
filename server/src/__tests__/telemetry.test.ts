@@ -66,3 +66,55 @@ describe("Telemetry（利用状況の匿名集計）", () => {
     expect(s2.matches.total).toBe(2);
   });
 });
+
+describe("Telemetry.rangeStats（期間・時間帯の絞り込み）", () => {
+  interface Range {
+    opens: number;
+    matches: number;
+    cpuWins: number;
+    onlineMatches: number;
+    devices: number;
+    hourly: number[];
+    daily: { date: string; matches: number }[];
+    recordedSince: string | null;
+  }
+
+  it("日本時間の日付と時間帯で絞り込める", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kds-range-"));
+    let nowIso = "2026-09-01T01:00:00Z"; // JST 10時
+    const t = new Telemetry(dir, () => new Date(nowIso));
+
+    t.track({ type: "appOpen", deviceId: "d1", env: "prod" });
+    t.track({ type: "match", deviceId: "d1", env: "prod", mode: "cpu", result: "win", turns: 8 });
+    nowIso = "2026-09-01T13:00:00Z"; // JST 22時
+    t.track({ type: "match", deviceId: "d2", env: "prod", mode: "online" });
+    nowIso = "2026-09-02T01:00:00Z"; // 翌日 JST 10時
+    t.track({ type: "match", deviceId: "d1", env: "prod", mode: "cpu", result: "lose" });
+
+    // 9/1のみ・終日
+    const day1 = t.rangeStats("2026-09-01", "2026-09-01", 0, 23) as Range;
+    expect(day1.matches).toBe(2);
+    expect(day1.opens).toBe(1);
+    expect(day1.cpuWins).toBe(1);
+    expect(day1.onlineMatches).toBe(1);
+    expect(day1.devices).toBe(2);
+    expect(day1.hourly[10]).toBe(1);
+    expect(day1.hourly[22]).toBe(1);
+
+    // 9/1の朝〜昼だけ（10時の対戦だけが入る）
+    const morning = t.rangeStats("2026-09-01", "2026-09-01", 6, 12) as Range;
+    expect(morning.matches).toBe(1);
+    expect(morning.onlineMatches).toBe(0);
+
+    // 日またぎの時間帯（22時〜2時）
+    const night = t.rangeStats("2026-09-01", "2026-09-02", 22, 2) as Range;
+    expect(night.matches).toBe(1);
+    expect(night.onlineMatches).toBe(1);
+
+    // 2日間・終日
+    const both = t.rangeStats("2026-09-01", "2026-09-02", 0, 23) as Range;
+    expect(both.matches).toBe(3);
+    expect(both.daily.length).toBe(2);
+    expect(both.recordedSince).toBe("2026-09-01T01:00");
+  });
+});

@@ -82,11 +82,44 @@ interface Aggregates {
   /** 週間ランキング（キーは日本時間の週の月曜日 YYYY-MM-DD） */
   weekly?: Record<
     string,
-    Record<string, { name: string; wins: number; losses: number; bestStreak: number }>
+    Record<string, { name: string; wins: number; losses: number; bestStreak: number   /**
+   * 絞り込み集計用の生イベントログ（直近分のみ・上限あり）。
+   * at=UTCのISO分, ty=種別, d=端末ID, pf=端末種別, md=モード, rs=勝敗,
+   * tn=ターン数, du=秒数, dk=デッキ名
+   */
+  events?: {
+    at: string;
+    ty: string;
+    d: string;
+    pf?: string;
+    md?: string;
+    rs?: string;
+    tn?: number;
+    du?: number;
+    dk?: string;
+  }[];
+}>
   >;
+  /**
+   * 絞り込み集計用の生イベントログ（直近分のみ・上限あり）。
+   * at=UTCのISO分, ty=種別, d=端末ID, pf=端末種別, md=モード, rs=勝敗,
+   * tn=ターン数, du=秒数, dk=デッキ名
+   */
+  events?: {
+    at: string;
+    ty: string;
+    d: string;
+    pf?: string;
+    md?: string;
+    rs?: string;
+    tn?: number;
+    du?: number;
+    dk?: string;
+  }[];
 }
 
 const MAX_DEVICES = 20000;
+const MAX_EVENTS = 30000;
 const MAX_DAYS = 90;
 const MAX_DAILY_DEVICES = 3000;
 
@@ -120,6 +153,7 @@ function emptyAggregates(): Aggregates {
     hourly: { cpu: new Array(24).fill(0), online: new Array(24).fill(0) },
     lineLinks: { total: 0, daily: {} },
     weekly: {},
+    events: [],
   };
 }
 
@@ -198,6 +232,29 @@ export class Telemetry {
       day.devices.push(deviceId);
     }
     const envT = (this.agg.envTotals[env] ??= { opens: 0, matches: 0 });
+    // 絞り込み集計用の生ログ（1分単位・上限超過分は古い順に落とす）
+    this.agg.events ??= [];
+    const ev: NonNullable<Aggregates["events"]>[number] = {
+      at: nowIso.slice(0, 16),
+      ty: e.type,
+      d: deviceId,
+    };
+    const pfShort = String(e.platform ?? "").slice(0, 16);
+    if (pfShort) ev.pf = pfShort;
+    if (e.type === "match") {
+      ev.md = e.mode === "online" ? "online" : "cpu";
+      if (e.result === "win" || e.result === "lose") ev.rs = e.result;
+      if (typeof e.turns === "number" && e.turns > 0 && e.turns < 200) ev.tn = e.turns;
+      if (typeof e.durationSec === "number" && e.durationSec > 0 && e.durationSec < 3600 * 3) {
+        ev.du = Math.round(e.durationSec);
+      }
+      const dkShort = String(e.deckName ?? "").slice(0, 24);
+      if (dkShort) ev.dk = dkShort;
+    }
+    this.agg.events.push(ev);
+    if (this.agg.events.length > MAX_EVENTS) {
+      this.agg.events.splice(0, this.agg.events.length - MAX_EVENTS);
+    }
     // 端末の種類別（web / ios / android）
     const platform = String(e.platform ?? "").slice(0, 16) || "不明";
     this.agg.platformTotals ??= {};
@@ -375,6 +432,117 @@ export class Telemetry {
       top: topOf(wk),
       prevWeek: prevWk,
       prevTop: topOf(prevWk).slice(0, 3),
+    };
+  }
+
+  /**
+   * 期間・時間帯（日本時間）で絞り込んだ集計。
+   * 生イベントログ（この機能の追加以降に記録した分）だけが対象。
+   */
+  rangeStats(from: string, to: string, hourFrom: number, hourTo: number): object {
+    const events = this.agg.events ?? [];
+    const hf = Math.max(0, Math.min(23, Math.floor(hourFrom)));
+    const ht = Math.max(0, Math.min(23, Math.floor(hourTo)));
+    const devices = new Set<string>();
+    const hourly = new Array<number>(24).fill(0);
+    const daily: Record<string, { opens: number; matches: number; devices: Set<string> }> = {};
+    const decks: Record<string, { matches: number; wins: number }> = {};
+    const platforms: Record<string, { opens: number; matches: number }> = {};
+    let opens = 0;
+    let matches = 0;
+    let cpuMatches = 0;
+    let onlineMatches = 0;
+    let cpuWins = 0;
+    let cpuLosses = 0;
+    let scans = 0;
+    let lineLinks = 0;
+    let turnsSum = 0;
+    let turnsCount = 0;
+    let durSum = 0;
+    let durCount = 0;
+    for (const ev of events) {
+      // UTCのISO分 → 日本時間の日付と時刻
+      const jst = new Date(Date.parse(ev.at + ":00Z") + 9 * 3600 * 1000);
+      const date = jst.toISOString().slice(0, 10);
+      if (date < from || date > to) continue;
+      const hour = jst.getUTCHours();
+      // 時間帯は 22〜2時 のような日またぎ指定にも対応する
+      const inHours = hf <= ht ? hour >= hf && hour <= ht : hour >= hf || hour <= ht;
+      if (!inHours) continue;
+      devices.add(ev.d);
+      const day = (daily[date] ??= { opens: 0, matches: 0, devices: new Set<string>() });
+      day.devices.add(ev.d);
+      const pf = ev.pf || "不明";
+      const pfT = (platforms[pf] ??= { opens: 0, matches: 0 });
+      if (ev.ty === "appOpen") {
+        opens++;
+        day.opens++;
+        pfT.opens++;
+      } else if (ev.ty === "scan") {
+        scans++;
+      } else if (ev.ty === "lineLink") {
+        lineLinks++;
+      } else if (ev.ty === "match") {
+        matches++;
+        day.matches++;
+        pfT.matches++;
+        hourly[hour]++;
+        if (ev.md === "online") onlineMatches++;
+        else {
+          cpuMatches++;
+          if (ev.rs === "win") cpuWins++;
+          else if (ev.rs === "lose") cpuLosses++;
+        }
+        if (typeof ev.tn === "number") {
+          turnsSum += ev.tn;
+          turnsCount++;
+        }
+        if (typeof ev.du === "number") {
+          durSum += ev.du;
+          durCount++;
+        }
+        if (ev.dk) {
+          const du = (decks[ev.dk] ??= { matches: 0, wins: 0 });
+          du.matches++;
+          if (ev.rs === "win") du.wins++;
+        }
+      }
+    }
+    return {
+      generatedAt: this.now().toISOString(),
+      from,
+      to,
+      hourFrom: hf,
+      hourTo: ht,
+      /** ログの記録が始まった日時（これより前は絞り込めない） */
+      recordedSince: events.length > 0 ? events[0].at : null,
+      eventCount: events.length,
+      opens,
+      matches,
+      cpuMatches,
+      onlineMatches,
+      cpuWins,
+      cpuLosses,
+      cpuWinRate: cpuWins + cpuLosses > 0 ? cpuWins / (cpuWins + cpuLosses) : null,
+      scans,
+      lineLinks,
+      devices: devices.size,
+      avgTurns: turnsCount > 0 ? turnsSum / turnsCount : null,
+      avgDurationSec: durCount > 0 ? durSum / durCount : null,
+      hourly,
+      daily: Object.keys(daily)
+        .sort()
+        .map((date) => ({
+          date,
+          opens: daily[date].opens,
+          matches: daily[date].matches,
+          devices: daily[date].devices.size,
+        })),
+      decks: Object.entries(decks)
+        .sort((x, y) => y[1].matches - x[1].matches)
+        .slice(0, 10)
+        .map(([name, v]) => ({ name, ...v })),
+      platforms,
     };
   }
 

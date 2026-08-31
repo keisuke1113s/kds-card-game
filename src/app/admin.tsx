@@ -514,6 +514,64 @@ function StatsPanel() {
   const [errors, setErrors] = useState<{ at: string; msg: string; url?: string }[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // 期間・時間帯の絞り込み（日本時間）
+  interface RangeStats {
+    from: string;
+    to: string;
+    hourFrom: number;
+    hourTo: number;
+    recordedSince: string | null;
+    opens: number;
+    matches: number;
+    cpuMatches: number;
+    onlineMatches: number;
+    cpuWinRate: number | null;
+    scans: number;
+    lineLinks: number;
+    devices: number;
+    avgTurns: number | null;
+    avgDurationSec: number | null;
+    hourly: number[];
+    daily: { date: string; opens: number; matches: number; devices: number }[];
+    decks: { name: string; matches: number; wins: number }[];
+  }
+  const jstToday = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  const jstDaysAgo = (n: number) =>
+    new Date(Date.now() + 9 * 3600 * 1000 - n * 86400000).toISOString().slice(0, 10);
+  const [rangeFrom, setRangeFrom] = useState(jstDaysAgo(6));
+  const [rangeTo, setRangeTo] = useState(jstToday());
+  const [hourFrom, setHourFrom] = useState("0");
+  const [hourTo, setHourTo] = useState("23");
+  const [range, setRange] = useState<RangeStats | null>(null);
+  const [rangeError, setRangeError] = useState<string | null>(null);
+  const loadRange = React.useCallback(
+    async (from: string, to: string, hf: string, ht: string) => {
+      setRangeError(null);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
+        setRangeError("日付は 2026-09-01 の形式で入力してください。");
+        return;
+      }
+      try {
+        const base = "https://kds-taisen.fly.dev";
+        const url = `${base}/statsRange?key=946946&from=${from}&to=${to}&hf=${parseInt(hf, 10) || 0}&ht=${
+          Number.isFinite(parseInt(ht, 10)) ? parseInt(ht, 10) : 23
+        }&t=${Date.now()}`;
+        const r = (await fetch(url, { cache: "no-store" }).then((x) => x.json())) as RangeStats;
+        setRange(r);
+      } catch {
+        setRangeError("絞り込み集計を取得できませんでした。");
+      }
+    },
+    []
+  );
+  const applyPreset = (fromDaysAgo: number, toDaysAgo = 0) => {
+    const f = jstDaysAgo(fromDaysAgo);
+    const t = jstDaysAgo(toDaysAgo);
+    setRangeFrom(f);
+    setRangeTo(t);
+    void loadRange(f, t, hourFrom, hourTo);
+  };
+
   const load = React.useCallback(async () => {
     setLoadError(null);
     try {
@@ -565,6 +623,129 @@ function StatsPanel() {
         )}
       </View>
       {loadError && <Text style={styles.issueError}>{loadError}</Text>}
+
+      <Text style={styles.sectionTitle}>📅 期間・時間で絞り込み</Text>
+      <View style={styles.rowButtons}>
+        <Pressable style={styles.filterPreset} onPress={() => applyPreset(0)}>
+          <Text style={styles.filterPresetText}>今日</Text>
+        </Pressable>
+        <Pressable style={styles.filterPreset} onPress={() => applyPreset(1, 1)}>
+          <Text style={styles.filterPresetText}>きのう</Text>
+        </Pressable>
+        <Pressable style={styles.filterPreset} onPress={() => applyPreset(6)}>
+          <Text style={styles.filterPresetText}>直近7日</Text>
+        </Pressable>
+        <Pressable style={styles.filterPreset} onPress={() => applyPreset(29)}>
+          <Text style={styles.filterPresetText}>直近30日</Text>
+        </Pressable>
+      </View>
+      <View style={styles.filterRow}>
+        <TextInput
+          style={styles.filterInput}
+          value={rangeFrom}
+          onChangeText={setRangeFrom}
+          placeholder="2026-09-01"
+        />
+        <Text style={styles.filterTilde}>〜</Text>
+        <TextInput
+          style={styles.filterInput}
+          value={rangeTo}
+          onChangeText={setRangeTo}
+          placeholder="2026-09-01"
+        />
+      </View>
+      <View style={styles.filterRow}>
+        <Text style={styles.filterLabel}>時間帯</Text>
+        <TextInput
+          style={styles.filterInputSmall}
+          value={hourFrom}
+          onChangeText={setHourFrom}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+        <Text style={styles.filterTilde}>時 〜</Text>
+        <TextInput
+          style={styles.filterInputSmall}
+          value={hourTo}
+          onChangeText={setHourTo}
+          keyboardType="number-pad"
+          maxLength={2}
+        />
+        <Text style={styles.filterTilde}>時</Text>
+        <Pressable
+          style={styles.smallButton}
+          onPress={() => void loadRange(rangeFrom, rangeTo, hourFrom, hourTo)}
+        >
+          <Text style={styles.smallButtonText}>🔍 絞り込む</Text>
+        </Pressable>
+      </View>
+      {rangeError && <Text style={styles.issueError}>{rangeError}</Text>}
+      {range && (
+        <>
+          <Text style={styles.note}>
+            {range.from}〜{range.to}・{range.hourFrom}時〜{range.hourTo}時（日本時間）の集計
+          </Text>
+          <View style={styles.statGrid}>
+            <StatCard label="利用端末" value={`${range.devices}`} />
+            <StatCard label="起動" value={`${range.opens}`} />
+            <StatCard label="対戦" value={`${range.matches}`} />
+            <StatCard label="CPU対戦" value={`${range.cpuMatches}`} />
+            <StatCard label="オンライン" value={`${range.onlineMatches}`} />
+            <StatCard label="CPU戦の勝率" value={pct(range.cpuWinRate)} />
+            <StatCard
+              label="平均ターン"
+              value={range.avgTurns === null ? "—" : range.avgTurns.toFixed(1)}
+            />
+            <StatCard label="平均対戦時間" value={dur(range.avgDurationSec)} />
+            <StatCard label="QR登録" value={`${range.scans}`} />
+          </View>
+          {range.matches > 0 && (
+            <>
+              <Text style={styles.statLine}>時間帯別の対戦数（0時→23時）</Text>
+              <View style={styles.hourChart}>
+                {range.hourly.map((v, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.hourBar,
+                      {
+                        height: 4 + (v / Math.max(1, ...range.hourly)) * 56,
+                        backgroundColor: v > 0 ? colors.success : "#d8dee6",
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            </>
+          )}
+          {range.daily.length > 1 && (
+            <>
+              <Text style={styles.statLine}>日別の内訳</Text>
+              {range.daily.map((d) => (
+                <Text key={d.date} style={styles.statLine}>
+                  ・{d.date.slice(5).replace("-", "/")}: 起動{d.opens} / 対戦{d.matches} / 端末{d.devices}
+                </Text>
+              ))}
+            </>
+          )}
+          {range.decks.length > 0 && (
+            <>
+              <Text style={styles.statLine}>デッキ別（この期間）</Text>
+              {range.decks.map((dk) => (
+                <Text key={dk.name} style={styles.statLine}>
+                  ・{dk.name}: {dk.matches}戦（勝率{" "}
+                  {dk.matches > 0 ? Math.round((dk.wins / dk.matches) * 100) : 0}%）
+                </Text>
+              ))}
+            </>
+          )}
+          <Text style={styles.note}>
+            ※ 絞り込みはこの機能の追加以降に記録したデータが対象です
+            {range.recordedSince ? `（記録開始: ${range.recordedSince.replace("T", " ")} UTC）` : ""}。
+          </Text>
+        </>
+      )}
+
       {!stats && !loadError && <Text style={styles.note}>読み込み中…</Text>}
       {stats && (
         <>
@@ -916,6 +1097,47 @@ const styles = StyleSheet.create({
   tabTextActive: { color: "#fff" },
   note: { fontSize: 12, color: colors.textMuted, lineHeight: 18 },
   rowButtons: { flexDirection: "row", gap: spacing.sm },
+  filterPreset: {
+    borderWidth: 1.5,
+    borderColor: colors.primary,
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  filterPresetText: { fontSize: 12, fontWeight: "800", color: colors.primary },
+  filterRow: { flexDirection: "row", alignItems: "center", gap: 6, flexWrap: "wrap" },
+  filterInput: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    minWidth: 0,
+    width: 120,
+    backgroundColor: "#fff",
+    fontWeight: "700",
+  },
+  filterInputSmall: {
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    width: 48,
+    textAlign: "center",
+    backgroundColor: "#fff",
+    fontWeight: "700",
+  },
+  filterTilde: { fontSize: 13, color: colors.text, fontWeight: "700" },
+  filterLabel: { fontSize: 13, color: colors.text, fontWeight: "800" },
+  hourChart: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 2,
+    height: 64,
+    marginTop: 4,
+  },
+  hourBar: { flex: 1, borderRadius: 2 },
   smallButton: {
     backgroundColor: colors.textMuted,
     borderRadius: radius.md,
