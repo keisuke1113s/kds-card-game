@@ -43,7 +43,7 @@ function getWebCtx(): AudioContext | null {
       return null;
     }
   }
-  if (webCtx.state === "suspended") {
+  if (webCtx.state !== "running") {
     try {
       void webCtx.resume();
     } catch {
@@ -142,6 +142,28 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
         .forEach((key, i) => {
           setTimeout(() => void loadWebBuffer(key), 120 * i);
         });
+      // 対戦で使うBGMはこのタップの中で一度無音再生しておく。
+      // iOS Safariは要素ごとに「ユーザー操作内での再生」を求めるため、
+      // タイマー起点で初めて作ったBGMが黙って拒否されることがある
+      for (const key of ["bgm_janken", "bgm_battle", "bgm_main"]) {
+        try {
+          if (bgmAssets[key] === undefined) continue;
+          if (!bgmPlayers[key]) {
+            bgmPlayers[key] = createAudioPlayer(bgmAssets[key]);
+            bgmPlayers[key].loop = true;
+          }
+          const pl = bgmPlayers[key];
+          pl.volume = 0;
+          safePlay(pl);
+          try {
+            pl.pause();
+          } catch {
+            // 再生前のpauseが失敗する環境でも問題ない
+          }
+        } catch {
+          // 慣らしに失敗しても通常再生時に改めて試す
+        }
+      }
     } else {
       // Web Audio が使えない環境の従来手順:
       // このタップの中で全ての効果音プレイヤーを作って無音で慣らしておくことで、
@@ -173,11 +195,30 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
   document.addEventListener("touchend", unlock, { once: true });
   document.addEventListener("keydown", unlock, { once: true });
 
+  // iOSはバックグラウンドや画面ロックでAudioContextを止め、そのままだと
+  // 以後の効果音・ボイスがすべて無音になる。復帰のたびに起こし直す
+  const resumeCtx = () => {
+    if (webCtx && webCtx.state !== "running") {
+      try {
+        void webCtx.resume();
+      } catch {
+        // 次のユーザー操作で再開される
+      }
+    }
+  };
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) resumeCtx();
+  });
+  window.addEventListener("pageshow", resumeCtx);
+  document.addEventListener("pointerdown", resumeCtx);
+
   // それでも拒否された場合（NotAllowedError）は、音を諦めるだけで
   // アプリを止めない。この文言のエラーだけを握りつぶす
   window.addEventListener("unhandledrejection", (ev) => {
     const msg = String(ev.reason?.message ?? ev.reason ?? "");
     if (msg.includes("not allowed by the user agent")) ev.preventDefault();
+    // BGM慣らし（無音play→即pause）で必ず出る中断通知も握りつぶす
+    if (msg.includes("interrupted by a call to pause")) ev.preventDefault();
   });
 }
 
@@ -408,6 +449,36 @@ export function warmVoices(): void {
       else load();
     }, 120 * i);
   });
+}
+
+/**
+ * 対戦開始で必ず使う音の先読み。
+ * ボイス全体の順次読み込み（warmVoices）は全部で十数秒かかるため、
+ * 開始直後に鳴るじゃんけん・開始ボイスだけは対戦準備の時点で即読み込む
+ */
+const BATTLE_START_VOICES = [
+  "voice_janken", "voice_aiko", "voice_janken_win", "voice_janken_lose",
+  "voice_start", "voice_revenge", "voice_greet_morning", "voice_greet_day",
+  "voice_greet_evening", "voice_greet_night", "voice_rainy", "voice_snowy",
+];
+
+export function warmBattleStart(): void {
+  if (Platform.OS === "web") {
+    for (const key of BATTLE_START_VOICES) {
+      if (seAssets[key] !== undefined) void loadWebBuffer(key);
+    }
+  }
+  // BGMプレイヤーも先に作って読み込みを始めておく（初回の鳴り遅れ対策）
+  for (const key of ["bgm_janken", "bgm_battle"]) {
+    try {
+      if (bgmAssets[key] !== undefined && !bgmPlayers[key]) {
+        bgmPlayers[key] = createAudioPlayer(bgmAssets[key]);
+        bgmPlayers[key].loop = true;
+      }
+    } catch {
+      // 読み込めなくても再生時に改めて試す
+    }
+  }
 }
 
 /**

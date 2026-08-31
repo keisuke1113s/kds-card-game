@@ -15,7 +15,7 @@ import Animated, {
   ZoomIn,
 } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
-import { playBgm, playSe, playVoice, warmVoices } from "@/audio/sound";
+import { playBgm, playSe, playVoice, warmBattleStart, warmVoices } from "@/audio/sound";
 import { CardFace } from "@/components/CardFace";
 import { preloadForMatch } from "@/data/preload";
 import { colors, radius, spacing } from "@/theme";
@@ -83,6 +83,7 @@ export function MatchPrep({
     const t = setTimeout(() => setPhase("choose"), SHUFFLE_MS);
     // 準備をしている間に、対戦で使うカードの絵をそろえておく
     void preloadForMatch(cardIds);
+    warmBattleStart();
     warmVoices();
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps

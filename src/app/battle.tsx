@@ -464,6 +464,8 @@ function announcementsFor(events: GameEvent[], view: PlayerView | null): Announc
  * 対局が消えた瞬間は本体ごと取り外されるため、
  * フック数の食い違いによる白画面クラッシュが起きない
  */
+let battleBgmOwnerSeq = 0;
+
 export default function BattleScreen() {
   const hasGame = useGameStore((s) => s.view !== null);
   if (!hasGame) return <NoGameScreen />;
@@ -1921,7 +1923,15 @@ function BattleInner() {
     }, 350);
     return () => clearTimeout(t);
   }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, resultShown, reachOn, doubleReachOn, jankenActive]);
-  useEffect(() => () => stopBgm(), []);
+  // 連戦（再戦・トーナメント続行）では新しい対戦画面がBGMを鳴らした後に
+  // 前の画面のアンマウントが走ることがあり、無条件のstopBgmだと消してしまう。
+  // 自分が最後にマウントされた対戦画面のときだけ止める
+  useEffect(() => {
+    const myOwner = ++battleBgmOwnerSeq;
+    return () => {
+      if (myOwner === battleBgmOwnerSeq) stopBgm();
+    };
+  }, []);
 
   // 大逆転判定: 相手がリーチ状態のまま自分が勝ったか
   const oppWasReach =
