@@ -86,6 +86,31 @@ export function startServer(port: number): http.Server {
       });
       return;
     }
+    if (req.url?.startsWith("/statsRange?") && req.method === "GET") {
+      // 管理画面の「分析」タブの期間・時間帯絞り込み
+      const u = new URL(req.url, "http://localhost");
+      if (u.searchParams.get("key") !== "946946") {
+        res.writeHead(403, { "access-control-allow-origin": "*" });
+        res.end();
+        return;
+      }
+      const today = new Date().toISOString().slice(0, 10);
+      const from = (u.searchParams.get("from") || today).slice(0, 10);
+      const to = (u.searchParams.get("to") || today).slice(0, 10);
+      const hf = Number(u.searchParams.get("hf") ?? 0);
+      const ht = Number(u.searchParams.get("ht") ?? 23);
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(
+        JSON.stringify(
+          telemetry.rangeStats(from, to, Number.isFinite(hf) ? hf : 0, Number.isFinite(ht) ? ht : 23)
+        )
+      );
+      return;
+    }
     if (req.url?.startsWith("/stats?key=946946") && req.method === "GET") {
       // 管理画面の「分析」タブが読む集計
       res.writeHead(200, {
