@@ -388,6 +388,12 @@ export default function QuizScreen() {
             <Pressable style={[styles.wideButton, { backgroundColor: "#78b424" }]} onPress={start}>
               <Text style={styles.wideButtonText}>スタート！</Text>
             </Pressable>
+            <Pressable
+              style={[styles.wideButton, { backgroundColor: "#1a5fb4" }]}
+              onPress={() => router.push("/signbook")}
+            >
+              <Text style={styles.wideButtonText}>🚸 標識図鑑で学ぶ</Text>
+            </Pressable>
             {/* 弱点ノート: 間違えた問題だけを復習 */}
             {Object.keys(quiz.wrong).length > 0 && (
               <View style={styles.kenteiBox}>
