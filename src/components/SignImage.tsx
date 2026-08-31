@@ -36,7 +36,46 @@ export type SignId =
   | "rakuseki" // 落石のおそれあり
   | "shasen_genshou" // 車線数減少
   | "doubutsu" // 動物が飛び出すおそれあり
-  | "kouji"; // 道路工事中
+  | "kouji" // 道路工事中
+  | "keikai_cross"
+  | "keikai_rotary"
+  | "keikai_tjunction"
+  | "keikai_yjunction"
+  | "keikai_curve_r"
+  | "keikai_kussetsu_r"
+  | "keikai_haikou_kyoku"
+  | "keikai_tsuzura"
+  | "keikai_rotsu_outotsu"
+  | "keikai_gouryuu"
+  | "keikai_fukuin"
+  | "keikai_nihoukou"
+  | "keikai_nobori_koubai"
+  | "keikai_kudari_koubai"
+  | "keikai_yokokaze"
+  | "keikai_sonota"
+  | "kisei_nirin_igai"
+  | "kisei_oogata_kamotsu"
+  | "kisei_oogata_jouyou"
+  | "kisei_nirin_gentsuki"
+  | "kisei_keisharyou"
+  | "kisei_jitensha_tome"
+  | "kisei_futari_nori"
+  | "kisei_shitei_hoko"
+  | "kisei_oudan_kinshi_sharyou"
+  | "kisei_jikan_seigen"
+  | "kisei_kikenbutsu"
+  | "kisei_juuryou"
+  | "kisei_takasa"
+  | "kisei_saidai_haba"
+  | "kisei_jidousha_senyou"
+  | "kisei_jitensha_senyou"
+  | "kisei_hokousha_tome"
+  | "shiji_heishin"
+  | "shiji_kidou"
+  | "shiji_teisha_ka"
+  | "shiji_chuousen"
+  | "shiji_jitensha_oudan"
+  | "shiji_anzen_chitai";
 
 const SIGN_IMAGES: Record<SignId, number> = {
   tomare: require("../../assets/images/signs/tomare.webp"),
@@ -66,6 +105,45 @@ const SIGN_IMAGES: Record<SignId, number> = {
   shasen_genshou: require("../../assets/images/signs/shasen_genshou.webp"),
   doubutsu: require("../../assets/images/signs/doubutsu.webp"),
   kouji: require("../../assets/images/signs/kouji.webp"),
+  keikai_cross: require("../../assets/images/signs/keikai_cross.webp"),
+  keikai_rotary: require("../../assets/images/signs/keikai_rotary.webp"),
+  keikai_tjunction: require("../../assets/images/signs/keikai_tjunction.webp"),
+  keikai_yjunction: require("../../assets/images/signs/keikai_yjunction.webp"),
+  keikai_curve_r: require("../../assets/images/signs/keikai_curve_r.webp"),
+  keikai_kussetsu_r: require("../../assets/images/signs/keikai_kussetsu_r.webp"),
+  keikai_haikou_kyoku: require("../../assets/images/signs/keikai_haikou_kyoku.webp"),
+  keikai_tsuzura: require("../../assets/images/signs/keikai_tsuzura.webp"),
+  keikai_rotsu_outotsu: require("../../assets/images/signs/keikai_rotsu_outotsu.webp"),
+  keikai_gouryuu: require("../../assets/images/signs/keikai_gouryuu.webp"),
+  keikai_fukuin: require("../../assets/images/signs/keikai_fukuin.webp"),
+  keikai_nihoukou: require("../../assets/images/signs/keikai_nihoukou.webp"),
+  keikai_nobori_koubai: require("../../assets/images/signs/keikai_nobori_koubai.webp"),
+  keikai_kudari_koubai: require("../../assets/images/signs/keikai_kudari_koubai.webp"),
+  keikai_yokokaze: require("../../assets/images/signs/keikai_yokokaze.webp"),
+  keikai_sonota: require("../../assets/images/signs/keikai_sonota.webp"),
+  kisei_nirin_igai: require("../../assets/images/signs/kisei_nirin_igai.webp"),
+  kisei_oogata_kamotsu: require("../../assets/images/signs/kisei_oogata_kamotsu.webp"),
+  kisei_oogata_jouyou: require("../../assets/images/signs/kisei_oogata_jouyou.webp"),
+  kisei_nirin_gentsuki: require("../../assets/images/signs/kisei_nirin_gentsuki.webp"),
+  kisei_keisharyou: require("../../assets/images/signs/kisei_keisharyou.webp"),
+  kisei_jitensha_tome: require("../../assets/images/signs/kisei_jitensha_tome.webp"),
+  kisei_futari_nori: require("../../assets/images/signs/kisei_futari_nori.webp"),
+  kisei_shitei_hoko: require("../../assets/images/signs/kisei_shitei_hoko.webp"),
+  kisei_oudan_kinshi_sharyou: require("../../assets/images/signs/kisei_oudan_kinshi_sharyou.webp"),
+  kisei_jikan_seigen: require("../../assets/images/signs/kisei_jikan_seigen.webp"),
+  kisei_kikenbutsu: require("../../assets/images/signs/kisei_kikenbutsu.webp"),
+  kisei_juuryou: require("../../assets/images/signs/kisei_juuryou.webp"),
+  kisei_takasa: require("../../assets/images/signs/kisei_takasa.webp"),
+  kisei_saidai_haba: require("../../assets/images/signs/kisei_saidai_haba.webp"),
+  kisei_jidousha_senyou: require("../../assets/images/signs/kisei_jidousha_senyou.webp"),
+  kisei_jitensha_senyou: require("../../assets/images/signs/kisei_jitensha_senyou.webp"),
+  kisei_hokousha_tome: require("../../assets/images/signs/kisei_hokousha_tome.webp"),
+  shiji_heishin: require("../../assets/images/signs/shiji_heishin.webp"),
+  shiji_kidou: require("../../assets/images/signs/shiji_kidou.webp"),
+  shiji_teisha_ka: require("../../assets/images/signs/shiji_teisha_ka.webp"),
+  shiji_chuousen: require("../../assets/images/signs/shiji_chuousen.webp"),
+  shiji_jitensha_oudan: require("../../assets/images/signs/shiji_jitensha_oudan.webp"),
+  shiji_anzen_chitai: require("../../assets/images/signs/shiji_anzen_chitai.webp"),
 };
 
 const SIZE = 96;
