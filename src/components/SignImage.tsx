@@ -23,7 +23,20 @@ export type SignId =
   | "tsukoudome" // 通行止め（歩行者も車も）
   | "keiteki" // 警笛鳴らせ
   | "wakaba" // 初心運転者標識（初心者マーク）
-  | "yusen"; // 優先道路
+  | "yusen" // 優先道路
+  | "tenkai_kinshi" // 転回禁止
+  | "oikoshi_kinshi" // 追越しのための右側部分はみ出し通行禁止
+  | "saitei_50" // 最低速度50
+  | "oudan_kinshi" // 歩行者横断禁止
+  | "oudan_hodou" // 横断歩道
+  | "fumikiri_ari" // 踏切あり
+  | "gakkou_ari" // 学校、幼稚園、保育所等あり
+  | "shingou_ari" // 信号機あり
+  | "suberiyasui" // すべりやすい
+  | "rakuseki" // 落石のおそれあり
+  | "shasen_genshou" // 車線数減少
+  | "doubutsu" // 動物が飛び出すおそれあり
+  | "kouji"; // 道路工事中
 
 const SIGN_IMAGES: Record<SignId, number> = {
   tomare: require("../../assets/images/signs/tomare.webp"),
@@ -40,6 +53,19 @@ const SIGN_IMAGES: Record<SignId, number> = {
   keiteki: require("../../assets/images/signs/keiteki.webp"),
   wakaba: require("../../assets/images/signs/wakaba.webp"),
   yusen: require("../../assets/images/signs/yusen.webp"),
+  tenkai_kinshi: require("../../assets/images/signs/tenkai_kinshi.webp"),
+  oikoshi_kinshi: require("../../assets/images/signs/oikoshi_kinshi.webp"),
+  saitei_50: require("../../assets/images/signs/saitei_50.webp"),
+  oudan_kinshi: require("../../assets/images/signs/oudan_kinshi.webp"),
+  oudan_hodou: require("../../assets/images/signs/oudan_hodou.webp"),
+  fumikiri_ari: require("../../assets/images/signs/fumikiri_ari.webp"),
+  gakkou_ari: require("../../assets/images/signs/gakkou_ari.webp"),
+  shingou_ari: require("../../assets/images/signs/shingou_ari.webp"),
+  suberiyasui: require("../../assets/images/signs/suberiyasui.webp"),
+  rakuseki: require("../../assets/images/signs/rakuseki.webp"),
+  shasen_genshou: require("../../assets/images/signs/shasen_genshou.webp"),
+  doubutsu: require("../../assets/images/signs/doubutsu.webp"),
+  kouji: require("../../assets/images/signs/kouji.webp"),
 };
 
 const SIZE = 96;
