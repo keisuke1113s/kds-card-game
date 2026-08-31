@@ -27,6 +27,9 @@ interface RankState {
   /** 免許証の顔写真に使うお気に入りカード（空なら使用デッキの担当） */
   favoriteCard: string;
   setFavoriteCard: (id: string) => void;
+  /** 自分の顔写真（WebでアップロードしたdataURL）。設定中は免許証と共有画像に使う */
+  playerPhoto: string;
+  setPlayerPhoto: (uri: string) => void;
   /** 免許証に表示する称号（獲得済みから1つ選ぶ） */
   selectedTitle: string;
   setSelectedTitle: (t: string) => void;
@@ -50,6 +53,8 @@ export const useRankStore = create<RankState>()(
       setEntranceDone: () => set({ entranceDone: true }),
       favoriteCard: "",
       setFavoriteCard: (favoriteCard) => set({ favoriteCard }),
+      playerPhoto: "",
+      setPlayerPhoto: (playerPhoto) => set({ playerPhoto }),
       selectedTitle: "",
       setSelectedTitle: (selectedTitle) => set({ selectedTitle }),
     }),

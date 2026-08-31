@@ -71,12 +71,12 @@ export default function LineScreen() {
                 ))}
               </>
             )}
-            <Text style={styles.title}>💚 連携ずみ</Text>
+            <Text style={styles.title}>💚 連携済み</Text>
             <Text style={styles.bigCheck}>✅</Text>
             <Text style={styles.note}>
               {justLinked
                 ? "KDSファミリーへようこそ！すべての機能が解放されました！"
-                : "LINE連携ずみです。すべての機能が使えます。"}
+                : "LINE連携済みです。すべての機能が使えます。"}
             </Text>
             <View style={styles.unlockList}>
               <Text style={styles.unlockItem}>🌐 オンライン対戦</Text>

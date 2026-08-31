@@ -134,6 +134,8 @@ export interface LicenseShareData {
   losses: number;
   km: number;
   gold: boolean;
+  /** 自分の写真（dataURL）。あれば右側の写真枠に描く */
+  photo?: string;
 }
 
 export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
@@ -226,6 +228,40 @@ export async function shareLicenseImage(d: LicenseShareData): Promise<boolean> {
     ctx.fillStyle = seg.c;
     ctx.fillText(seg.t, fx, H - 45);
     fx += ctx.measureText(seg.t).width;
+  }
+
+  // 自分の写真が登録されていれば右側の写真枠に描く（判子の上）
+  if (d.photo) {
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new window.Image();
+        el.onload = () => resolve(el);
+        el.onerror = reject;
+        el.src = d.photo!;
+      });
+      const bx = W - 300;
+      const by = 165;
+      const bw = 220;
+      const bh = 235;
+      ctx.save();
+      roundRect(ctx, bx, by, bw, bh, 14);
+      ctx.clip();
+      const sc = Math.max(bw / img.width, bh / img.height);
+      ctx.drawImage(
+        img,
+        bx + (bw - img.width * sc) / 2,
+        by + (bh - img.height * sc) / 2,
+        img.width * sc,
+        img.height * sc
+      );
+      ctx.restore();
+      ctx.strokeStyle = "#9db48a";
+      ctx.lineWidth = 5;
+      roundRect(ctx, bx, by, bw, bh, 14);
+      ctx.stroke();
+    } catch {
+      // 写真が読み込めなければ写真なしのまま出力する
+    }
   }
 
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
