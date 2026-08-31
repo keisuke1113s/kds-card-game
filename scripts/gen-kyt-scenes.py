@@ -5,10 +5,18 @@ from PIL import Image
 KEY = open(os.path.expanduser("~/.fal_key")).read().strip()
 OUT = "/Users/keisoma/kds-card-game/assets/images/kyt/scenes"
 
+# 2026-08-31 ユーザー承認テイスト: セルシェーディングの教本イラスト調。
+# 実写化を防ぐためスタイル語を先頭に置き、末尾でも念押しする。
+# 車内に人物が描かれる事故が起きたら SUF に
+# "empty driver seat view, no person inside the car" を足して再生成する。
+PRE = (
+    "hand-drawn anime illustration, flat cel shading, clean line art, "
+    "japanese driving school textbook illustration style, illustrated artwork, "
+    "driver's point of view through car windshield, "
+)
 STYLE = (
-    ", driver's point of view through car windshield, japanese road scene, "
-    "soft illustrated realism like driving school textbook illustration, "
-    "no text, no letters, no signage text, wide angle"
+    ", japanese road scene, no text, no letters, no signage text, wide angle, "
+    "2D illustration, not a photograph"
 )
 
 P = {
@@ -100,7 +108,7 @@ for i, (name, prompt) in enumerate(P.items()):
     if os.path.exists(out_path):
         continue
     try:
-        body = json.dumps({"prompt": prompt + STYLE, "image_size": "landscape_16_9", "num_images": 1}).encode()
+        body = json.dumps({"prompt": PRE + prompt + STYLE, "image_size": "landscape_16_9", "num_images": 1}).encode()
         req = urllib.request.Request(
             "https://fal.run/fal-ai/flux/schnell",
             data=body,
