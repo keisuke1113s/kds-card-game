@@ -58,6 +58,7 @@ import { currentWeather } from "@/data/weather";
 /** 時間帯（早朝・昼・夕方・夜）。時間演出とあいさつ実況に使う */
 type Daypart = "morning" | "day" | "evening" | "night";
 function daypartNow(): Daypart {
+
   const h = new Date().getHours();
   if (h >= 5 && h < 8) return "morning";
   if (h >= 16 && h < 19) return "evening";
@@ -2822,11 +2823,33 @@ function BattleInner() {
           pointerEvents="none"
         />
       )}
-      {/* 夕方: 世界三大夕日「釧路の夕日」が相手側の空に沈む */}
+      {/* 夕方: 世界三大夕日「釧路の夕日」が相手側の空に沈む。
+          グラデーションの太陽＋大気のハロー＋薄雲のすじで自然な見た目にする */}
       {daypart === "evening" && !DARK_MODE && view.phase.type !== "finished" && (
         <View style={styles.sunsetWrap} pointerEvents="none">
-          <View style={styles.sunsetGlow} />
-          <View style={styles.sunsetSun} />
+          <View style={styles.sunsetHaze} />
+          <View style={styles.sunsetGlowOuter} />
+          <View
+            {...({ dataSet: { kdsanim: "glowpulse" } } as object)}
+            style={[
+              styles.sunsetGlow,
+              Platform.OS === "web"
+                ? ({
+                    animationDuration: "5200ms",
+                    animationTimingFunction: "ease-in-out",
+                    animationIterationCount: "infinite",
+                  } as object)
+                : null,
+            ]}
+          />
+          <LinearGradient
+            colors={["#ffedbe", "#ffb066", "#ff7038"]}
+            style={styles.sunsetSun}
+          />
+          {/* 太陽にかかる薄い夕雲のすじ */}
+          <View style={[styles.sunsetCloud, { width: 96, height: 5, marginTop: 6 }]} />
+          <View style={[styles.sunsetCloud, { width: 64, height: 4, marginTop: 22, marginLeft: -18 }]} />
+          <View style={[styles.sunsetCloud, { width: 42, height: 3, marginTop: -14, marginLeft: 24, opacity: 0.5 }]} />
         </View>
       )}
       {/* 夜: 星がまたたく */}
@@ -7597,14 +7620,37 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  // 地平線ぎわの横に広いもや（太陽が低い位置にある雰囲気を出す）
+  sunsetHaze: {
+    position: "absolute",
+    width: 250,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: "#ff8c4216",
+    top: 26,
+  },
+  // 大気のハロー（外側ほど薄く2層）
+  sunsetGlowOuter: {
+    position: "absolute",
+    width: 185,
+    height: 185,
+    borderRadius: 93,
+    backgroundColor: "#ff9a4d12",
+  },
   sunsetGlow: {
     position: "absolute",
-    width: 130,
-    height: 130,
-    borderRadius: 65,
-    backgroundColor: "#ff8c422e",
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: "#ff8c4224",
   },
-  sunsetSun: { width: 70, height: 70, borderRadius: 35, backgroundColor: "#ff6b35", opacity: 0.5 },
+  sunsetSun: { width: 62, height: 62, borderRadius: 31, opacity: 0.8, overflow: "hidden" },
+  // 太陽にかかる薄い夕雲のすじ
+  sunsetCloud: {
+    position: "absolute",
+    borderRadius: 3,
+    backgroundColor: "#d84f2a38",
+  },
   nightStar: {
     position: "absolute",
     width: 4,
