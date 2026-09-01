@@ -89,9 +89,9 @@ export const SHINDAN_QUESTIONS: ShindanQuestion[] = [
     b: { label: "まず声をかける", axis: "T" },
   },
   {
-    q: "チーム戦とひとり旅、どっちが好き？",
+    q: "ひとり旅とグループ旅行、どっちが好き？",
     a: { label: "ひとり旅", axis: "S" },
-    b: { label: "チーム戦", axis: "T" },
+    b: { label: "グループ旅行", axis: "T" },
   },
   {
     q: "うれしいことがあったら？",
