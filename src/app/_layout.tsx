@@ -168,6 +168,9 @@ export default function RootLayout() {
           contentStyle: { backgroundColor: colors.background },
           headerLeft: () => <HomeButton />,
           headerBackVisible: false,
+          // ネイティブの「スワイプで前の画面へ戻る」を無効化
+          // （誤操作で対戦や入力の途中にホームへ戻るのを防ぐ。戻るのはホームボタンで）
+          gestureEnabled: false,
           // 画面の移動は右から流れ込む形で見せる
           animation: "slide_from_right",
           animationDuration: 280,
