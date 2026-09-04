@@ -10,7 +10,10 @@
     "ios": {
       "icon": "./assets/images/icon.png",
       "supportsTablet": true,
-      "bundleIdentifier": "com.kds946.cardgame"
+      "bundleIdentifier": "com.kds946.cardgame",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +23,14 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.kds946.cardgame"
+      "package": "com.kds946.cardgame",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "output": "static",
@@ -52,6 +62,13 @@
       "reactCompiler": true,
       "baseUrl": "/kds-card-game"
     },
-    "primaryColor": "#1565c0"
+    "primaryColor": "#1565c0",
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fa1e0584-04f7-4217-91a7-b559cce6225b"
+      }
+    },
+    "owner": "keisuke1113"
   }
 }
