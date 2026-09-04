@@ -12,6 +12,30 @@ import { Tourney } from "../core/tourney";
 import { config } from "../config";
 
 /** ディレクトリとして存在し書き込めそうか */
+/** 合言葉共有リンクの中継ページHTML */
+function JOIN_PAGE(code: string, appUrl: string, webUrl: string): string {
+  return `<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>KDSカードゲーム 対戦に参加</title>
+<style>
+body{margin:0;font-family:-apple-system,sans-serif;background:linear-gradient(160deg,#1e5aa8,#123c78);color:#fff;min-height:100vh;display:flex;align-items:center;justify-content:center}
+.box{text-align:center;padding:32px 24px;max-width:340px}
+h1{font-size:20px;margin:0 0 6px}
+.code{font-size:34px;font-weight:900;letter-spacing:6px;background:#ffffff22;border-radius:12px;padding:10px 0;margin:14px 0 22px}
+a.btn{display:block;border-radius:999px;padding:15px 0;margin:10px 0;font-weight:700;text-decoration:none;font-size:16px}
+.app{background:#eeb121;color:#16283c}
+.web{background:#ffffff22;color:#fff;border:1.5px solid #ffffff88}
+p{font-size:12px;color:#cfe0f5;line-height:1.7}
+</style></head><body><div class="box">
+<h1>🎮 KDSトレーディングカードゲーム</h1>
+<div>合言葉</div><div class="code">${code}</div>
+<a class="btn app" href="${appUrl}">📱 アプリで参加する</a>
+<a class="btn web" href="${webUrl}">🌐 ブラウザ（Web版）で参加する</a>
+<p>アプリが入っていない場合は、Web版を選んでください。<br>
+「アプリで参加」が開かないときは、メニューから「Safariで開く」を選ぶと確実です。</p>
+</div></body></html>`;
+}
+
 function fsExistsDir(p: string): boolean {
   try {
     return fs.statSync(p).isDirectory();
@@ -100,16 +124,21 @@ export function startServer(port: number): http.Server {
       return;
     }
     {
-      // 合言葉の共有リンク。アプリが入っていればユニバーサルリンクでアプリが開き、
-      // 無ければWeb版のオンライン対戦ページ（合言葉入力済み）へ転送する
+      // 合言葉の共有リンクの中継ページ。
+      // LINE内ブラウザはユニバーサルリンクを無視するため、
+      // カスタムスキーム（kdscardgame://）でアプリを開くボタンを出す。
+      // Safari等から開いた場合はユニバーサルリンクが先に効くので、
+      // このページが出るのは主にアプリ内ブラウザ経由のとき
       const joinMatch = /^\/join\/([A-Za-z0-9]{4,8})$/.exec(req.url ?? "");
       if (joinMatch && req.method === "GET") {
         const code = joinMatch[1].toUpperCase();
-        res.writeHead(302, {
-          location: `https://keisuke1113s.github.io/kds-card-game/online?code=${code}`,
+        const appUrl = `kdscardgame:///join/${code}`;
+        const webUrl = `https://keisuke1113s.github.io/kds-card-game/online?code=${code}`;
+        res.writeHead(200, {
+          "content-type": "text/html; charset=utf-8",
           "cache-control": "no-store",
         });
-        res.end();
+        res.end(JOIN_PAGE(code, appUrl, webUrl));
         return;
       }
     }
