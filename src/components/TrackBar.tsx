@@ -406,14 +406,16 @@ function Segment({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlight, order, lost, lostOrder]);
 
+  // 塗り色はアニメーションスタイルに入れない。
+  // ネイティブではワークレットの再計算がプロップ変更で走らないことがあり、
+  // 埋まったマスが空色のまま残る（TestFlight版で発生）。
+  // 赤い点滅は上に重ねた別レイヤーの不透明度だけで表現する
   const style = useAnimatedStyle(() => ({
     transform: [{ scaleY: scale.value }],
     shadowOpacity: Math.max(glow.value * 0.9, red.value),
     shadowRadius: Math.max(6 * glow.value, 8 * red.value),
-    shadowColor: red.value > 0 ? colors.danger : color,
-    backgroundColor:
-      red.value > 0.5 ? colors.danger : filled ? color : colors.border,
   }));
+  const redStyle = useAnimatedStyle(() => ({ opacity: red.value }));
 
   return (
     <Animated.View
@@ -422,7 +424,9 @@ function Segment({
         { backgroundColor: filled ? color : colors.border, shadowColor: color },
         style,
       ]}
-    />
+    >
+      <Animated.View pointerEvents="none" style={[styles.segmentRed, redStyle]} />
+    </Animated.View>
   );
 }
 
@@ -458,7 +462,17 @@ const styles = StyleSheet.create({
   label: { width: 30, fontSize: 11, fontWeight: "700", color: colors.text },
   labelLost: { color: colors.danger },
   segments: { flex: 1, flexDirection: "row", gap: 2 },
-  segment: { flex: 1, height: 10, borderRadius: 2 },
+  segment: { flex: 1, height: 10, borderRadius: 2, overflow: "hidden" },
+  segmentRed: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: 2,
+    backgroundColor: colors.danger,
+    opacity: 0,
+  },
   // 中央の実況と重ならないよう、教習が進んだことはこのバーの上で伝えきる
   delta: {
     position: "absolute",
