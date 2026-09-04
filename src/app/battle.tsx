@@ -1,7 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Platform,
+import {  Platform,
   DimensionValue,
   Dimensions,
   Pressable,
@@ -11,8 +10,7 @@ import {
   Text,
   TextStyle,
   View,
-  ViewStyle,
-} from "react-native";
+  ViewStyle, Share } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   BounceIn,
@@ -3743,12 +3741,24 @@ function BattleInner() {
                 }}
               />
             )}
-            {Platform.OS === "web" && !replayActive && (
+            {!replayActive && (
               <ActionButton
-                label="📸 結果を画像で保存・共有"
+                label="📸 結果を保存・共有"
                 color={colors.support}
                 onPress={() => {
                   haptic("light");
+                  if (Platform.OS !== "web") {
+                    // ネイティブはOSの共有シートで整形テキストを共有する
+                    const wl = finishedOutcome === "win" ? "⭕勝利！" : "⚫敗北…";
+                    void Share.share({
+                      message:
+                        `【KDSトレーディングカードゲーム】${wl}\n` +
+                        `学科 ${me.academic}/10・技能 ${me.skill}/19（相手 学科${cpu.academic}・技能${cpu.skill}）\n` +
+                        (record.streak >= 2 ? `🔥${record.streak}連勝中！\n` : "") +
+                        `https://keisuke1113.github.io/kds-card-game/`.replace("keisuke1113.", "keisuke1113s."),
+                    }).catch(() => {});
+                    return;
+                  }
                   void shareResultImage({
                     won: view.phase.type === "finished" && view.phase.winner === ME,
                     myAcademic: me.academic,
@@ -5096,10 +5106,52 @@ function RainbowText({ text, size }: { text: string; size: number }) {
   );
 }
 
+/** ネイティブ用の雨粒・雪片1つ（画面上端から下端へ落ちてループ） */
+function NativeWeatherDrop({
+  kind,
+  left,
+  duration,
+  delay,
+}: {
+  kind: "rain" | "snow";
+  left: string;
+  duration: number;
+  delay: number;
+}) {
+  const p = useSharedValue(0);
+  useEffect(() => {
+    p.value = withDelay(
+      delay,
+      withRepeat(withTiming(1, { duration, easing: Easing.linear }), -1, false)
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const h = Dimensions.get("window").height;
+  const st = useAnimatedStyle(() => ({
+    transform: [
+      { translateY: -60 + p.value * (h + 120) },
+      // 雪はゆっくり横に揺れながら落ちる
+      ...(kind === "snow"
+        ? [{ translateX: Math.sin(p.value * Math.PI * 3) * 14 }]
+        : []),
+    ],
+    opacity: p.value < 0.05 ? p.value * 20 : 1,
+  }));
+  return (
+    <Animated.View
+      style={[
+        kind === "rain" ? styles.weatherDrop : styles.weatherFlake,
+        { left: left as DimensionValue },
+        st,
+      ]}
+      pointerEvents="none"
+    />
+  );
+}
+
 /** 日替わりの天気演出（雨/雪）。ブラウザ合成のCSSアニメーションで軽く流す */
 function WeatherLayer({ kind, hideChip }: { kind: "rain" | "snow" ; hideChip?: boolean }) {
   const weatherSafeTop = useSafeAreaInsets().top;
-  if (Platform.OS !== "web") return null;
   const count = kind === "rain" ? 14 : 12;
   return (
     <View style={[StyleSheet.absoluteFill, { overflow: "hidden", zIndex: 18 }]} pointerEvents="none">
@@ -5107,6 +5159,18 @@ function WeatherLayer({ kind, hideChip }: { kind: "rain" | "snow" ; hideChip?: b
         const left = `${(i * 61.8 + 9) % 97}%`;
         const duration = kind === "rain" ? 900 + ((i * 977) % 700) : 3800 + ((i * 977) % 2600);
         const delay = (i * 1371) % 3200;
+        // ネイティブはCSSアニメが使えないため、reanimatedで同じ落下を回す
+        if (Platform.OS !== "web") {
+          return (
+            <NativeWeatherDrop
+              key={i}
+              kind={kind}
+              left={left}
+              duration={duration}
+              delay={delay}
+            />
+          );
+        }
         return (
           <View
             key={i}

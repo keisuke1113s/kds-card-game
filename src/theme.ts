@@ -81,8 +81,27 @@ const darkColors: typeof lightColors = {
  * 切り替えの反映は再読み込み／再起動で行う）。
  * Web は localStorage を同期的に読めるのでそれを使う。
  */
+// ネイティブ用の同期ストレージ（テーマは起動時に同期で読む必要がある）。
+// Webでは使わない（localStorage互換の遅延読み込み）
+let nativeStore: { getBoolean: (k: string) => boolean | undefined; set: (k: string, v: boolean) => void } | null = null;
+function getNativeStore() {
+  if (nativeStore) return nativeStore;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { MMKV } = require("react-native-mmkv") as { MMKV: new () => typeof nativeStore };
+    nativeStore = new MMKV();
+  } catch {
+    nativeStore = null;
+  }
+  return nativeStore;
+}
+
 function isDarkPreferred(): boolean {
   try {
+    // ネイティブ: MMKVから同期で読む（localStorageが無いため）
+    if (!(globalThis as { localStorage?: unknown }).localStorage) {
+      return getNativeStore()?.getBoolean("kds-dark-mode") === true;
+    }
     // 切り替え直後の再読み込みでは、URLの ?dark=0/1 を最優先で使う。
     // （iPhoneでは保存直後の再読み込みで localStorage の書き込みが
     //   間に合わないことがあり、URLで運ぶのが確実）
@@ -133,8 +152,13 @@ export const colors = (DARK_MODE ? darkColors : lightColors) as typeof lightColo
 export function setDarkModePreference(dark: boolean): void {
   try {
     const ls = (globalThis as { localStorage?: Storage }).localStorage;
-    if (dark) ls?.setItem("kds-dark-mode", "1");
-    else ls?.removeItem("kds-dark-mode");
+    if (ls) {
+      if (dark) ls.setItem("kds-dark-mode", "1");
+      else ls.removeItem("kds-dark-mode");
+    } else {
+      // ネイティブ: MMKVに保存（次回起動時に反映）
+      getNativeStore()?.set("kds-dark-mode", dark);
+    }
   } catch {
     // 保存できない環境ではライトのまま
   }
