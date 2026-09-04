@@ -552,7 +552,7 @@ function StatsPanel() {
         return;
       }
       try {
-        const base = "https://kds-taisen.fly.dev";
+        const base = "https://tcg.kds946.com";
         const url = `${base}/statsRange?key=946946&from=${from}&to=${to}&hf=${parseInt(hf, 10) || 0}&ht=${
           Number.isFinite(parseInt(ht, 10)) ? parseInt(ht, 10) : 23
         }&t=${Date.now()}`;
@@ -575,7 +575,7 @@ function StatsPanel() {
   const load = React.useCallback(async () => {
     setLoadError(null);
     try {
-      const base = "https://kds-taisen.fly.dev";
+      const base = "https://tcg.kds946.com";
       // ブラウザのHTTPキャッシュに乗らないよう、時刻つきURL＋no-storeで取得する
       const bust = `&t=${Date.now()}`;
       const s = (await fetch(`${base}/stats?key=946946${bust}`, { cache: "no-store" }).then((r) =>

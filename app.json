@@ -15,7 +15,8 @@
         "ITSAppUsesNonExemptEncryption": false
       },
       "associatedDomains": [
-        "applinks:kds-taisen.fly.dev"
+        "applinks:kds-taisen.fly.dev",
+        "applinks:tcg.kds946.com"
       ]
     },
     "android": {

@@ -2,7 +2,7 @@ import { Redirect, useLocalSearchParams } from "expo-router";
 import React from "react";
 
 /**
- * 合言葉の共有リンク（https://kds-taisen.fly.dev/join/<合言葉>）の受け口。
+ * 合言葉の共有リンク（https://tcg.kds946.com/join/<合言葉>）の受け口。
  * ユニバーサルリンクでアプリが開いたとき、オンライン対戦画面へ
  * 合言葉を引き継いで移動する。
  */

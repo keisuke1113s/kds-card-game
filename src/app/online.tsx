@@ -35,7 +35,7 @@ interface OnlinePrefs {
 }
 
 /** 本番サーバー（Fly.io 東京）。GitHub Pages からは wss が必須 */
-export const DEFAULT_SERVER_URL = "wss://kds-taisen.fly.dev";
+export const DEFAULT_SERVER_URL = "wss://tcg.kds946.com";
 
 /** サーバーアドレス欄は開発ビルドのときだけ見せる（公開版では常に本番へ接続） */
 const SHOW_SERVER_FIELD = typeof __DEV__ !== "undefined" && __DEV__;
@@ -296,7 +296,7 @@ export default function OnlineScreen() {
   const shareCodeToLine = () => {
     if (!roomCode) return;
     haptic("light");
-    const message = `KDSカードゲームで対戦しよう！\n合言葉: ${roomCode}\nタップして参加↓\nhttps://kds-taisen.fly.dev/join/${roomCode}`;
+    const message = `KDSカードゲームで対戦しよう！\n合言葉: ${roomCode}\nタップして参加↓\nhttps://tcg.kds946.com/join/${roomCode}`;
     void Linking.openURL(`https://line.me/R/share?text=${encodeURIComponent(message)}`);
   };
 
