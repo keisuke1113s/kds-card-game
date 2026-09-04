@@ -51,6 +51,23 @@ export default function LicenseScreen() {
   const [photoPicker, setPhotoPicker] = useState(false);
   const photoCard = rankStore.favoriteCard || activeDeck.list.tantou;
   const [editing, setEditing] = useState(false);
+  // ネイティブの画像共有は免許証カードの見た目をそのまま撮って共有する
+  const licenseRef = React.useRef<View>(null);
+  const shareNative = async () => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { captureRef } = require("react-native-view-shot") as {
+        captureRef: (ref: unknown, opts: object) => Promise<string>;
+      };
+      const Sharing = await import("expo-sharing");
+      const uri = await captureRef(licenseRef, { format: "png", quality: 1 });
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, { mimeType: "image/png", dialogTitle: "教習生免許証" });
+      }
+    } catch {
+      // キャンセルや未対応環境では何もしない
+    }
+  };
   const [draft, setDraft] = useState(rankStore.playerName);
 
   const name = rankStore.playerName || "教習生";
@@ -144,7 +161,7 @@ export default function LicenseScreen() {
         <Text style={styles.title}>🪪 教習生免許証</Text>
 
         {/* 免許証カード */}
-        <View style={styles.license}>
+        <View style={styles.license} ref={licenseRef} collapsable={false}>
           <View style={[styles.licenseBand, gold && styles.licenseBandGold]}>
             <Text style={styles.licenseBandText}>KDSカードゲーム 教習生免許証</Text>
           </View>
@@ -267,8 +284,13 @@ export default function LicenseScreen() {
           label="📤 免許証を画像で共有"
           custom={{ bg: "#e2604a" }}
           fullWidth
-          onPress={() =>
-            shareLicenseImage({
+          onPress={() => {
+            if (Platform.OS !== "web") {
+              haptic("light");
+              void shareNative();
+              return;
+            }
+            void shareLicenseImage({
               name,
               typeName: shindan ? `${shindan.emoji} ${shindan.name}` : "",
               title: rankStore.selectedTitle,
@@ -280,8 +302,8 @@ export default function LicenseScreen() {
               km,
               gold,
               photo: rankStore.playerPhoto || undefined,
-            })
-          }
+            });
+          }}
         />
         <AppButton label="ホームへ戻る" tone="ghost" fullWidth onPress={() => router.back()} />
 

@@ -69,7 +69,8 @@
         {
           "photosPermission": "教習生免許証の顔写真に使う画像を選ぶために写真ライブラリを使用します。"
         }
-      ]
+      ],
+      "expo-sharing"
     ],
     "experiments": {
       "typedRoutes": true,

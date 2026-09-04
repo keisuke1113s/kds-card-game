@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { HAPTICS_AVAILABLE, haptic } from "@/audio/haptics";
 import { reportByUser } from "@/data/errlog";
 import { useGameStore } from "@/store/gameStore";
@@ -23,6 +23,11 @@ import { DARK_MODE, setDarkModePreference } from "@/theme";
 function switchDarkMode(dark: boolean): void {
   if (dark === DARK_MODE) return;
   setDarkModePreference(dark);
+  if (Platform.OS !== "web") {
+    // ネイティブは再読み込みできないため、次回起動から反映される
+    Alert.alert("テーマを保存しました", "次回アプリを起動したときから反映されます。");
+    return;
+  }
   try {
     document.cookie = `kdsDark=${dark ? "1" : "0"};path=/;max-age=31536000`;
   } catch {
@@ -211,7 +216,7 @@ export default function SettingsScreen() {
 
       {!inBattle && <BugReport />}
 
-      {!inBattle && Platform.OS === "web" && <VersionInfo />}
+      {!inBattle && (Platform.OS === "web" ? <VersionInfo /> : <NativeVersionInfo />)}
 
       {!inBattle && (
         <Pressable
@@ -325,6 +330,28 @@ function BugReport() {
  * 最新化はアドレスに毎回違う目印を付けて開き直すので、
  * 配信網や端末のキャッシュに関係なく必ず最新版を取りに行く
  */
+/** ネイティブ版のバージョン表示（更新はTestFlight/ストア経由） */
+function NativeVersionInfo() {
+  let label = "";
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const App = require("expo-application") as {
+      nativeApplicationVersion: string | null;
+      nativeBuildVersion: string | null;
+    };
+    label = `アプリ版 v${App.nativeApplicationVersion ?? "?"}（ビルド ${App.nativeBuildVersion ?? "?"}）`;
+  } catch {
+    label = "アプリ版";
+  }
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>アプリの情報</Text>
+      <Text style={styles.note}>{label}</Text>
+      <Text style={styles.note}>アプリの更新は TestFlight／ストアから行えます</Text>
+    </View>
+  );
+}
+
 function VersionInfo() {
   const doc = (globalThis as { document?: Document }).document;
   const src =
