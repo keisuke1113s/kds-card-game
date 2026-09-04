@@ -13,7 +13,10 @@
       "bundleIdentifier": "com.kds946.cardgame",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "associatedDomains": [
+        "applinks:kds-taisen.fly.dev"
+      ]
     },
     "android": {
       "adaptiveIcon": {
