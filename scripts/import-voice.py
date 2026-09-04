@@ -163,3 +163,8 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+# 取り込み後は実長の表も更新する（実況の重なり防止に使う）
+import subprocess as _sp
+from pathlib import Path as _Path
+_sp.run(["python3", str(_Path(__file__).parent / "gen-voice-durations.py")], check=False)

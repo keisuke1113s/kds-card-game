@@ -2,6 +2,7 @@ import { Asset } from "expo-asset";
 import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from "expo-audio";
 import { Platform } from "react-native";
 import { bgmAssets, seAssets } from "@/data/audio";
+import { VOICE_DURATIONS } from "@/data/voiceDurations";
 import { useSettingsStore } from "@/store/settingsStore";
 
 // 効果音とBGMの一元管理。
@@ -540,7 +541,7 @@ export function playVoice(key: VoiceKey): void {
   if (Platform.OS === "web" && webBuffers[key] !== null) {
     const buf = webBuffers[key];
     if (playWeb(key, 1)) {
-      const dur = buf ? buf.duration : 2.2;
+      const dur = buf ? buf.duration : (VOICE_DURATIONS[key] ?? 2.2);
       voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
       return;
     }
@@ -552,9 +553,13 @@ export function playVoice(key: VoiceKey): void {
       p = createAudioPlayer(asset);
       sePlayers[key] = p;
     }
-    // 長さが取れればその分＋少しの間、取れなければ2.2秒ぶんチャンネルを塞ぐ
+    // ネイティブは再生前にプレイヤーから長さが取れないため、
+    // ビルドに焼き込んだ実長の表を最優先で使う（無ければプレイヤー→2.2秒）。
+    // 表より短い見込みだと長いボイス（夜のあいさつ4.8秒等）に次の実況が重なる
     const durSec = (p as { duration?: number }).duration;
-    const dur = durSec && isFinite(durSec) && durSec > 0.2 ? durSec : 2.2;
+    const dur =
+      VOICE_DURATIONS[key] ??
+      (durSec && isFinite(durSec) && durSec > 0.2 ? durSec : 2.2);
     voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
     safeSeek(p, 0);
     safePlay(p);
