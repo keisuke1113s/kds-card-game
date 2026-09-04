@@ -28,7 +28,13 @@ function HomeButton() {
         router.replace("/");
       }}
       hitSlop={10}
-      style={({ pressed }) => [styles.homeButton, pressed && styles.homeButtonPressed]}
+      style={({ pressed }) => [
+        styles.homeButton,
+        // ネイティブiOSはシステムがヘッダーボタンをガラス風カプセルで包むため、
+        // 自前の枠を重ねると二重の枠に見える。枠はシステム側に任せる
+        Platform.OS === "ios" && styles.homeButtonIosNative,
+        pressed && styles.homeButtonPressed,
+      ]}
     >
       <Text style={styles.homeButtonIcon}>🏠</Text>
       <Text style={styles.homeButtonText}>ホーム</Text>
@@ -250,6 +256,12 @@ const styles = StyleSheet.create({
     backgroundColor: "#ffffff26",
     borderWidth: 1.5,
     borderColor: "#ffffffaa",
+  },
+  homeButtonIosNative: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    marginRight: 0,
+    paddingHorizontal: 6,
   },
   homeButtonPressed: { backgroundColor: "#ffffff44", borderColor: "#ffffff" },
   homeButtonIcon: { fontSize: 13 },
