@@ -4,6 +4,7 @@ import { Platform } from "react-native";
 import { bgmAssets, seAssets } from "@/data/audio";
 import { VOICE_DURATIONS } from "@/data/voiceDurations";
 import { useSettingsStore } from "@/store/settingsStore";
+import { reportAudioIssue } from "@/data/errlog";
 
 // 効果音とBGMの一元管理。
 // 注意: createAudioPlayer は必ず keepAudioSessionActive: true を付ける。
@@ -22,8 +23,9 @@ async function ensureAudioMode() {
   try {
     // iOSのサイレントスイッチONでも鳴らす（ゲームなので）
     await setAudioModeAsync({ playsInSilentMode: true });
-  } catch {
+  } catch (e) {
     // web 等では未対応でもよい
+    if (Platform.OS !== "web") reportAudioIssue(`audioMode失敗: ${String(e)}`);
   }
 }
 
@@ -234,10 +236,13 @@ function safePlay(player: AudioPlayer) {
       result &&
       typeof (result as Promise<void>).catch === "function"
     ) {
-      (result as Promise<void>).catch(() => {});
+      (result as Promise<void>).catch((e: unknown) => {
+        if (Platform.OS !== "web") reportAudioIssue(`play拒否: ${String(e)}`);
+      });
     }
-  } catch {
+  } catch (e) {
     // 自動再生ブロック等は無視（次のユーザー操作で再開される）
+    if (Platform.OS !== "web") reportAudioIssue(`play失敗: ${String(e)}`);
   }
 }
 
@@ -316,6 +321,7 @@ export function playSe(key: SeKey, rate = 1): void {
     safePlay(p);
   } catch (e) {
     console.warn("効果音を再生できませんでした:", e);
+    if (Platform.OS !== "web") reportAudioIssue(`SE失敗(${key}): ${String(e)}`);
   }
 }
 
@@ -568,6 +574,7 @@ export function playVoice(key: VoiceKey): void {
     safePlay(p);
   } catch (e) {
     console.warn("実況ボイスを再生できませんでした:", e);
+    if (Platform.OS !== "web") reportAudioIssue(`ボイス失敗(${key}): ${String(e)}`);
   }
 }
 
@@ -620,6 +627,7 @@ export function playBgm(key: string): boolean {
     return true;
   } catch (e) {
     console.warn("BGMを再生できませんでした:", e);
+    if (Platform.OS !== "web") reportAudioIssue(`BGM失敗(${key}): ${String(e)}`);
     return false;
   }
 }

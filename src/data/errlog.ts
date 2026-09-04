@@ -98,6 +98,14 @@ export async function reportByUser(text: string): Promise<boolean> {
   }
 }
 
+/**
+ * 音声まわりの失敗を報告する（Androidの無音調査用）。
+ * 通常のreportと同じ上限・重複排除に乗る
+ */
+export function reportAudioIssue(msg: string): void {
+  report(`[音声] ${msg.slice(0, 300)}`);
+}
+
 /** アプリ起動時に一度だけ呼ぶ */
 export function setupErrorReporting(): void {
   if (Platform.OS !== "web") {
