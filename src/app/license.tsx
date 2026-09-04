@@ -55,9 +55,53 @@ export default function LicenseScreen() {
 
   const name = rankStore.playerName || "教習生";
 
-  /** 自分の写真をアップロード（Webのみ）。中央を3:4に切り抜き縮小して保存する */
+  /** 自分の写真を選ぶ（ネイティブ: 写真ライブラリ）。中央3:4に切り抜き縮小して保存 */
+  const pickOwnPhotoNative = async () => {
+    try {
+      const ImagePicker = await import("expo-image-picker");
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!perm.granted) return;
+      const res = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images",
+        quality: 1,
+      });
+      const asset = res.assets?.[0];
+      if (!asset) return;
+      // 中央を3:4に切り抜いて縮小し、dataURLで保存（Webと同じ形式）
+      const Manipulator = await import("expo-image-manipulator");
+      const w = asset.width ?? 0;
+      const h = asset.height ?? 0;
+      const targetRatio = 3 / 4;
+      let cropW = w;
+      let cropH = Math.round(w / targetRatio);
+      if (cropH > h) {
+        cropH = h;
+        cropW = Math.round(h * targetRatio);
+      }
+      const out = await Manipulator.manipulateAsync(
+        asset.uri,
+        [
+          { crop: { originX: Math.round((w - cropW) / 2), originY: Math.round((h - cropH) / 2), width: cropW, height: cropH } },
+          { resize: { width: 360, height: 480 } },
+        ],
+        { compress: 0.85, format: Manipulator.SaveFormat.JPEG, base64: true }
+      );
+      if (out.base64) {
+        rankStore.setPlayerPhoto(`data:image/jpeg;base64,${out.base64}`);
+        setPhotoPicker(false);
+        haptic("light");
+      }
+    } catch {
+      // 権限拒否や選択キャンセル時は何もしない
+    }
+  };
+
+  /** 自分の写真をアップロード（Web）。中央を3:4に切り抜き縮小して保存する */
   const pickOwnPhoto = () => {
-    if (Platform.OS !== "web") return;
+    if (Platform.OS !== "web") {
+      void pickOwnPhotoNative();
+      return;
+    }
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/*";
@@ -279,11 +323,9 @@ export default function LicenseScreen() {
           <Pressable style={styles.pickerLayer} onPress={() => setPhotoPicker(false)}>
             <Pressable style={styles.pickerBox} onPress={() => {}}>
               <Text style={styles.pickerTitle}>📷 写真をえらぶ</Text>
-              {Platform.OS === "web" && (
-                <Pressable style={styles.uploadButton} onPress={pickOwnPhoto}>
-                  <Text style={styles.uploadButtonText}>📸 自分の写真をアップロード</Text>
-                </Pressable>
-              )}
+              <Pressable style={styles.uploadButton} onPress={pickOwnPhoto}>
+                <Text style={styles.uploadButtonText}>📸 自分の写真をアップロード</Text>
+              </Pressable>
               {!!rankStore.playerPhoto && (
                 <Pressable
                   style={styles.uploadReset}

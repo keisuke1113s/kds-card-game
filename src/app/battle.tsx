@@ -2065,6 +2065,17 @@ function BattleInner() {
 
   // 開幕（と引き直し）に、山札から手札を配る演出
   const [dealing, setDealing] = useState<{ key: number; cards: string[] } | null>(null);
+  // 全画面カットインの最中か（この間は右上のチップやTURN表示を隠す。
+  // zIndexはネイティブでは親をまたぐと効かないため、条件で確実に消す）
+  const cutinActive =
+    dealing !== null ||
+    vsIntro ||
+    reachFx !== null ||
+    comebackFx ||
+    battleResultCutinShowing ||
+    entryBanner !== null ||
+    finishedOutcome !== null ||
+    (currentAnn?.cardId != null || currentAnn?.emph === true);
 
   // 遅延ログ用: いま画面に出ている演出の名前を perf に知らせる
   useEffect(() => {
@@ -2827,7 +2838,7 @@ function BattleInner() {
       )}
       {/* 夕方: 世界三大夕日「釧路の夕日」が相手側の空に沈む。
           グラデーションの太陽＋大気のハロー＋薄雲のすじで自然な見た目にする */}
-      {daypart === "evening" && !DARK_MODE && view.phase.type !== "finished" && (
+      {daypart === "evening" && !DARK_MODE && view.phase.type !== "finished" && !cutinActive && (
         <View style={[styles.sunsetWrap, { top: 44 + safeTop }]} pointerEvents="none">
           <View style={styles.sunsetHaze} />
           <View style={styles.sunsetGlowOuter} />
@@ -2855,7 +2866,7 @@ function BattleInner() {
         </View>
       )}
       {/* 夜: 星がまたたく */}
-      {daypart === "night" && view.phase.type !== "finished" && (
+      {daypart === "night" && view.phase.type !== "finished" && !cutinActive && (
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
           {[0, 1, 2, 3, 4, 5, 6].map((i) => (
             <View
@@ -2880,7 +2891,7 @@ function BattleInner() {
         </View>
       )}
       {/* 時間帯バッジ（雨・雪のバッジがあるときはその下に並ぶ） */}
-      {daypart !== "day" && view.phase.type !== "finished" && (
+      {daypart !== "day" && view.phase.type !== "finished" && !cutinActive && (
         <View
           style={[
             styles.weatherChip,
@@ -2896,7 +2907,7 @@ function BattleInner() {
       )}
       {/* 実際の天気と連動（雨・雪）。軽量モード中は出さない */}
       {weather !== "sunny" && effFxLevel !== "light" && view.phase.type !== "finished" && (
-        <WeatherLayer kind={weather} />
+        <WeatherLayer kind={weather} hideChip={cutinActive} />
       )}
 
       {/* ===== 実況表示: カード付きは大きく詳細表示（タップで次へ） ===== */}
@@ -3097,7 +3108,9 @@ function BattleInner() {
         <FloatTextFx key={f.key} text={f.text} mine={f.mine} />
       ))}
       {/* ターンカウンタ（常駐） */}
-      {view.turnNumber > 0 && view.phase.type !== "finished" && <TurnCounter n={view.turnNumber} />}
+      {view.turnNumber > 0 && view.phase.type !== "finished" && !cutinActive && (
+        <TurnCounter n={view.turnNumber} />
+      )}
       {/* 対戦入場の暗転ワイプ → 顔合わせ */}
       {enterWipe && (
         <BattleEnterWipe
@@ -5084,7 +5097,7 @@ function RainbowText({ text, size }: { text: string; size: number }) {
 }
 
 /** 日替わりの天気演出（雨/雪）。ブラウザ合成のCSSアニメーションで軽く流す */
-function WeatherLayer({ kind }: { kind: "rain" | "snow" }) {
+function WeatherLayer({ kind, hideChip }: { kind: "rain" | "snow" ; hideChip?: boolean }) {
   const weatherSafeTop = useSafeAreaInsets().top;
   if (Platform.OS !== "web") return null;
   const count = kind === "rain" ? 14 : 12;
@@ -5111,11 +5124,13 @@ function WeatherLayer({ kind }: { kind: "rain" | "snow" }) {
           />
         );
       })}
-      <View style={[styles.weatherChip, { top: 6 + weatherSafeTop }]}>
-        <Text style={styles.weatherChipText} allowFontScaling={false}>
-          {kind === "rain" ? "☔ 本日は雨天教習" : "⛄ 本日は雪道教習"}
-        </Text>
-      </View>
+      {!hideChip && (
+        <View style={[styles.weatherChip, { top: 6 + weatherSafeTop }]}>
+          <Text style={styles.weatherChipText} allowFontScaling={false}>
+            {kind === "rain" ? "☔ 本日は雨天教習" : "⛄ 本日は雪道教習"}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -6938,6 +6953,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    // 時間帯チップ(z5)・TURN表示(z6)・雨雪(z18)より前面に出す
+    zIndex: 30,
   },
   annLayerDim: { backgroundColor: "#00000066" },
   annLayerBattle: { backgroundColor: "#0b1024ee", padding: 0, alignItems: "stretch" },
@@ -8177,6 +8194,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     padding: 20,
+    zIndex: 35,
   },
   overlayBox: {
     backgroundColor: colors.surface,
