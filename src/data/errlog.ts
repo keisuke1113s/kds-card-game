@@ -44,8 +44,12 @@ function report(msg: string, stack?: string): void {
       body: JSON.stringify({
         msg,
         stack,
-        url: (globalThis as { location?: { href: string } }).location?.href,
-        ua: (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent,
+        url:
+          (globalThis as { location?: { href: string } }).location?.href ??
+          `app://${Platform.OS}`,
+        ua:
+          (globalThis as { navigator?: { userAgent?: string } }).navigator?.userAgent ??
+          `native/${Platform.OS}`,
       }),
       // 送れなくてもアプリの動作には影響させない
       keepalive: true,
@@ -96,7 +100,27 @@ export async function reportByUser(text: string): Promise<boolean> {
 
 /** アプリ起動時に一度だけ呼ぶ */
 export function setupErrorReporting(): void {
-  if (Platform.OS !== "web") return;
+  if (Platform.OS !== "web") {
+    // ネイティブ: JS起因のクラッシュ（未捕捉例外）を落ちる前に報告する。
+    // 報告後は元のハンドラに渡す（RNの通常のクラッシュ処理を妨げない）
+    type ErrorUtilsLike = {
+      getGlobalHandler?: () => (error: unknown, isFatal?: boolean) => void;
+      setGlobalHandler?: (h: (error: unknown, isFatal?: boolean) => void) => void;
+    };
+    const eu = (globalThis as { ErrorUtils?: ErrorUtilsLike }).ErrorUtils;
+    if (eu?.setGlobalHandler) {
+      const prev = eu.getGlobalHandler?.();
+      eu.setGlobalHandler((error, isFatal) => {
+        const e = error as { message?: string; stack?: string } | undefined;
+        report(
+          `[ネイティブ${isFatal ? "致命的" : ""}] ${String(e?.message ?? error).slice(0, 300)}`,
+          e?.stack
+        );
+        prev?.(error, isFatal);
+      });
+    }
+    return;
+  }
   const loc = (globalThis as { location?: { hostname: string } }).location;
   // 公開ページでだけ送る（開発中のエラーでログを埋めない）
   if (!loc?.hostname.endsWith("github.io")) return;

@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Clipboard from "expo-clipboard";
 import * as Linking from "expo-linking";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import React, { useEffect } from "react";
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { create } from "zustand";
@@ -98,6 +98,13 @@ export default function OnlineScreen() {
   const queueActive = useGameStore((s) => s.queueActive);
   const startGame = useGameStore((s) => s.startGame);
   const [joinCode, setJoinCode] = React.useState("");
+  // 共有リンク（/join/<合言葉>）やURLの ?code= から合言葉を引き継ぐ
+  const linkParams = useLocalSearchParams<{ code?: string }>();
+  React.useEffect(() => {
+    const c = typeof linkParams.code === "string" ? linkParams.code.toUpperCase().slice(0, 6) : "";
+    if (c) setJoinCode(c);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [linkParams.code]);
   // 名前が未入力のまま参加ボタンを押したときに出す入力ダイアログ。
   // どの参加方法を押したかを覚えておき、入力後にその方法で続行する
   const [namePrompt, setNamePrompt] = React.useState<"create" | "join" | "queue" | "edit" | null>(
@@ -289,7 +296,7 @@ export default function OnlineScreen() {
   const shareCodeToLine = () => {
     if (!roomCode) return;
     haptic("light");
-    const message = `KDSカードゲームで対戦しよう！\n合言葉: ${roomCode}\nhttps://keisuke1113s.github.io/kds-card-game/`;
+    const message = `KDSカードゲームで対戦しよう！\n合言葉: ${roomCode}\nタップして参加↓\nhttps://kds-taisen.fly.dev/join/${roomCode}`;
     void Linking.openURL(`https://line.me/R/share?text=${encodeURIComponent(message)}`);
   };
 

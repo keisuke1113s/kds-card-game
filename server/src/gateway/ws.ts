@@ -86,6 +86,33 @@ export function startServer(port: number): http.Server {
       });
       return;
     }
+    if (req.url === "/.well-known/apple-app-site-association" && req.method === "GET") {
+      // iOSユニバーサルリンク: /join/* をネイティブアプリで開く関連付け
+      res.writeHead(200, { "content-type": "application/json", "cache-control": "max-age=3600" });
+      res.end(
+        JSON.stringify({
+          applinks: {
+            apps: [],
+            details: [{ appID: "KT58QLHTC3.com.kds946.cardgame", paths: ["/join/*"] }],
+          },
+        })
+      );
+      return;
+    }
+    {
+      // 合言葉の共有リンク。アプリが入っていればユニバーサルリンクでアプリが開き、
+      // 無ければWeb版のオンライン対戦ページ（合言葉入力済み）へ転送する
+      const joinMatch = /^\/join\/([A-Za-z0-9]{4,8})$/.exec(req.url ?? "");
+      if (joinMatch && req.method === "GET") {
+        const code = joinMatch[1].toUpperCase();
+        res.writeHead(302, {
+          location: `https://keisuke1113s.github.io/kds-card-game/online?code=${code}`,
+          "cache-control": "no-store",
+        });
+        res.end();
+        return;
+      }
+    }
     if (req.url?.startsWith("/statsRange?") && req.method === "GET") {
       // 管理画面の「分析」タブの期間・時間帯絞り込み
       const u = new URL(req.url, "http://localhost");

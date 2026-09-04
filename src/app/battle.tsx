@@ -13,7 +13,7 @@ import {
   View,
   ViewStyle,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   BounceIn,
   type SharedValue,
@@ -616,6 +616,8 @@ function BattleInner() {
   }, []);
   // 時間帯の空演出（早朝・夕方・夜）。上＝空側が濃いグラデーションで
   // はっきり分かるように染める。ダーク設定では夜色が重なってうるさいため出さない
+  // 画面上端に貼り付く絶対配置のオーバーレイ用（SafeAreaViewのパディングは効かない）
+  const safeTop = useSafeAreaInsets().top;
   const daypart = useMemo<Daypart>(() => daypartNow(), []);
   const daypartSky = useMemo<[string, string] | null>(() => {
     if (DARK_MODE) return null;
@@ -2826,7 +2828,7 @@ function BattleInner() {
       {/* 夕方: 世界三大夕日「釧路の夕日」が相手側の空に沈む。
           グラデーションの太陽＋大気のハロー＋薄雲のすじで自然な見た目にする */}
       {daypart === "evening" && !DARK_MODE && view.phase.type !== "finished" && (
-        <View style={styles.sunsetWrap} pointerEvents="none">
+        <View style={[styles.sunsetWrap, { top: 44 + safeTop }]} pointerEvents="none">
           <View style={styles.sunsetHaze} />
           <View style={styles.sunsetGlowOuter} />
           <View
@@ -2863,7 +2865,7 @@ function BattleInner() {
                 styles.nightStar,
                 {
                   left: `${(7 + i * 13) % 92}%`,
-                  top: 10 + ((i * 47) % 100),
+                  top: safeTop + 10 + ((i * 47) % 100),
                   ...(Platform.OS === "web"
                     ? ({
                         animationDuration: `${1600 + (i % 4) * 600}ms`,
@@ -2883,7 +2885,7 @@ function BattleInner() {
           style={[
             styles.weatherChip,
             styles.daypartChip,
-            weather !== "sunny" && effFxLevel !== "light" && styles.daypartChipShift,
+            { top: (weather !== "sunny" && effFxLevel !== "light" ? 32 : 6) + safeTop },
           ]}
           pointerEvents="none"
         >
@@ -5083,6 +5085,7 @@ function RainbowText({ text, size }: { text: string; size: number }) {
 
 /** 日替わりの天気演出（雨/雪）。ブラウザ合成のCSSアニメーションで軽く流す */
 function WeatherLayer({ kind }: { kind: "rain" | "snow" }) {
+  const weatherSafeTop = useSafeAreaInsets().top;
   if (Platform.OS !== "web") return null;
   const count = kind === "rain" ? 14 : 12;
   return (
@@ -5108,7 +5111,7 @@ function WeatherLayer({ kind }: { kind: "rain" | "snow" }) {
           />
         );
       })}
-      <View style={styles.weatherChip}>
+      <View style={[styles.weatherChip, { top: 6 + weatherSafeTop }]}>
         <Text style={styles.weatherChipText} allowFontScaling={false}>
           {kind === "rain" ? "☔ 本日は雨天教習" : "⛄ 本日は雪道教習"}
         </Text>
@@ -6634,6 +6637,8 @@ function GoldPulseBorder() {
 
 /** 画面上部に常駐するターンカウンタ。増えるとクルッと回る */
 function TurnCounter({ n }: { n: number }) {
+  // SafeAreaViewのパディングは絶対配置に効かないため、自前で上に避ける
+  const safeTop = useSafeAreaInsets().top;
   const flip = useSharedValue(0);
   const prev = useRef(n);
   useEffect(() => {
@@ -6646,7 +6651,7 @@ function TurnCounter({ n }: { n: number }) {
     transform: [{ perspective: 500 }, { rotateX: `${(1 - flip.value) * -90}deg` }],
   }));
   return (
-    <View style={styles.turnCounter} pointerEvents="none">
+    <View style={[styles.turnCounter, { top: 2 + safeTop }]} pointerEvents="none">
       <Animated.Text style={[styles.turnCounterText, style]} allowFontScaling={false}>
         TURN {n}
       </Animated.Text>
