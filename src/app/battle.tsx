@@ -2984,7 +2984,7 @@ function BattleInner() {
           ) : currentAnn.cardId ? (
             <Animated.View
               key={currentAnn.key}
-              entering={ZoomIn.springify().damping(14)}
+              entering={ZoomIn.duration(180)}
               exiting={ZoomOut.duration(200)}
               style={styles.annCardBox}
             >
@@ -2999,7 +2999,7 @@ function BattleInner() {
           ) : currentAnn.emph ? (
             <Animated.View
               key={currentAnn.key}
-              entering={ZoomIn.springify().damping(10)}
+              entering={ZoomIn.duration(200)}
               exiting={ZoomOut.duration(200)}
             >
               <TypewriterText text={currentAnn.text} style={styles.annBigText} />
@@ -3007,7 +3007,7 @@ function BattleInner() {
           ) : (
             <Animated.View
               key={currentAnn.key}
-              entering={ZoomIn.springify().damping(14)}
+              entering={ZoomIn.duration(180)}
               exiting={ZoomOut.duration(200)}
               style={styles.annBox}
             >
