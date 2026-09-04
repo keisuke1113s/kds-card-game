@@ -83,6 +83,9 @@ const darkColors: typeof lightColors = {
  */
 // ネイティブ用の同期ストレージ（テーマは起動時に同期で読む必要がある）。
 // Webでは使わない（localStorage互換の遅延読み込み）
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { Platform } = require("react-native") as { Platform: { OS: string } };
+
 let nativeStore: { getBoolean: (k: string) => boolean | undefined; set: (k: string, v: boolean) => void } | null = null;
 function getNativeStore() {
   if (nativeStore) return nativeStore;
@@ -98,8 +101,9 @@ function getNativeStore() {
 
 function isDarkPreferred(): boolean {
   try {
-    // ネイティブ: MMKVから同期で読む（localStorageが無いため）
-    if (!(globalThis as { localStorage?: unknown }).localStorage) {
+    // ネイティブ: MMKVから同期で読む（localStorage の有無での判定は
+    // ポリフィルの影響を受けるため、プラットフォームで確実に分岐する）
+    if (Platform.OS !== "web") {
       return getNativeStore()?.getBoolean("kds-dark-mode") === true;
     }
     // 切り替え直後の再読み込みでは、URLの ?dark=0/1 を最優先で使う。
@@ -151,16 +155,27 @@ export const colors = (DARK_MODE ? darkColors : lightColors) as typeof lightColo
 /** ダークモード設定を保存する（反映は再読み込み後） */
 export function setDarkModePreference(dark: boolean): void {
   try {
-    const ls = (globalThis as { localStorage?: Storage }).localStorage;
-    if (ls) {
-      if (dark) ls.setItem("kds-dark-mode", "1");
-      else ls.removeItem("kds-dark-mode");
-    } else {
+    if (Platform.OS !== "web") {
       // ネイティブ: MMKVに保存（次回起動時に反映）
-      getNativeStore()?.set("kds-dark-mode", dark);
+      const store = getNativeStore();
+      if (!store) throw new Error("MMKV未初期化");
+      store.set("kds-dark-mode", dark);
+      return;
     }
-  } catch {
-    // 保存できない環境ではライトのまま
+    const ls = (globalThis as { localStorage?: Storage }).localStorage;
+    if (dark) ls?.setItem("kds-dark-mode", "1");
+    else ls?.removeItem("kds-dark-mode");
+  } catch (e) {
+    // 保存できない環境ではライトのまま。原因調査のため報告だけ送る
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { reportAudioIssue } = require("@/data/errlog") as {
+        reportAudioIssue: (m: string) => void;
+      };
+      reportAudioIssue(`テーマ保存失敗: ${String(e)}`);
+    } catch {
+      // 報告できなくても動作は続行
+    }
   }
 }
 
