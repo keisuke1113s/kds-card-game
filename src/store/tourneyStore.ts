@@ -20,7 +20,7 @@ interface TourneyState {
   stopLobbyWatch: (opts?: { leave?: boolean }) => void;
 }
 
-const HTTP_URL = "https://kds-taisen.fly.dev";
+const HTTP_URL = "https://tcg.kds946.com";
 /** 見張りの上限（置き忘れ対策。これを過ぎたら自動でロビーからも退出する） */
 const WATCH_MAX_MS = 15 * 60 * 1000;
 

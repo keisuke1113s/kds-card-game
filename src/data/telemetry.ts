@@ -10,7 +10,7 @@ import { Platform } from "react-native";
  * - 端末IDは匿名のランダムな文字列（この端末を数えるためだけに使う）
  */
 
-const ENDPOINT = "https://kds-taisen.fly.dev/track";
+const ENDPOINT = "https://tcg.kds946.com/track";
 
 let deviceIdCache: string | null = null;
 

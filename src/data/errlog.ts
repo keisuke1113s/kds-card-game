@@ -9,7 +9,7 @@ import { Platform } from "react-native";
  * - 既知の無害なエラー（音の自動再生ブロック等）は送らない
  */
 
-const ENDPOINT = "https://kds-taisen.fly.dev/errlog";
+const ENDPOINT = "https://tcg.kds946.com/errlog";
 const MAX_REPORTS = 5;
 
 let sent = 0;
