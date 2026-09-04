@@ -6,6 +6,9 @@ import { VOICE_DURATIONS } from "@/data/voiceDurations";
 import { useSettingsStore } from "@/store/settingsStore";
 
 // 効果音とBGMの一元管理。
+// 注意: createAudioPlayer は必ず keepAudioSessionActive: true を付ける。
+// iOSのexpo-audioは再生完了やpauseのたびにオーディオセッションの停止を試み、
+// 競合すると同時再生中のボイスが約1秒で止まる（「小細工なし〜」尻切れの真因）。
 // 効果音は assets/audio/*.wav（自動生成マップ seAssets）、
 // BGMは assets/audio/bgm_*.mp3 等（bgmAssets）。
 //
@@ -150,7 +153,7 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
         try {
           if (bgmAssets[key] === undefined) continue;
           if (!bgmPlayers[key]) {
-            bgmPlayers[key] = createAudioPlayer(bgmAssets[key]);
+            bgmPlayers[key] = createAudioPlayer(bgmAssets[key], { keepAudioSessionActive: true });
             bgmPlayers[key].loop = true;
           }
           const pl = bgmPlayers[key];
@@ -171,7 +174,7 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
       // 以降のタイマー起点の再生も拒否されなくなる。
       try {
         for (const key of Object.keys(seAssets)) {
-          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key], { keepAudioSessionActive: true });
           const pl = sePlayers[key];
           pl.volume = 0;
           safePlay(pl);
@@ -301,7 +304,7 @@ export function playSe(key: SeKey, rate = 1): void {
     void ensureAudioMode();
     let p = sePlayers[key];
     if (!p) {
-      p = createAudioPlayer(asset);
+      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
       sePlayers[key] = p;
     }
     try {
@@ -441,7 +444,7 @@ export function warmVoices(): void {
             void loadWebBuffer(key);
             return;
           }
-          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key]);
+          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key], { keepAudioSessionActive: true });
         } catch {
           // 読み込めなくても、再生時にあらためて試される
         }
@@ -473,7 +476,7 @@ export function warmBattleStart(): void {
   for (const key of ["bgm_janken", "bgm_battle"]) {
     try {
       if (bgmAssets[key] !== undefined && !bgmPlayers[key]) {
-        bgmPlayers[key] = createAudioPlayer(bgmAssets[key]);
+        bgmPlayers[key] = createAudioPlayer(bgmAssets[key], { keepAudioSessionActive: true });
         bgmPlayers[key].loop = true;
       }
     } catch {
@@ -550,7 +553,7 @@ export function playVoice(key: VoiceKey): void {
     void ensureAudioMode();
     let p = sePlayers[key];
     if (!p) {
-      p = createAudioPlayer(asset);
+      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
       sePlayers[key] = p;
     }
     // ネイティブは再生前にプレイヤーから長さが取れないため、
@@ -607,7 +610,7 @@ export function playBgm(key: string): boolean {
     }
     let p = bgmPlayers[key];
     if (!p) {
-      p = createAudioPlayer(asset);
+      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
       p.loop = true;
       bgmPlayers[key] = p;
     }
