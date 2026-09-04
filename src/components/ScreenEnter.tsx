@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
-import { StyleProp, ViewStyle } from "react-native";
+import { Platform, StyleProp, ViewStyle } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -52,5 +53,19 @@ export function ScreenEnter({
     transform: [{ translateY: (1 - progress.value) * distance }],
   }));
 
-  return <Animated.View style={[style, animated]}>{children}</Animated.View>;
+  // Androidのシステムナビゲーション（戻るボタン等）やiOSのホームバーに
+  // 画面下部のボタンが隠れないよう、ネイティブでは下の余白を全画面共通で確保する
+  const insets = useSafeAreaInsets();
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        Platform.OS !== "web" && insets.bottom > 0 && { paddingBottom: insets.bottom },
+        animated,
+      ]}
+    >
+      {children}
+    </Animated.View>
+  );
 }
