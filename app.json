@@ -9,7 +9,8 @@
     "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/images/icon.png",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kds946.cardgame"
     },
     "android": {
       "adaptiveIcon": {
@@ -18,7 +19,8 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.kds946.cardgame"
     },
     "web": {
       "output": "static",
@@ -35,7 +37,15 @@
           "resizeMode": "contain"
         }
       ],
-      "expo-audio"
+      "expo-audio",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "実物カードのQRコードを読み取ってカードを登録するためにカメラを使用します。"
+        }
+      ],
+      "expo-asset",
+      "expo-image"
     ],
     "experiments": {
       "typedRoutes": true,
