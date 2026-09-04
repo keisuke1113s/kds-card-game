@@ -10,7 +10,7 @@ import { Platform } from "react-native";
  */
 
 const ENDPOINT = "https://tcg.kds946.com/errlog";
-const MAX_REPORTS = 5;
+const MAX_REPORTS = 12;
 
 let sent = 0;
 const seen = new Set<string>();

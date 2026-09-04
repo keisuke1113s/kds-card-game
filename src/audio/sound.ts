@@ -228,6 +228,63 @@ if (Platform.OS === "web" && typeof document !== "undefined") {
   });
 }
 
+// ---- ネイティブのプレイヤー生成 ----
+// Androidは require() のアセット番号を直接渡すと
+// AudioPlayer.constructor が NullPointerException で失敗することがある
+// （moto g66j 実機で確認）。expo-asset でファイルパス（localUri）に
+// 解決してから渡すと確実に生成できる。iOSも同じ経路に統一する。
+const nativeSources: Record<string, { uri: string } | null | undefined> = {};
+
+async function resolveNativeSource(key: string, mod: number): Promise<{ uri: string } | null> {
+  const cached = nativeSources[key];
+  if (cached !== undefined) return cached;
+  try {
+    const a = Asset.fromModule(mod);
+    if (!a.localUri) await a.downloadAsync();
+    const src = a.localUri ? { uri: a.localUri } : null;
+    nativeSources[key] = src;
+    if (!src) reportAudioIssue(`アセット解決失敗(${key}): localUriなし`);
+    return src;
+  } catch (e) {
+    nativeSources[key] = null;
+    reportAudioIssue(`アセット解決失敗(${key}): ${String(e)}`);
+    return null;
+  }
+}
+
+/**
+ * ネイティブのプレイヤーを用意する（無ければ非同期で生成してストアに入れる）。
+ * 生成できたらコールバックで返す。すでにあれば即時に返す
+ */
+function ensureNativePlayer(
+  store: Record<string, AudioPlayer>,
+  key: string,
+  mod: number,
+  onReady: (p: AudioPlayer) => void
+): void {
+  const existing = store[key];
+  if (existing) {
+    onReady(existing);
+    return;
+  }
+  void (async () => {
+    const src = await resolveNativeSource(key, mod);
+    if (!src) return;
+    try {
+      // 並行呼び出しで二重生成しない
+      if (store[key]) {
+        onReady(store[key]);
+        return;
+      }
+      const p = createAudioPlayer(src, { keepAudioSessionActive: true });
+      store[key] = p;
+      onReady(p);
+    } catch (e) {
+      reportAudioIssue(`生成失敗(${key}): ${String(e)}`);
+    }
+  })();
+}
+
 /** play() が Promise を返す環境（Web）では拒否を握りつぶす */
 function safePlay(player: AudioPlayer) {
   try {
@@ -307,18 +364,15 @@ export function playSe(key: SeKey, rate = 1): void {
   if (Platform.OS === "web" && playWeb(key, rate)) return;
   try {
     void ensureAudioMode();
-    let p = sePlayers[key];
-    if (!p) {
-      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
-      sePlayers[key] = p;
-    }
-    try {
-      p.setPlaybackRate(rate);
-    } catch {
-      // 速度変更に対応しない環境では通常の音程で鳴らす
-    }
-    safeSeek(p, 0);
-    safePlay(p);
+    ensureNativePlayer(sePlayers, key, asset, (p) => {
+      try {
+        p.setPlaybackRate(rate);
+      } catch {
+        // 速度変更に対応しない環境では通常の音程で鳴らす
+      }
+      safeSeek(p, 0);
+      safePlay(p);
+    });
   } catch (e) {
     console.warn("効果音を再生できませんでした:", e);
     if (Platform.OS !== "web") reportAudioIssue(`SE失敗(${key}): ${String(e)}`);
@@ -450,7 +504,7 @@ export function warmVoices(): void {
             void loadWebBuffer(key);
             return;
           }
-          if (!sePlayers[key]) sePlayers[key] = createAudioPlayer(seAssets[key], { keepAudioSessionActive: true });
+          ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
         } catch {
           // 読み込めなくても、再生時にあらためて試される
         }
@@ -477,13 +531,18 @@ export function warmBattleStart(): void {
     for (const key of BATTLE_START_VOICES) {
       if (seAssets[key] !== undefined) void loadWebBuffer(key);
     }
+  } else {
+    for (const key of BATTLE_START_VOICES) {
+      if (seAssets[key] !== undefined) ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
+    }
   }
   // BGMプレイヤーも先に作って読み込みを始めておく（初回の鳴り遅れ対策）
   for (const key of ["bgm_janken", "bgm_battle"]) {
     try {
-      if (bgmAssets[key] !== undefined && !bgmPlayers[key]) {
-        bgmPlayers[key] = createAudioPlayer(bgmAssets[key], { keepAudioSessionActive: true });
-        bgmPlayers[key].loop = true;
+      if (bgmAssets[key] !== undefined) {
+        ensureNativePlayer(bgmPlayers, key, bgmAssets[key], (p) => {
+          p.loop = true;
+        });
       }
     } catch {
       // 読み込めなくても再生時に改めて試す
@@ -557,21 +616,13 @@ export function playVoice(key: VoiceKey): void {
   }
   try {
     void ensureAudioMode();
-    let p = sePlayers[key];
-    if (!p) {
-      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
-      sePlayers[key] = p;
-    }
-    // ネイティブは再生前にプレイヤーから長さが取れないため、
-    // ビルドに焼き込んだ実長の表を最優先で使う（無ければプレイヤー→2.2秒）。
-    // 表より短い見込みだと長いボイス（夜のあいさつ4.8秒等）に次の実況が重なる
-    const durSec = (p as { duration?: number }).duration;
-    const dur =
-      VOICE_DURATIONS[key] ??
-      (durSec && isFinite(durSec) && durSec > 0.2 ? durSec : 2.2);
+    // 1チャンネル制の予約は生成を待たずに行う（実長の表があるため正確）
+    const dur = VOICE_DURATIONS[key] ?? 2.2;
     voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
-    safeSeek(p, 0);
-    safePlay(p);
+    ensureNativePlayer(sePlayers, key, asset, (p) => {
+      safeSeek(p, 0);
+      safePlay(p);
+    });
   } catch (e) {
     console.warn("実況ボイスを再生できませんでした:", e);
     if (Platform.OS !== "web") reportAudioIssue(`ボイス失敗(${key}): ${String(e)}`);
@@ -615,15 +666,14 @@ export function playBgm(key: string): boolean {
         // 一時停止に失敗しても切り替えは続行
       }
     }
-    let p = bgmPlayers[key];
-    if (!p) {
-      p = createAudioPlayer(asset, { keepAudioSessionActive: true });
-      p.loop = true;
-      bgmPlayers[key] = p;
-    }
-    p.volume = 0.4 * (useSettingsStore.getState().bgmVolume ?? 1);
-    safePlay(p);
     currentBgmKey = key;
+    ensureNativePlayer(bgmPlayers, key, asset, (p) => {
+      // 生成待ちの間に別の曲へ切り替わっていたら鳴らさない
+      if (currentBgmKey !== key) return;
+      p.loop = true;
+      p.volume = 0.4 * (useSettingsStore.getState().bgmVolume ?? 1);
+      safePlay(p);
+    });
     return true;
   } catch (e) {
     console.warn("BGMを再生できませんでした:", e);
