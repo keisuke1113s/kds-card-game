@@ -2,7 +2,14 @@ import { Stack, usePathname, useRouter } from "expo-router";
 import Head from "expo-router/head";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+} from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
 import { AchievementToast } from "@/components/AchievementToast";
 import { ImageWarmLayer } from "@/components/ImageWarmLayer";
@@ -19,6 +26,76 @@ import { colors, radius } from "@/theme";
  * ブラウザの戻る操作や履歴に依存せず、どの画面からでもホームに戻れるようにする
  * （ホーム画面に追加したときはブラウザの戻るボタンが無いため）。
  */
+/**
+ * ネイティブ用の起動ローディング。
+ * Web版は +html.tsx の起動画面（ロゴ＋回るカード）が出るが、ネイティブは
+ * OSのスプラッシュ（静止画）だけで見た目が違ったため、同じデザインを重ねる。
+ * 起動から少し経ったらフェードアウトして消える
+ */
+function NativeBootSplash() {
+  const [gone, setGone] = useState(false);
+  const opacity = useSharedValue(1);
+  const spin = useSharedValue(0);
+  useEffect(() => {
+    spin.value = withRepeat(withTiming(1, { duration: 1100, easing: Easing.linear }), -1, false);
+    const t = setTimeout(() => {
+      opacity.value = withTiming(0, { duration: 300 });
+      setTimeout(() => setGone(true), 320);
+    }, 1000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const fade = useAnimatedStyle(() => ({ opacity: opacity.value }));
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ perspective: 600 }, { rotateY: `${spin.value * 360}deg` }],
+  }));
+  if (gone) return null;
+  const seg = (t: string, c: string, size: number) => (
+    <Text key={t + c} style={{ color: c, fontSize: size, fontWeight: "900" }}>{t}</Text>
+  );
+  return (
+    <Animated.View style={[bootStyles.layer, fade]} pointerEvents="none">
+      <View style={bootStyles.row}>
+        {seg("K", "#d83030", 44)}
+        {seg("D", "#e49c18", 44)}
+        {seg("S", "#78b424", 44)}
+        {seg(" a", "#e2604a", 26)}
+        {seg(" G", "#e49c18", 26)}
+        {seg("O", "#3d8fd0", 26)}
+        {seg("!", "#d83030", 26)}
+        {seg(" G", "#c9d63a", 26)}
+        {seg("O", "#8fd3ee", 26)}
+        {seg("!", "#eeb121", 26)}
+      </View>
+      <View style={bootStyles.row}>
+        {seg("運転", "#d83030", 20)}
+        {seg("が", "#16283c", 20)}
+        {seg("楽しく", "#d83030", 20)}
+        {seg("なる!!", "#16283c", 20)}
+      </View>
+      <Animated.Image
+        source={require("../../assets/cards_small/cardback.webp")}
+        style={[bootStyles.card, spinStyle]}
+      />
+      <Text style={bootStyles.sub}>読み込んでいます…</Text>
+    </Animated.View>
+  );
+}
+
+const bootStyles = StyleSheet.create({
+  layer: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "#e6edf7",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    zIndex: 999,
+  },
+  row: { flexDirection: "row", alignItems: "baseline" },
+  card: { width: 74, height: 104, borderRadius: 6, marginTop: 14 },
+  sub: { fontSize: 13, fontWeight: "700", color: "#5a6b80", marginTop: 4 },
+});
+
 function HomeButton() {
   const router = useRouter();
   return (
@@ -160,6 +237,7 @@ export default function RootLayout() {
         <title>KDSトレーディングカードゲーム</title>
       </Head>
       <StatusBar style="dark" />
+      {Platform.OS !== "web" && <NativeBootSplash />}
       <Stack
         screenOptions={{
           headerStyle: { backgroundColor: colors.primary },
