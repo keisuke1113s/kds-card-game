@@ -123,7 +123,7 @@ def trimmed_len(path: str) -> float:
     """頭の無音カット後の実長（秒）。上限の自動決定に使う"""
     r = subprocess.run(
         ["ffmpeg", "-i", path, "-af",
-         "silenceremove=start_periods=1:start_threshold=-45dB", "-f", "null", "-"],
+         "silenceremove=start_periods=1:start_threshold=-45dB,apad=pad_dur=0.25", "-f", "null", "-"],
         capture_output=True, text=True,
     )
     m = re.findall(r"time=(\d+):(\d+):([\d.]+)", r.stderr)
