@@ -37,7 +37,12 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-      "expo-router",
+      [
+        "expo-router",
+        {
+          "origin": "https://keisuke1113s.github.io/kds-card-game"
+        }
+      ],
       [
         "expo-splash-screen",
         {
