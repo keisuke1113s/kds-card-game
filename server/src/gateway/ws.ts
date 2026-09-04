@@ -372,10 +372,15 @@ export function startServer(port: number): http.Server {
   }, 2000);
 
   wss.on("connection", (ws: WebSocket, req) => {
-    // Origin 検証（WS に古典的 CORS は効かないため自前で確認する）
+    // Origin 検証（WS に古典的 CORS は効かないため自前で確認する）。
+    // iOSネイティブアプリのWebSocketは「接続先自身」をOriginとして送るため、
+    // 自ホストと同じOriginも許可する（ブラウザはOriginを偽装できないので安全。
+    // 悪意あるサイトからの接続は必ずそのサイトのOriginが付く）
     const origin = req.headers.origin;
     if (config.allowedOrigins.length > 0 && origin) {
-      if (!config.allowedOrigins.includes(origin)) {
+      const selfOrigin = `https://${req.headers.host ?? ""}`;
+      if (!config.allowedOrigins.includes(origin) && origin !== selfOrigin) {
+        console.warn("WS接続を拒否（origin不許可）:", origin);
         ws.close(4003, "origin not allowed");
         return;
       }
