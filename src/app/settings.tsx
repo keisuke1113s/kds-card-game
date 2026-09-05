@@ -24,8 +24,17 @@ function switchDarkMode(dark: boolean): void {
   if (dark === DARK_MODE) return;
   setDarkModePreference(dark);
   if (Platform.OS !== "web") {
-    // ネイティブは再読み込みできないため、次回起動から反映される
-    Alert.alert("テーマを保存しました", "次回アプリを起動したときから反映されます。");
+    // ネイティブはJSを再起動して即時反映する（Webの再読み込みと同じ体験）
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const RNRestart = require("react-native-restart") as {
+        restart?: () => void;
+        default?: { restart: () => void };
+      };
+      (RNRestart.restart ?? RNRestart.default?.restart)?.();
+    } catch {
+      Alert.alert("テーマを保存しました", "アプリを再起動すると反映されます。");
+    }
     return;
   }
   try {
