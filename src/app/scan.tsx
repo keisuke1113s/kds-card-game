@@ -36,11 +36,17 @@ type ScanOutcome =
   | { kind: "invalid" }
   | { kind: "special" }
   | { kind: "released" }
+  | { kind: "lineLinked" }
+  | { kind: "lineUnlinked" }
   | { kind: "offline" };
 
 export default function ScanScreen() {
-  const lineLinked = useLineStore((s) => s.linked);
-  if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  // ゲート判定はマウント時に固定する。表示中に連携状態が変わってもフックの
+  // 数が変わらないようにするため（スペシャルコードでの連携解除がここで起きる）
+  const [gatedAtMount] = useState(
+    () => LINE_GATE_ENABLED && !useLineStore.getState().linked
+  );
+  if (gatedAtMount) return <LineGate />;
 
   const router = useRouter();
   const unlockState = useUnlockStore();
@@ -73,6 +79,16 @@ export default function ScanScreen() {
         ensureInitialSet();
         haptic("medium");
         setOutcome({ kind: "released" });
+      } else if (out.ok && out.action === "lineLink") {
+        useLineStore.getState().setLinked();
+        haptic("success");
+        playSe("janken_win");
+        evaluateAchievements();
+        setOutcome({ kind: "lineLinked" });
+      } else if (out.ok && out.action === "lineUnlink") {
+        useLineStore.getState().unlink();
+        haptic("medium");
+        setOutcome({ kind: "lineUnlinked" });
       } else {
         // コード違いは通常の無効QRと同じ見た目にする（仕組みの存在を明かさない）
         haptic("light");
@@ -196,6 +212,22 @@ export default function ScanScreen() {
                 <Text style={styles.resultTitle}>通常配布に戻しました</Text>
                 <Text style={styles.resultSub}>
                   カードは初回配布ぶんとQRコードで登録したぶんが使えます
+                </Text>
+              </>
+            ) : outcome.kind === "lineLinked" ? (
+              <>
+                <Text style={styles.resultEmoji}>💚</Text>
+                <Text style={styles.resultTitle}>LINE連携を登録しました</Text>
+                <Text style={styles.resultSub}>
+                  連携が必要な機能がすべて使えるようになりました
+                </Text>
+              </>
+            ) : outcome.kind === "lineUnlinked" ? (
+              <>
+                <Text style={styles.resultEmoji}>✅</Text>
+                <Text style={styles.resultTitle}>LINE連携を解除しました</Text>
+                <Text style={styles.resultSub}>
+                  連携が必要な機能は次からロックされます
                 </Text>
               </>
             ) : outcome.kind === "offline" ? (
