@@ -167,6 +167,28 @@ ${friendButton}
 </div></body></html>`;
 }
 
+/**
+ * LINE連携が完了した人に、Lステップ側でタグを付ける。
+ * KDS_LSTEP_TOKEN / KDS_LSTEP_TAG_ID の両方が設定されているときだけ動く。
+ * 失敗しても連携自体は成立させる（配信の出し分け用の付加機能のため）
+ */
+async function applyLstepTag(lineUserId: string): Promise<void> {
+  const token = process.env.KDS_LSTEP_TOKEN;
+  const tagId = process.env.KDS_LSTEP_TAG_ID;
+  if (!token || !tagId) return;
+  const res = await fetch(`https://api.lineml.jp/v2/api/tags/${encodeURIComponent(tagId)}/friends`, {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${token}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ friend_ids: [lineUserId] }),
+  });
+  if (!res.ok) {
+    throw new Error(`Lステップのタグ付与に失敗 (${res.status}): ${(await res.text()).slice(0, 200)}`);
+  }
+}
+
 /** LINEログインの認可コードをユーザー情報に引き換える */
 async function completeLineLogin(
   channel: { id: string; secret: string; callback: string },
@@ -488,6 +510,10 @@ export function startServer(port: number): http.Server {
             ...info,
             friend: info.friend ?? false,
             at: new Date().toISOString(),
+          });
+          // Lステップに「トレカアプリ連携済み」タグを付ける（失敗しても連携は成立）
+          applyLstepTag(info.userId).catch((e) => {
+            console.warn(String(e));
           });
           respondHtml(true, `${info.name || "LINEアカウント"} さんとして連携しました。`);
         })
