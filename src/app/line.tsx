@@ -7,7 +7,7 @@ import { playSe } from "@/audio/sound";
 import { AppButton } from "@/components/AppButton";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { LINE_FRIEND_URL, LINE_LINK_CODES, isValidLinkCode } from "@/data/lineConfig";
-import { ALL_CARDS_OPEN_FOR_TESTING } from "@/data/unlock";
+import { ALL_CARDS_OPEN_FOR_TESTING, specialCodeOf } from "@/data/unlock";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { trackEvent } from "@/data/telemetry";
 import { useLineStore } from "@/store/lineStore";
@@ -27,21 +27,54 @@ export default function LineScreen() {
   const [error, setError] = useState<string | null>(null);
   const [justLinked, setJustLinked] = useState(false);
 
-  const tryLink = () => {
-    if (!code.trim()) return;
+  const [busy, setBusy] = useState(false);
+
+  const completeLink = () => {
+    line.setLinked();
+    trackEvent("lineLink");
+    setJustLinked(true);
+    setError(null);
+    playSe("achievement");
+    haptic("success");
+    setTimeout(evaluateAchievements, 400);
+  };
+
+  const failLink = (message: string) => {
+    setError(message);
+    playSe("hit");
+    haptic("warning");
+  };
+
+  const tryLink = async () => {
+    if (!code.trim() || busy) return;
     if (isValidLinkCode(code)) {
-      line.setLinked();
-      trackEvent("lineLink");
-      setJustLinked(true);
-      setError(null);
-      playSe("achievement");
-      haptic("success");
-      setTimeout(evaluateAchievements, 400);
-    } else {
-      setError("コードが違うようです。LINEに届いたコードをそのまま入力してください。");
-      playSe("hit");
-      haptic("warning");
+      completeLink();
+      return;
     }
+    // KCX: 形式のスペシャルコードはサーバーで照合する（QR登録画面が
+    // 連携ゲートの内側にあるため、解除後の復帰ルートはこの画面になる）
+    const special = specialCodeOf(code);
+    if (special) {
+      setBusy(true);
+      try {
+        const res = await fetch("https://tcg.kds946.com/unlock-all", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ code: special }),
+        });
+        const out = (await res.json()) as { ok?: boolean; action?: string };
+        if (out.ok && out.action === "lineLink") {
+          completeLink();
+          return;
+        }
+      } catch {
+        failLink("通信できませんでした。電波の良い場所でもう一度お試しください。");
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
+    failLink("コードが違うようです。LINEに届いたコードをそのまま入力してください。");
   };
 
   return (
