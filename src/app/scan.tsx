@@ -41,13 +41,15 @@ type ScanOutcome =
   | { kind: "offline" };
 
 export default function ScanScreen() {
-  // ゲート判定はマウント時に固定する。表示中に連携状態が変わってもフックの
-  // 数が変わらないようにするため（スペシャルコードでの連携解除がここで起きる）
-  const [gatedAtMount] = useState(
-    () => LINE_GATE_ENABLED && !useLineStore.getState().linked
-  );
-  if (gatedAtMount) return <LineGate />;
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
+  // （解除コードで連携を解除すると、この画面はそのままロック画面に切り替わる）
+  const lineLinked = useLineStore((s) => s.linked);
+  if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <ScanScreenBody />;
+}
 
+function ScanScreenBody() {
   const router = useRouter();
   const unlockState = useUnlockStore();
   const [outcome, setOutcome] = useState<ScanOutcome | null>(null);

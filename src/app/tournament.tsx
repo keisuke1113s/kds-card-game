@@ -28,8 +28,14 @@ const STAGES: { label: string; desc: string; difficulty: Difficulty }[] = [
 
 /** 4連戦を勝ち抜くトーナメント。負けたら最初から */
 export default function TournamentScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <TournamentScreenBody />;
+}
+
+function TournamentScreenBody() {
 
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);

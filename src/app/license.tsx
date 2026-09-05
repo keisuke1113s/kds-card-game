@@ -25,8 +25,14 @@ import { LINE_GATE_ENABLED } from "@/data/lineConfig";
  * 運転免許証風のカードに、名前・段階・戦績・走行距離を表示する。
  */
 export default function LicenseScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <LicenseScreenBody />;
+}
+
+function LicenseScreenBody() {
 
   const router = useRouter();
   const record = useRecordStore();

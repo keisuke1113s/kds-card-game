@@ -213,8 +213,14 @@ const boardStyles = StyleSheet.create({
 });
 
 export default function QuizScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <QuizScreenBody />;
+}
+
+function QuizScreenBody() {
 
   const router = useRouter();
   const quiz = useQuizStore();
