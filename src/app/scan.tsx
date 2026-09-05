@@ -14,7 +14,7 @@ import Animated, {
 import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { getCard } from "@/data/cards";
-import { checkQrPayload } from "@/data/unlock";
+import { checkQrPayload, specialCodeOf } from "@/data/unlock";
 import { trackEvent } from "@/data/telemetry";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
@@ -33,7 +33,9 @@ type ScanOutcome =
   | { kind: "unlocked"; cardId: string }
   | { kind: "already"; cardId: string }
   | { kind: "needsUpdate" }
-  | { kind: "invalid" };
+  | { kind: "invalid" }
+  | { kind: "special" }
+  | { kind: "offline" };
 
 export default function ScanScreen() {
   const lineLinked = useLineStore((s) => s.linked);
@@ -46,11 +48,46 @@ export default function ScanScreen() {
   // 結果表示中は読み取りを止める（同じQRを連続で拾わないように）
   const pausedRef = useRef(false);
   pausedRef.current = outcome !== null;
+  // スペシャルコードのサーバー照合中も読み取りを止める
+  const busyRef = useRef(false);
+
+  const redeemSpecial = async (codeValue: string) => {
+    busyRef.current = true;
+    try {
+      const res = await fetch("https://tcg.kds946.com/unlock-all", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: codeValue }),
+      });
+      const out = (await res.json()) as { ok?: boolean };
+      if (out.ok) {
+        useUnlockStore.getState().setAllOpenMode(true);
+        haptic("success");
+        playSe("janken_win");
+        evaluateAchievements();
+        setOutcome({ kind: "special" });
+      } else {
+        // コード違いは通常の無効QRと同じ見た目にする（仕組みの存在を明かさない）
+        haptic("light");
+        setOutcome({ kind: "invalid" });
+      }
+    } catch {
+      haptic("light");
+      setOutcome({ kind: "offline" });
+    } finally {
+      busyRef.current = false;
+    }
+  };
 
   const handlePayload = (raw: string) => {
-    if (pausedRef.current) return;
+    if (pausedRef.current || busyRef.current) return;
     const check = checkQrPayload(raw);
     if (check.status === "invalid") {
+      const special = specialCodeOf(raw);
+      if (special) {
+        void redeemSpecial(special);
+        return;
+      }
       haptic("light");
       setOutcome({ kind: "invalid" });
       return;
@@ -136,6 +173,22 @@ export default function ScanScreen() {
                 <Text style={styles.resultTitle}>新しいカードのQRコードです</Text>
                 <Text style={styles.resultSub}>
                   アプリを最新版に更新すると、このカードを登録できるようになります
+                </Text>
+              </>
+            ) : outcome.kind === "special" ? (
+              <>
+                <Text style={styles.resultEmoji}>🎉</Text>
+                <Text style={styles.resultTitle}>スペシャル特典が開放されました！</Text>
+                <Text style={styles.resultSub}>
+                  すべてのカードが図鑑とデッキで使えるようになりました
+                </Text>
+              </>
+            ) : outcome.kind === "offline" ? (
+              <>
+                <Text style={styles.resultEmoji}>📶</Text>
+                <Text style={styles.resultTitle}>通信できませんでした</Text>
+                <Text style={styles.resultSub}>
+                  電波の良い場所で、もう一度お試しください
                 </Text>
               </>
             ) : (
