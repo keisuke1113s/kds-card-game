@@ -432,3 +432,21 @@ describe("観戦（スペクテイター）", () => {
     expect(a.received.filter((m) => m.type === "cheer").length).toBe(1);
   });
 });
+
+describe("対局中の退出", () => {
+  it("退出は投了扱いになり、残った側が即座に勝者として決着する", () => {
+    const { room, a, b } = setupMatch();
+    // じゃんけん後、対局が始まっている（マリガン以降のどこか）
+    expect(a.view?.phase.type).not.toBe("finished");
+
+    // 席0（たろう）が途中でやめる
+    room.leave(0);
+
+    // 席1（はなこ）は即座に決着（自分の勝ち）と退出通知を受け取る
+    expect(b.view?.phase.type).toBe("finished");
+    if (b.view?.phase.type === "finished") {
+      expect(b.view.phase.winner).toBe(1);
+    }
+    expect(b.received.some((m) => m.type === "opponentLeft")).toBe(true);
+  });
+});
