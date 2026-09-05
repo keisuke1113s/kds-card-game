@@ -2634,7 +2634,11 @@ function BattleInner() {
                   haptic("light");
                   const code = useGameStore.getState().roomCode;
                   quitGame();
-                  router.replace(code ? `/spectate?code=${code}` : "/spectate");
+                  if (code) {
+                    router.replace({ pathname: "/spectate", params: { code } });
+                  } else {
+                    router.replace("/online");
+                  }
                 }}
               >
                 <Text style={styles.spectateSwitchText}>📱 簡易表示</Text>
@@ -2842,20 +2846,21 @@ function BattleInner() {
             onDone={() => setDrawFx(null)}
           />
         )}
-        {isSpectate && (
+        {isSpectate ? (
           <View style={styles.spectateHandRow}>
             {Array.from({ length: Math.min(spectateHandCount, 10) }, (_, i) => (
               <CardFace key={i} cardId={me.tantou} size="sm" faceDown />
             ))}
           </View>
+        ) : (
+          <HandRow
+            hand={me.hand}
+            meta={handMeta}
+            dimUnplayable={isMyMain || view.phase.type === "battleSupport"}
+            scrollRef={handScroll}
+            onPressIndex={onPressHandIndex}
+          />
         )}
-        <HandRow
-          hand={isSpectate ? [] : me.hand}
-          meta={handMeta}
-          dimUnplayable={isMyMain || view.phase.type === "battleSupport"}
-          scrollRef={handScroll}
-          onPressIndex={onPressHandIndex}
-        />
         {/* 手札が残り1枚の緊張感 */}
         {me.hand.length === 1 && view.phase.type !== "finished" && (
           <View
