@@ -10,8 +10,9 @@
  * ストアをそのまま入り口として使う。
  */
 
-/** 公式アカウントの友だち追加URL（Lステップの流入経路URLに差し替える） */
-export const LINE_FRIEND_URL = "https://lin.ee/xxxxxxx"; // TODO: 本物の流入経路URLに変更
+/** 公式アカウントの友だち追加URL（Lステップの流入経路つき） */
+export const LINE_FRIEND_URL =
+  "https://liff.line.me/2009272181-fFvxKvD7/landing?follow=%40882qlpyz&lp=VS7JtH&liff_id=2009272181-fFvxKvD7";
 
 /**
  * 連携コード（Lステップで配布する合言葉）。
