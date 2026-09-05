@@ -19,6 +19,7 @@ import { LockedCard } from "@/components/LockedCard";
 import { allCards, getCard } from "@/data/cards";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { colors } from "@/theme";
+import { useDevDemo } from "@/data/hydration";
 import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED } from "@/data/lineConfig";
 import { ScreenEnter } from "@/components/ScreenEnter";
@@ -33,11 +34,7 @@ const sections: { label: string; type: string }[] = [
 type LibraryFilter = "all" | "unlocked" | "locked";
 
 /** 開発版だけの機能を出す条件（本番・ストア版では出ない） */
-const IS_DEV_BUILD =
-  (typeof __DEV__ !== "undefined" && __DEV__) ||
-  (Platform.OS === "web" &&
-    typeof window !== "undefined" &&
-    window.location.pathname.includes("/dev/"));
+const IS_DEV_BUILD = typeof __DEV__ !== "undefined" && __DEV__;
 
 const FILTERS: { key: LibraryFilter; label: string }[] = [
   { key: "all", label: "すべて" },
@@ -46,6 +43,8 @@ const FILTERS: { key: LibraryFilter; label: string }[] = [
 ];
 
 export default function LibraryScreen() {
+  // 開発版デモ（/dev/）判定はマウント後に確定させる（静的HTMLとの不一致を防ぐ）
+  const devBuild = IS_DEV_BUILD || useDevDemo();
   const lineLinkedLib = useLineStore((s) => s.linked);
   const lineLock = LINE_GATE_ENABLED && !lineLinkedLib;
 
@@ -277,7 +276,7 @@ export default function LibraryScreen() {
             >
               <Text style={styles.closeText}>📷 QRコードを読み込む</Text>
             </Pressable>
-            {IS_DEV_BUILD && (
+            {devBuild && (
               <Pressable
                 style={[styles.closeButton, { backgroundColor: colors.danger }]}
                 onPress={() => {

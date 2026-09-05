@@ -25,9 +25,10 @@ npm run typecheck  # 型チェック
 2. `src/data/cards.ts` の配列にカード定義を追加（または JSON を `cardSetSchema` で検証して読み込む）
 3. 効果は `{ trigger, ops }` で宣言的に書く。語彙: `modifyTrack` / `buffCombat` / `draw` / `searchTop`。語彙で表せない特殊カードはエンジンの効果システムに op を追加する
 
-## 今後（未実装）
+## 現在の状態（2026-09）
 
-- 実カードデータ・画像の取り込み（現在はプレースホルダー22枚＋担当2枚）
-- カードアニメーション（reanimated）・効果音
-- EAS Build でのストア申請（アイコン・スプラッシュ含む）
-- オンライン対戦（エンジンは決定的・直列化可能でその前提で設計済み）
+- 実カード64種を収録済み。CPU対戦・オンライン対戦（ランダム/合言葉/トーナメント/観戦）・
+  学科クイズ・危険予測・図鑑・実績など実装済み
+- 配信: Web（GitHub Pages）＋ iOS/Android（EAS Build、両ストア審査提出済み）。
+  JSのみの更新は EAS Update（OTA）で配信
+- 掲載素材・原稿は `docs/store-listing.md` と `store-assets/`（git管理外）を参照
