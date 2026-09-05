@@ -120,9 +120,13 @@ export default function OnlineScreen() {
   // アドレス欄を出さない公開版では、保存値がどうであれ必ず本番サーバーへつなぐ
   const serverUrl = SHOW_SERVER_FIELD ? prefs.serverUrl.trim() : DEFAULT_SERVER_URL;
 
-  // 対局が始まったら対戦画面へ
+  // 対局が始まったら対戦画面へ（オンライン対戦のときだけ。
+  // 観戦はこの画面がスタックの下に残ったまま同じ状態になるため、
+  // ここで二重遷移すると対戦画面が作り直されて観戦の接続が切れてしまう）
   useEffect(() => {
-    if (onlineStatus === "playing") router.replace("/battle");
+    if (onlineStatus === "playing" && useGameStore.getState().mode === "online") {
+      router.replace("/battle");
+    }
   }, [onlineStatus, router]);
 
   // ランダムマッチで待っている人がいるか、10秒ごとに確認する
