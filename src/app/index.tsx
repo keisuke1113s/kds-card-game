@@ -530,10 +530,12 @@ export default function HomeScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-        {/* 社外に出さないための注意書き（最上部に固定で目立たせる） */}
-        <View style={styles.warning}>
-          <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
-        </View>
+        {/* 社外に出さないための注意書き（公開に伴い開発版デモ /dev/ だけに表示） */}
+        {IS_DEV_DEMO && (
+          <View style={styles.warning}>
+            <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
+          </View>
+        )}
         {seasonalEvent() && (
           <View style={styles.seasonEventBadge}>
             <Text style={styles.seasonEventText}>{seasonalEvent()}</Text>
