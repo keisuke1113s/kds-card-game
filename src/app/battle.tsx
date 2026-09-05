@@ -510,6 +510,7 @@ function BattleInner() {
   const matchMode = useGameStore((s) => s.mode);
   const opponentName = useGameStore((s) => s.opponentName);
   const queueActive = useGameStore((s) => s.queueActive);
+  const waitingRoomCode = useGameStore((s) => s.roomCode);
   const matchFound = useGameStore((s) => s.matchFound);
   const clearMatchFound = useGameStore((s) => s.clearMatchFound);
   const opponentTitle = useGameStore((s) => s.opponentTitle);
@@ -2592,10 +2593,14 @@ function BattleInner() {
             </Text>
           </View>
         )}
-        {/* ランダムマッチの相手を探しながらCPU対戦しているときの目印 */}
+        {/* ランダムマッチ・合言葉の相手を待ちながらCPU対戦しているときの目印 */}
         {queueActive && !isOnline && (
           <View style={styles.queueBadge} pointerEvents="none">
-            <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
+            <Text style={styles.queueBadgeText}>
+              {waitingRoomCode
+                ? `🔑 合言葉 ${waitingRoomCode} で相手を待っています…`
+                : "🌐 相手を探しています…"}
+            </Text>
           </View>
         )}
         {/* 相手が対戦をやめた（サーバーが即決着させるが、念のため脱出路も出す） */}

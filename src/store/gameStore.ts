@@ -869,7 +869,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
       set({
         opponentConnected: true,
         mode: "online",
-        queueActive: mode === "queue",
+        // 合言葉の部屋を作って待つ間もランダムマッチと同様にCPU対戦できるようにする
+        queueActive: mode === "queue" || mode === "create",
         matchFound: null,
         onlineStatus: "connecting",
         onlineError: null,

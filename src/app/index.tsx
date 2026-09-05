@@ -1252,7 +1252,7 @@ function QueueCancelledOverlay({ onClose }: { onClose: () => void }) {
         <Text style={styles.queueOverlayEmoji}>🌐</Text>
         <Text style={styles.queueOverlayTitle}>相手待ちを解除しました</Text>
         <Text style={styles.queueOverlaySub}>
-          オンライン対戦のランダムマッチ待機を終了しました。{"\n"}
+          オンライン対戦の相手待ちを終了しました。{"\n"}
           また遊ぶときは「オンライン対戦」からどうぞ。
         </Text>
       </Animated.View>
