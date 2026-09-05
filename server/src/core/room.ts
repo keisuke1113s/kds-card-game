@@ -444,10 +444,14 @@ export class RoomCore {
     ]);
   }
 
-  /** 退室。対局中なら相手に通知する */
+  /** 退室。対局中なら投了として即決着させ（残った側の勝ち）、相手に通知する */
   leave(seatIndex: PlayerId): void {
     const seat = this.seats[seatIndex];
     if (!seat) return;
+    // 対局中の退出は投了扱い。相手はすぐ勝利の結果画面になる
+    if (this.state && this.state.phase.type !== "finished") {
+      this.resign(seatIndex);
+    }
     this.seats[seatIndex] = null;
     const other = this.seats[1 - seatIndex];
     if (other) other.send({ type: "opponentLeft" });

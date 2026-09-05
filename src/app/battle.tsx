@@ -515,6 +515,7 @@ function BattleInner() {
   const opponentTitle = useGameStore((s) => s.opponentTitle);
   const rematchRequested = useGameStore((s) => s.rematchRequested);
   const rematchOffered = useGameStore((s) => s.rematchOffered);
+  const onlineStatus = useGameStore((s) => s.onlineStatus);
   const requestRematch = useGameStore((s) => s.requestRematch);
   const incomingStamp = useGameStore((s) => s.incomingStamp);
   const myStamp = useGameStore((s) => s.myStamp);
@@ -2587,6 +2588,19 @@ function BattleInner() {
             <Text style={styles.queueBadgeText}>🌐 相手を探しています…</Text>
           </View>
         )}
+        {/* 相手が対戦をやめた（サーバーが即決着させるが、念のため脱出路も出す） */}
+        {isOnline && onlineStatus === "opponentLeft" && view.phase.type !== "finished" && (
+          <Pressable
+            style={styles.connTroubleBanner}
+            onPress={() => {
+              haptic("light");
+              quitGame();
+              router.replace("/");
+            }}
+          >
+            <Text style={styles.connTroubleText}>👋 相手が対戦をやめました（タップでホームへ）</Text>
+          </Pressable>
+        )}
         {/* オンライン対戦の接続トラブル。復帰できないときの脱出路も添える */}
         {isOnline && onlineError && view.phase.type !== "finished" && (
           <Pressable
@@ -3664,8 +3678,12 @@ function BattleInner() {
               <Text style={styles.recordStreak}>🔥 {record.streak}連勝中！</Text>
             )}
           </View>
+          {/* オンライン: 相手が退出していたら再戦はできない */}
+          {isOnline && onlineStatus === "opponentLeft" && (
+            <Text style={styles.rematchWaitText}>👋 {oppLabel} さんは対戦をやめました</Text>
+          )}
           {/* オンライン: 再戦の申し込み */}
-          {isOnline && (
+          {isOnline && onlineStatus !== "opponentLeft" && (
             <View style={{ gap: 6, alignSelf: "stretch", alignItems: "center" }}>
               {rematchOffered && !rematchRequested && (
                 <Text style={styles.rematchOfferText}>
