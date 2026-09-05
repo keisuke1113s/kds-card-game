@@ -99,15 +99,24 @@ export function checkUnlockCode(registered: string | undefined, entered: string)
 /**
  * スペシャルコードがどの操作に対応するかを判定する。
  * unlock=全カード開放（KDS_UNLOCK_ALL_CODES）、release=通常配布へ戻す
- * （KDS_UNLOCK_RELEASE_CODES）。どちらにも無ければ null
+ * （KDS_UNLOCK_RELEASE_CODES）、lineLink=LINE連携を登録
+ * （KDS_LINE_LINK_CODES）、lineUnlink=LINE連携を解除
+ * （KDS_LINE_UNLINK_CODES）。どれにも無ければ null
  */
+export type SpecialAction = "unlock" | "release" | "lineLink" | "lineUnlink";
 export function unlockActionFor(
-  allCodes: string | undefined,
-  releaseCodes: string | undefined,
+  codes: {
+    unlock?: string;
+    release?: string;
+    lineLink?: string;
+    lineUnlink?: string;
+  },
   entered: string
-): "unlock" | "release" | null {
-  if (checkUnlockCode(allCodes, entered)) return "unlock";
-  if (checkUnlockCode(releaseCodes, entered)) return "release";
+): SpecialAction | null {
+  if (checkUnlockCode(codes.unlock, entered)) return "unlock";
+  if (checkUnlockCode(codes.release, entered)) return "release";
+  if (checkUnlockCode(codes.lineLink, entered)) return "lineLink";
+  if (checkUnlockCode(codes.lineUnlink, entered)) return "lineUnlink";
   return null;
 }
 
@@ -344,12 +353,16 @@ export function startServer(port: number): http.Server {
         if (body.length > 500) req.destroy();
       });
       req.on("end", () => {
-        let action: "unlock" | "release" | null = null;
+        let action: SpecialAction | null = null;
         try {
           const b = JSON.parse(body) as { code?: string };
           action = unlockActionFor(
-            process.env.KDS_UNLOCK_ALL_CODES,
-            process.env.KDS_UNLOCK_RELEASE_CODES,
+            {
+              unlock: process.env.KDS_UNLOCK_ALL_CODES,
+              release: process.env.KDS_UNLOCK_RELEASE_CODES,
+              lineLink: process.env.KDS_LINE_LINK_CODES,
+              lineUnlink: process.env.KDS_LINE_UNLINK_CODES,
+            },
             String(b.code ?? "")
           );
         } catch {

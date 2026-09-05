@@ -21,10 +21,13 @@ describe("スペシャルコードの照合", () => {
     expect(checkUnlockCode("A", "")).toBe(false);
   });
 
-  it("開放コードと解除コードを区別する（開放が優先・どちらでも無ければ null）", () => {
-    expect(unlockActionFor("KAIHO", "KAIJO", "KAIHO")).toBe("unlock");
-    expect(unlockActionFor("KAIHO", "KAIJO", "KAIJO")).toBe("release");
-    expect(unlockActionFor("KAIHO", "KAIJO", "BETSU")).toBeNull();
-    expect(unlockActionFor("KAIHO", undefined, "KAIJO")).toBeNull();
+  it("コードの種類ごとに操作を区別する（どれにも無ければ null）", () => {
+    const codes = { unlock: "KAIHO", release: "KAIJO", lineLink: "L-ON", lineUnlink: "L-OFF" };
+    expect(unlockActionFor(codes, "KAIHO")).toBe("unlock");
+    expect(unlockActionFor(codes, "KAIJO")).toBe("release");
+    expect(unlockActionFor(codes, "L-ON")).toBe("lineLink");
+    expect(unlockActionFor(codes, "L-OFF")).toBe("lineUnlink");
+    expect(unlockActionFor(codes, "BETSU")).toBeNull();
+    expect(unlockActionFor({ unlock: "KAIHO" }, "KAIJO")).toBeNull();
   });
 });
