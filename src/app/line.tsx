@@ -216,6 +216,7 @@ export default function LineScreen() {
                 <Text style={styles.stepTitle}>STEP 2　LINEでログインして連携</Text>
                 <Text style={styles.stepNote}>
                   LINEのログイン画面が開きます。許可すると自動で連携されます。
+                  ※公式LINEの友だち追加（STEP 1）がまだの人は、先に済ませてください。
                 </Text>
                 <Pressable style={styles.lineButton} onPress={startLineLogin}>
                   <Text style={styles.lineButtonText}>💚 LINEでログインして連携</Text>

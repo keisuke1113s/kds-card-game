@@ -86,14 +86,15 @@ p{font-size:12px;color:#cfe0f5;line-height:1.7}
 
 /**
  * スペシャルコードの照合。環境変数（カンマ区切り）に登録されたコードと
- * 完全一致（前後の空白は無視）したときだけ true
+ * 一致したときだけ true。コピペで大文字小文字が変わっても通るように
+ * 大文字化して比べる（前後の空白も無視）
  */
 export function checkUnlockCode(registered: string | undefined, entered: string): boolean {
   const codes = (registered ?? "")
     .split(",")
-    .map((s) => s.trim())
+    .map((s) => s.trim().toUpperCase())
     .filter((s) => s.length > 0);
-  const code = entered.trim();
+  const code = entered.trim().toUpperCase();
   return code.length > 0 && codes.includes(code);
 }
 
@@ -133,10 +134,21 @@ function lineChannel(): { id: string; secret: string; callback: string } | null 
   };
 }
 
+/** アプリ内の友だち追加ボタンと同じLステップ流入経路URL（公開情報） */
+const LINE_FRIEND_ADD_URL =
+  "https://liff.line.me/2009272181-fFvxKvD7/landing?follow=%40882qlpyz&lp=VS7JtH&liff_id=2009272181-fFvxKvD7";
+
 /** LINEログインのコールバックで見せる結果ページ */
-function LINE_RESULT_PAGE(ok: boolean, message: string): string {
-  const emoji = ok ? "✅" : "🚫";
-  const title = ok ? "連携が完了しました" : "連携できませんでした";
+function LINE_RESULT_PAGE(
+  ok: boolean,
+  message: string,
+  options?: { title?: string; emoji?: string; friendButton?: boolean }
+): string {
+  const emoji = options?.emoji ?? (ok ? "✅" : "🚫");
+  const title = options?.title ?? (ok ? "連携が完了しました" : "連携できませんでした");
+  const friendButton = options?.friendButton
+    ? `<p><a class="btn" href="${LINE_FRIEND_ADD_URL}">💬 友だち追加はこちら</a></p>`
+    : "";
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${title} | KDSトレーディングカードゲーム</title>
@@ -146,8 +158,11 @@ display:flex;align-items:center;justify-content:center;min-height:100vh}
 .card{background:#fff;border-radius:16px;padding:32px 24px;margin:16px;max-width:420px;
 text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 .emoji{font-size:44px}h1{font-size:19px;color:#1c2440}p{font-size:14px;color:#5a6377;line-height:1.7}
+.btn{display:inline-block;background:#06C755;color:#fff;font-weight:700;text-decoration:none;
+border-radius:10px;padding:12px 22px}
 </style></head><body><div class="card">
 <div class="emoji">${emoji}</div><h1>${title}</h1><p>${message}</p>
+${friendButton}
 <p>この画面を閉じて、アプリに戻ってください。</p>
 </div></body></html>`;
 }
@@ -156,7 +171,7 @@ text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.08)}
 async function completeLineLogin(
   channel: { id: string; secret: string; callback: string },
   code: string
-): Promise<{ userId: string; name: string; friend: boolean }> {
+): Promise<{ userId: string; name: string; friend: boolean | null }> {
   const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -177,15 +192,16 @@ async function completeLineLogin(
   if (!profRes.ok) throw new Error(`プロフィール取得に失敗 (${profRes.status})`);
   const prof = (await profRes.json()) as { userId?: string; displayName?: string };
   if (!prof.userId) throw new Error("ユーザーIDが取れませんでした");
-  // 公式アカウントの友だち状態（取れなくても連携自体は成立させる）
-  let friend = false;
+  // 公式アカウントの友だち状態。false=未追加、null=確認できなかった
+  // （確認できなかったときは連携を止めない＝設定不備で全員を弾かないため）
+  let friend: boolean | null = null;
   try {
     const fr = await fetch("https://api.line.me/friendship/v1/status", {
       headers: { authorization: `Bearer ${token.access_token}` },
     });
     if (fr.ok) friend = Boolean(((await fr.json()) as { friendFlag?: boolean }).friendFlag);
   } catch {
-    // 友だち状態は付加情報
+    // 通信エラー時は null のまま
   }
   return { userId: prof.userId, name: (prof.displayName ?? "").slice(0, 32), friend };
 }
@@ -455,7 +471,24 @@ export function startServer(port: number): http.Server {
       }
       completeLineLogin(channel, code)
         .then((info) => {
-          lineLinks.link(device, { ...info, at: new Date().toISOString() });
+          // 友だち追加が確認できなかった人（false）は連携を完了させない。
+          // null（状態を確認できなかった）は設定不備の巻き添えを避けるため通す
+          if (info.friend === false) {
+            res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+            res.end(
+              LINE_RESULT_PAGE(
+                false,
+                "KDS釧路自動車学校の公式LINEが友だち追加されていません。先に友だち追加をしてから、アプリでもう一度「LINEでログインして連携」を押してください。",
+                { title: "あと1歩！友だち追加が必要です", emoji: "💬", friendButton: true }
+              )
+            );
+            return;
+          }
+          lineLinks.link(device, {
+            ...info,
+            friend: info.friend ?? false,
+            at: new Date().toISOString(),
+          });
           respondHtml(true, `${info.name || "LINEアカウント"} さんとして連携しました。`);
         })
         .catch((e) => {

@@ -8,10 +8,14 @@ describe("スペシャルコードの照合", () => {
     expect(checkUnlockCode(" A , B ", "B")).toBe(true);
   });
 
-  it("違うコード・部分一致・大文字小文字違いは通らない", () => {
+  it("違うコード・部分一致は通らない", () => {
     expect(checkUnlockCode("SOTSUGYO-2026", "SOTSUGYO-2025")).toBe(false);
     expect(checkUnlockCode("SOTSUGYO-2026", "SOTSUGYO")).toBe(false);
-    expect(checkUnlockCode("SOTSUGYO-2026", "sotsugyo-2026")).toBe(false);
+  });
+
+  it("大文字小文字は区別しない（コピペで小文字になっても通す）", () => {
+    expect(checkUnlockCode("SOTSUGYO-2026", "sotsugyo-2026")).toBe(true);
+    expect(checkUnlockCode("sotsugyo-2026", "SOTSUGYO-2026")).toBe(true);
   });
 
   it("環境変数が未設定・空のときは何を入力しても通らない", () => {
