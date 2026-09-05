@@ -52,7 +52,8 @@ export function legacyQrPayloadFor(cardId: string): string {
 const SPECIAL_PREFIX = "KCX:";
 export function specialCodeOf(raw: string): string | null {
   const text = raw.trim();
-  if (!text.startsWith(SPECIAL_PREFIX)) return null;
+  // コピペやキーボードの自動変換で小文字になっても通す（大文字小文字は区別しない）
+  if (text.slice(0, SPECIAL_PREFIX.length).toUpperCase() !== SPECIAL_PREFIX) return null;
   const code = text.slice(SPECIAL_PREFIX.length).trim();
   return code.length > 0 && code.length <= 64 ? code : null;
 }

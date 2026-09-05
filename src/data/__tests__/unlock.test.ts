@@ -63,6 +63,8 @@ describe("スペシャルコードの形式", () => {
   it("KCX: で始まる入力からコード部分を取り出す（前後の空白は無視）", () => {
     expect(specialCodeOf("KCX:ABC-123")).toBe("ABC-123");
     expect(specialCodeOf("  KCX:ABC-123  ")).toBe("ABC-123");
+    // コピペで頭が小文字になっても通す
+    expect(specialCodeOf("kcx:ABC-123")).toBe("ABC-123");
   });
 
   it("形式外・空・長すぎる入力は対象外", () => {
