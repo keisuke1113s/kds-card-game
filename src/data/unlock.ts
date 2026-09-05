@@ -44,6 +44,19 @@ export function legacyQrPayloadFor(cardId: string): string {
   return `${LEGACY_PREFIX}${cardId}:${sigFor(cardId, 16)}`;
 }
 
+/**
+ * スペシャルコード（サーバー照合）の形式。QRまたは直接入力で
+ * `KCX:<コード>` を読み込むとサーバーに照合し、通れば特典が開放される。
+ * 有効なコードの中身はサーバー側だけが知っている（このリポジトリには無い）
+ */
+const SPECIAL_PREFIX = "KCX:";
+export function specialCodeOf(raw: string): string | null {
+  const text = raw.trim();
+  if (!text.startsWith(SPECIAL_PREFIX)) return null;
+  const code = text.slice(SPECIAL_PREFIX.length).trim();
+  return code.length > 0 && code.length <= 64 ? code : null;
+}
+
 /** QRの検証結果 */
 export type QrCheck =
   | { status: "ok"; cardId: string }

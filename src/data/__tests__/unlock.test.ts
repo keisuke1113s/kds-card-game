@@ -6,6 +6,7 @@ import {
   legacyQrPayloadFor,
   qrPayloadFor,
   registryForUnlocked,
+  specialCodeOf,
   verifyQrPayload,
 } from "../unlock";
 
@@ -55,5 +56,19 @@ describe("カード開放のQRコード", () => {
     expect(Object.keys(tiny).length).toBe(allCards.length);
     const enough = registryForUnlocked(new Set(allCards.map((c) => c.id)));
     expect(Object.keys(enough).length).toBe(allCards.length);
+  });
+});
+
+describe("スペシャルコードの形式", () => {
+  it("KCX: で始まる入力からコード部分を取り出す（前後の空白は無視）", () => {
+    expect(specialCodeOf("KCX:ABC-123")).toBe("ABC-123");
+    expect(specialCodeOf("  KCX:ABC-123  ")).toBe("ABC-123");
+  });
+
+  it("形式外・空・長すぎる入力は対象外", () => {
+    expect(specialCodeOf("KC1:i_kuji:deadbeef")).toBeNull();
+    expect(specialCodeOf("https://example.com")).toBeNull();
+    expect(specialCodeOf("KCX:")).toBeNull();
+    expect(specialCodeOf(`KCX:${"a".repeat(65)}`)).toBeNull();
   });
 });
