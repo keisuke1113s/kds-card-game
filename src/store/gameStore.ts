@@ -57,8 +57,9 @@ interface GameStore {
   setAutoPlay: (v: boolean) => void;
   setPresentationBusy: (v: boolean) => void;
 
-  /** 対戦の種類。online のとき dispatch はサーバーへ送るだけになる */
-  mode: "local" | "online";
+  /** 対戦の種類。online のとき dispatch はサーバーへ送るだけになる。
+   * spectate は観戦（対戦画面をそのまま読み取り専用で使う） */
+  mode: "local" | "online" | "spectate";
   /** オンライン接続の進行状況 */
   onlineStatus:
     | "idle"
@@ -91,6 +92,18 @@ interface GameStore {
     /** 挑戦状から始まる対戦（「因縁の再戦」演出になる） */
     revenge?: boolean;
   }) => void;
+  /** 観戦を始める（対戦画面そのままの観戦。/spectate から呼ぶ） */
+  connectSpectate: (opts: {
+    serverUrl: string;
+    code: string;
+    names: [string, string];
+  }) => void;
+  /** 観戦者からの応援を送る */
+  sendCheer: (emoji: string) => void;
+  /** 観戦中: プレイヤー0（画面下側）の手札枚数（中身は届かない） */
+  spectateHandCount: number;
+  /** 観戦中: [下側, 上側] の表示名 */
+  spectateNames: [string, string] | null;
   /** オンライン対戦の投了 */
   resignOnline: () => void;
   /**
@@ -626,6 +639,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     revengeMatch: false,
     cheers: [],
     spectatorCount: 0,
+    spectateHandCount: 0,
+    spectateNames: null,
     queueActive: false,
     matchFound: null,
     clearMatchFound: () => set({ matchFound: null }),
@@ -1177,6 +1192,133 @@ export const useGameStore = create<GameStore>()((set, get) => {
       open(false);
     },
 
+    connectSpectate: ({ serverUrl, code, names }) => {
+      // 観戦は対局を持たない読み取り専用モード。既存の対局・接続を片づけてから始める
+      gameToken++;
+      clearAiTimer();
+      closeSocket();
+      onlineSession = null;
+      onlineSeat = null;
+      set({
+        mode: "spectate",
+        onlineStatus: "connecting",
+        onlineError: null,
+        roomCode: code,
+        opponentName: names[1],
+        opponentTitle: null,
+        opponentDevice: null,
+        spectateNames: names,
+        spectateHandCount: 0,
+        revengeMatch: false,
+        queueActive: false,
+        matchFound: null,
+        cheers: [],
+        spectatorCount: 0,
+        state: null,
+        view: null,
+        eventLog: [],
+        lastEvents: [],
+        aiThinking: false,
+        presentationBusy: false,
+        tutorial: false,
+        autoPlay: false,
+        jankenActive: false,
+        jankenHand: null,
+        jankenResult: null,
+        rematchRequested: false,
+        rematchOffered: false,
+        opponentConnected: true,
+        incomingStamp: null,
+        myStamp: null,
+        replayActive: false,
+      });
+
+      // 対戦者と同じく、演出中はためて順に流す（成績・記録には一切残さない）
+      let pending: { view: PlayerView; events: GameEvent[] }[] = [];
+      const drain = () => {
+        if (pending.length === 0) return;
+        if (get().presentationBusy) return;
+        if (pending.length >= 3) {
+          const all = pending;
+          pending = [];
+          const events = all.flatMap((u) => u.events);
+          set({
+            view: all[all.length - 1].view,
+            lastEvents: [],
+            eventLog: [...get().eventLog, ...events],
+          });
+          return;
+        }
+        const next = pending.shift()!;
+        set({
+          view: next.view,
+          lastEvents: next.events,
+          eventLog: [...get().eventLog, ...next.events],
+        });
+        playEventSounds(next.events);
+      };
+      onlineDrain = drain;
+
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(serverUrl);
+      } catch (e) {
+        set({ onlineStatus: "error", onlineError: `サーバーに接続できません: ${e}` });
+        return;
+      }
+      socket = ws;
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "spectate", code }));
+      };
+      ws.onmessage = (ev) => {
+        if (socket !== ws) return;
+        let msg: {
+          type?: string;
+          view?: PlayerView;
+          events?: GameEvent[];
+          selfHandCount?: number;
+          emoji?: string;
+          message?: string;
+        };
+        try {
+          msg = JSON.parse(String(ev.data));
+        } catch {
+          return;
+        }
+        if (msg.type === "spectateState") {
+          if (!msg.view) return; // ビュー未対応の旧サーバーでは簡易画面だけ使う
+          if (get().onlineStatus !== "playing") set({ onlineStatus: "playing" });
+          if (typeof msg.selfHandCount === "number") {
+            set({ spectateHandCount: msg.selfHandCount });
+          }
+          pending.push({ view: msg.view, events: msg.events ?? [] });
+          drain();
+        } else if (msg.type === "cheer" && msg.emoji) {
+          set({
+            cheers: [
+              ...get().cheers.slice(-4),
+              { key: Date.now() + Math.random(), emoji: msg.emoji },
+            ],
+          });
+        } else if (msg.type === "error") {
+          set({ onlineStatus: "error", onlineError: msg.message ?? "観戦できませんでした" });
+        }
+      };
+      ws.onclose = () => {
+        if (socket !== ws) return;
+        if (get().mode !== "spectate") return;
+        set({ onlineStatus: "error", onlineError: "接続が切れました。観戦をやり直してください" });
+      };
+    },
+
+    sendCheer: (emoji) => {
+      try {
+        socket?.send(JSON.stringify({ type: "cheer", emoji }));
+      } catch {
+        // 応援が送れなくても観戦は続けられる
+      }
+    },
+
     resignOnline: () => {
       if (socket) socket.send(JSON.stringify({ type: "resign" }));
     },
@@ -1184,6 +1326,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
     dispatch: (action) => {
       // リプレイ中は操作を受け付けない（記録どおりに進める）
       if (get().replayActive) return;
+      // 観戦は見るだけ（保険。UI側でも操作はふさいでいる）
+      if (get().mode === "spectate") return;
       // オンラインでは手をサーバーに送るだけ。適用と検証はサーバーが行う
       if (get().mode === "online") {
         if (socket && socket.readyState === WebSocket.OPEN) {
@@ -1241,6 +1385,8 @@ export const useGameStore = create<GameStore>()((set, get) => {
         rematchOffered: false,
         incomingStamp: null,
         myStamp: null,
+        spectateHandCount: 0,
+        spectateNames: null,
       });
       ai = null;
       set({
