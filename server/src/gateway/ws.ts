@@ -7,6 +7,7 @@ import { Matchmaker } from "../core/matchmaker";
 import { RoomCore, ServerMessage } from "../core/room";
 import { clientMessageSchema, sanitizeName, sanitizeTitle } from "../protocol/messages";
 import { Telemetry } from "../core/telemetry";
+import { LineLinks } from "../core/lineLink";
 import { Challenges } from "../core/challenges";
 import { Tourney } from "../core/tourney";
 import { config } from "../config";
@@ -120,6 +121,75 @@ export function unlockActionFor(
   return null;
 }
 
+/** LINEログインのチャネル設定（Flyシークレット）。ID・シークレットがそろうと有効 */
+function lineChannel(): { id: string; secret: string; callback: string } | null {
+  const id = process.env.KDS_LINE_CHANNEL_ID ?? "";
+  const secret = process.env.KDS_LINE_CHANNEL_SECRET ?? "";
+  if (!id || !secret) return null;
+  return {
+    id,
+    secret,
+    callback: process.env.KDS_LINE_CALLBACK_URL ?? "https://tcg.kds946.com/line/callback",
+  };
+}
+
+/** LINEログインのコールバックで見せる結果ページ */
+function LINE_RESULT_PAGE(ok: boolean, message: string): string {
+  const emoji = ok ? "✅" : "🚫";
+  const title = ok ? "連携が完了しました" : "連携できませんでした";
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title} | KDSトレーディングカードゲーム</title>
+<style>
+body{font-family:-apple-system,"Hiragino Sans",sans-serif;background:#eef2f8;margin:0;
+display:flex;align-items:center;justify-content:center;min-height:100vh}
+.card{background:#fff;border-radius:16px;padding:32px 24px;margin:16px;max-width:420px;
+text-align:center;box-shadow:0 4px 16px rgba(0,0,0,.08)}
+.emoji{font-size:44px}h1{font-size:19px;color:#1c2440}p{font-size:14px;color:#5a6377;line-height:1.7}
+</style></head><body><div class="card">
+<div class="emoji">${emoji}</div><h1>${title}</h1><p>${message}</p>
+<p>この画面を閉じて、アプリに戻ってください。</p>
+</div></body></html>`;
+}
+
+/** LINEログインの認可コードをユーザー情報に引き換える */
+async function completeLineLogin(
+  channel: { id: string; secret: string; callback: string },
+  code: string
+): Promise<{ userId: string; name: string; friend: boolean }> {
+  const tokenRes = await fetch("https://api.line.me/oauth2/v2.1/token", {
+    method: "POST",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: channel.callback,
+      client_id: channel.id,
+      client_secret: channel.secret,
+    }).toString(),
+  });
+  if (!tokenRes.ok) throw new Error(`トークン交換に失敗 (${tokenRes.status})`);
+  const token = (await tokenRes.json()) as { access_token?: string };
+  if (!token.access_token) throw new Error("アクセストークンが取れませんでした");
+  const profRes = await fetch("https://api.line.me/v2/profile", {
+    headers: { authorization: `Bearer ${token.access_token}` },
+  });
+  if (!profRes.ok) throw new Error(`プロフィール取得に失敗 (${profRes.status})`);
+  const prof = (await profRes.json()) as { userId?: string; displayName?: string };
+  if (!prof.userId) throw new Error("ユーザーIDが取れませんでした");
+  // 公式アカウントの友だち状態（取れなくても連携自体は成立させる）
+  let friend = false;
+  try {
+    const fr = await fetch("https://api.line.me/friendship/v1/status", {
+      headers: { authorization: `Bearer ${token.access_token}` },
+    });
+    if (fr.ok) friend = Boolean(((await fr.json()) as { friendFlag?: boolean }).friendFlag);
+  } catch {
+    // 友だち状態は付加情報
+  }
+  return { userId: prof.userId, name: (prof.displayName ?? "").slice(0, 32), friend };
+}
+
 function fsExistsDir(p: string): boolean {
   try {
     return fs.statSync(p).isDirectory();
@@ -150,6 +220,8 @@ export function startServer(port: number): http.Server {
     process.env.KDS_DATA_DIR ?? (fsExistsDir("/data") ? "/data" : "./data");
   const telemetry = new Telemetry(dataDir);
   const challenges = new Challenges();
+  // LINEログイン連携（方式B）。チャネルのシークレット設定で自動有効化
+  const lineLinks = new LineLinks(dataDir);
   // オンライントーナメント（常設ロビー・4人制）
   const tourney = new Tourney({
     createRoom: () => ({ code: matchmaker.createRoom().code }),
@@ -332,6 +404,79 @@ export function startServer(port: number): http.Server {
         "cache-control": "no-store",
       });
       res.end(JSON.stringify({ matches: matchmaker.listWatchable() }));
+      return;
+    }
+    // LINEログイン連携（方式B）: 有効かどうか
+    if (req.url === "/line/available" && req.method === "GET") {
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify({ available: lineChannel() !== null }));
+      return;
+    }
+    // LINEログイン開始: LINEの認可画面へ転送する
+    if (req.url?.startsWith("/line/login?") && req.method === "GET") {
+      const u = new URL(req.url, "http://localhost");
+      const device = (u.searchParams.get("device") ?? "").slice(0, 64);
+      const channel = lineChannel();
+      if (!channel || !/^[0-9a-f]{8,64}$/i.test(device)) {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(LINE_RESULT_PAGE(false, "連携の入り口が正しくありません。アプリからやり直してください。"));
+        return;
+      }
+      const auth = new URL("https://access.line.me/oauth2/v2.1/authorize");
+      auth.searchParams.set("response_type", "code");
+      auth.searchParams.set("client_id", channel.id);
+      auth.searchParams.set("redirect_uri", channel.callback);
+      auth.searchParams.set("state", lineLinks.newState(device));
+      auth.searchParams.set("scope", "profile openid");
+      // ログインのついでに公式アカウントの友だち追加も促す
+      auth.searchParams.set("bot_prompt", "aggressive");
+      res.writeHead(302, { location: auth.toString() });
+      res.end();
+      return;
+    }
+    // LINEログイン完了: 認可コードを引き換えて連携を記録する
+    if (req.url?.startsWith("/line/callback") && req.method === "GET") {
+      const u = new URL(req.url, "http://localhost");
+      const code = u.searchParams.get("code") ?? "";
+      const state = u.searchParams.get("state") ?? "";
+      const channel = lineChannel();
+      const device = state ? lineLinks.consumeState(state) : null;
+      const respondHtml = (ok: boolean, message: string) => {
+        res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+        res.end(LINE_RESULT_PAGE(ok, message));
+      };
+      if (!channel || !device || !code) {
+        respondHtml(false, "リンクの有効期限が切れています。アプリから連携をやり直してください。");
+        return;
+      }
+      completeLineLogin(channel, code)
+        .then((info) => {
+          lineLinks.link(device, { ...info, at: new Date().toISOString() });
+          respondHtml(true, `${info.name || "LINEアカウント"} さんとして連携しました。`);
+        })
+        .catch((e) => {
+          console.warn("LINEログインに失敗:", e);
+          respondHtml(false, "LINEとの通信に失敗しました。時間をおいてもう一度お試しください。");
+        });
+      return;
+    }
+    // アプリからの連携確認（数秒おきのポーリング）
+    if (req.url?.startsWith("/line/check?") && req.method === "GET") {
+      const u = new URL(req.url, "http://localhost");
+      const device = (u.searchParams.get("device") ?? "").slice(0, 64);
+      const entry = device ? lineLinks.get(device) : null;
+      res.writeHead(200, {
+        "content-type": "application/json; charset=utf-8",
+        "access-control-allow-origin": "*",
+        "cache-control": "no-store",
+      });
+      res.end(
+        JSON.stringify(entry ? { linked: true, name: entry.name, friend: entry.friend } : { linked: false })
+      );
       return;
     }
     // スペシャルコード（卒業生向けの全カード開放など）。

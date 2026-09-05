@@ -1,6 +1,6 @@
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import Animated, { ZoomIn } from "react-native-reanimated";
 import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
@@ -9,7 +9,7 @@ import { ScreenEnter } from "@/components/ScreenEnter";
 import { LINE_FRIEND_URL, LINE_LINK_CODES, isValidLinkCode } from "@/data/lineConfig";
 import { ALL_CARDS_OPEN_FOR_TESTING, specialCodeOf } from "@/data/unlock";
 import { evaluateAchievements } from "@/store/achievementStore";
-import { trackEvent } from "@/data/telemetry";
+import { getDeviceId, trackEvent } from "@/data/telemetry";
 import { useLineStore } from "@/store/lineStore";
 import { colors, radius, spacing } from "@/theme";
 
@@ -28,6 +28,63 @@ export default function LineScreen() {
   const [justLinked, setJustLinked] = useState(false);
 
   const [busy, setBusy] = useState(false);
+  // LINEログイン連携（方式B）。サーバーにチャネル設定があるときだけボタンを出す
+  const [loginAvailable, setLoginAvailable] = useState(false);
+  const [loginWaiting, setLoginWaiting] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        const res = await fetch("https://tcg.kds946.com/line/available");
+        const out = (await res.json()) as { available?: boolean };
+        if (alive) setLoginAvailable(Boolean(out.available));
+      } catch {
+        // サーバーに届かないときはコード連携だけを出す
+      }
+    })();
+    return () => {
+      alive = false;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const startLineLogin = async () => {
+    haptic("light");
+    const id = await getDeviceId();
+    const url = `https://tcg.kds946.com/line/login?device=${id}`;
+    if (Platform.OS === "web") {
+      window.open(url, "_blank", "noopener");
+    } else {
+      void Linking.openURL(url);
+    }
+    // LINE側での操作が終わるのを数秒おきに確認する（3分で打ち切り）
+    setLoginWaiting(true);
+    if (pollRef.current) clearInterval(pollRef.current);
+    let tries = 0;
+    pollRef.current = setInterval(() => {
+      tries++;
+      if (tries > 60) {
+        if (pollRef.current) clearInterval(pollRef.current);
+        setLoginWaiting(false);
+        return;
+      }
+      void (async () => {
+        try {
+          const res = await fetch(`https://tcg.kds946.com/line/check?device=${id}`);
+          const out = (await res.json()) as { linked?: boolean };
+          if (out.linked) {
+            if (pollRef.current) clearInterval(pollRef.current);
+            setLoginWaiting(false);
+            completeLink();
+          }
+        } catch {
+          // 次の周期でもう一度確認する
+        }
+      })();
+    }, 3000);
+  };
 
   const completeLink = () => {
     line.setLinked();
@@ -154,8 +211,27 @@ export default function LineScreen() {
               </Pressable>
             </View>
 
+            {loginAvailable && (
+              <View style={styles.stepBox}>
+                <Text style={styles.stepTitle}>STEP 2　LINEでログインして連携</Text>
+                <Text style={styles.stepNote}>
+                  LINEのログイン画面が開きます。許可すると自動で連携されます。
+                </Text>
+                <Pressable style={styles.lineButton} onPress={startLineLogin}>
+                  <Text style={styles.lineButtonText}>💚 LINEでログインして連携</Text>
+                </Pressable>
+                {loginWaiting && (
+                  <Text style={styles.stepNote}>
+                    ⏳ LINEでの操作が終わるのを待っています…（終わると自動で画面が切り替わります）
+                  </Text>
+                )}
+              </View>
+            )}
+
             <View style={styles.stepBox}>
-              <Text style={styles.stepTitle}>STEP 2　連携コードを入力</Text>
+              <Text style={styles.stepTitle}>
+                {loginAvailable ? "うまくいかないとき　連携コードで連携" : "STEP 2　連携コードを入力"}
+              </Text>
               <Text style={styles.stepNote}>
                 友だち追加すると、LINEに「連携コード」が届きます。
                 届かないときはトークで「トレカ連携」と送ってみてね。
