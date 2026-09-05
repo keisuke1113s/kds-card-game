@@ -647,7 +647,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   choiceText: { fontWeight: "700", color: colors.text, textAlign: "center" },
-  note: { color: colors.textMuted, marginTop: 16, fontSize: 12 },
+  // 説明文はすぐ上の選択肢・ボタンの補足なので、全体の隙間(12)を打ち消して近づける
+  note: { color: colors.textMuted, marginTop: -6, fontSize: 12, lineHeight: 17 },
   reportInput: {
     minHeight: 70,
     borderWidth: 1.5,
