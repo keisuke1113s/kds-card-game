@@ -137,6 +137,7 @@ export default function SettingsScreen() {
           />
         ))}
       </View>
+      <Text style={styles.note}>CPUの強さは対戦開始時にだけ選べます。</Text>
 
       <Text style={styles.sectionTitle}>サウンド</Text>
       <View style={styles.row}>
@@ -154,6 +155,13 @@ export default function SettingsScreen() {
           onPress={() => HAPTICS_AVAILABLE && setHapticsEnabled(!hapticsEnabled)}
         />
       </View>
+      {Platform.OS === "web" && !HAPTICS_AVAILABLE && (
+        <Text style={styles.note}>
+          ※ iPhoneのブラウザには振動の仕組みが無いため、この端末では振動しません
+          （ホーム画面に追加した場合も同じです）。App Store・TestFlight で配布する
+          アプリ版では振動します。
+        </Text>
+      )}
       <Text style={styles.subLabel}>BGMの音量</Text>
       <View style={styles.row}>
         {([0.25, 0.5, 0.75, 1] as const).map((v) => (
@@ -207,17 +215,6 @@ export default function SettingsScreen() {
       <Text style={styles.sectionTitle}>データの引き継ぎ</Text>
       <TransferSection />
 
-      <Text style={styles.note}>
-        CPUの強さは対戦開始時にだけ選べます。サウンドの変更はすぐに反映されます。
-        画面の見た目の切り替えは、画面を読み込み直して反映します。
-      </Text>
-      {!HAPTICS_AVAILABLE && (
-        <Text style={styles.note}>
-          ※ iPhoneのブラウザには振動の仕組みが無いため、この端末では振動しません
-          （ホーム画面に追加した場合も同じです）。App Store・TestFlight で配布する
-          アプリ版では振動します。
-        </Text>
-      )}
 
       {/* カードの登録状態の切り替えは開発ビルド専用。本番では表示せず、
           全カード開放のON/OFFはQR読み取り画面のスペシャルコードで行う */}
