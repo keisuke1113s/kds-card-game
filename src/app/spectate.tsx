@@ -7,6 +7,7 @@ import { eventText } from "@/components/eventText";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { ACADEMIC_GOAL, GameEvent, SKILL_GOAL } from "@/engine/types";
 import { DEFAULT_SERVER_URL } from "@/app/online";
+import { useGameStore } from "@/store/gameStore";
 import { colors, radius, spacing } from "@/theme";
 
 /**
@@ -89,6 +90,19 @@ export default function SpectateScreen() {
       wsRef.current = null;
     };
   }, [code]);
+
+  const connectSpectate = useGameStore((s) => s.connectSpectate);
+  // 対戦者と同じ画面での観戦に切り替える（この画面のソケットは離脱時に閉じる）
+  const openFullView = () => {
+    if (!board || !code) return;
+    haptic("medium");
+    connectSpectate({
+      serverUrl: DEFAULT_SERVER_URL,
+      code: String(code),
+      names: board.names,
+    });
+    router.replace("/battle");
+  };
 
   const sendCheer = (emoji: string) => {
     haptic("light");
@@ -178,6 +192,9 @@ export default function SpectateScreen() {
             ))}
             {log.length === 0 && <Text style={styles.logLine}>実況を待っています…</Text>}
           </View>
+          <Pressable style={styles.fullViewButton} onPress={openFullView}>
+            <Text style={styles.fullViewText}>🎬 対戦画面で観戦する（切り替え）</Text>
+          </Pressable>
           <View style={styles.cheerRow}>
             <Text style={styles.cheerLabel}>応援を送る:</Text>
             {CHEERS.map((c) => (
@@ -198,6 +215,13 @@ export default function SpectateScreen() {
 }
 
 const styles = StyleSheet.create({
+  fullViewButton: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.md,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  fullViewText: { color: "#fff", fontWeight: "900", fontSize: 14 },
   root: { flex: 1, backgroundColor: "#0e1b33" },
   center: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14, padding: 24 },
   loading: { color: "#cfe4ff", fontSize: 15, fontWeight: "700" },

@@ -45,8 +45,17 @@ export type ServerMessage =
   | { type: "rematchOffered" }
   /** 相手からの定型スタンプ */
   | { type: "stamp"; id: string }
-  /** 観戦者向けの盤面（手札の中身は含まない） */
-  | { type: "spectateState"; seq: number; board: SpectatorBoard; events: GameEvent[] }
+  /** 観戦者向けの盤面（手札の中身は含まない）。
+   * view/selfHandCount は「対戦画面そのままの観戦」用: プレイヤー0視点の
+   * ビューから手札・山札の中身・選択肢を取り除いたもの */
+  | {
+      type: "spectateState";
+      seq: number;
+      board: SpectatorBoard;
+      events: GameEvent[];
+      view?: PlayerView;
+      selfHandCount?: number;
+    }
   /** 観戦者からの応援（対戦者と他の観戦者に届く） */
   | { type: "cheer"; emoji: string }
   /** いまの観戦者数（対戦者へ） */
@@ -536,6 +545,19 @@ export class RoomCore {
     };
   }
 
+  /**
+   * 観戦者向けの対戦画面用ビュー（プレイヤー0視点）。
+   * 手札・山札の中身・選択肢は観戦者に見せないため空にする
+   */
+  private buildSpectatorView(): PlayerView | null {
+    if (!this.state) return null;
+    const view = viewFor(this.state, 0);
+    view.self.hand = [];
+    view.self.deckContents = [];
+    if (view.phase.type === "choice") view.phase.pending.options = [];
+    return view;
+  }
+
   /** 観戦者向けにイベントを秘匿する（両者の非公開カードIDを落とす） */
   private redactForSpectator(events: GameEvent[]): GameEvent[] {
     return events.map((e) => {
@@ -551,7 +573,16 @@ export class RoomCore {
     const id = ++this.spectatorSeq;
     this.spectators.set(id, send);
     const board = this.buildBoard();
-    if (board) send({ type: "spectateState", seq: this.seq, board, events: [] });
+    if (board) {
+      send({
+        type: "spectateState",
+        seq: this.seq,
+        board,
+        events: [],
+        view: this.buildSpectatorView() ?? undefined,
+        selfHandCount: this.state?.players[0].hand.length ?? 0,
+      });
+    }
     this.notifySpectatorCount();
     return id;
   }
@@ -603,6 +634,8 @@ export class RoomCore {
           seq: this.seq,
           board,
           events: specEvents,
+          view: this.buildSpectatorView() ?? undefined,
+          selfHandCount: this.state?.players[0].hand.length ?? 0,
         };
         this.spectators.forEach((send) => send(msg));
       }

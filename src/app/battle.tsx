@@ -514,6 +514,9 @@ function BattleInner() {
   const matchFound = useGameStore((s) => s.matchFound);
   const clearMatchFound = useGameStore((s) => s.clearMatchFound);
   const opponentTitle = useGameStore((s) => s.opponentTitle);
+  const spectateNames = useGameStore((s) => s.spectateNames);
+  const spectateHandCount = useGameStore((s) => s.spectateHandCount);
+  const sendCheer = useGameStore((s) => s.sendCheer);
   const rematchRequested = useGameStore((s) => s.rematchRequested);
   const rematchOffered = useGameStore((s) => s.rematchOffered);
   const onlineStatus = useGameStore((s) => s.onlineStatus);
@@ -563,12 +566,23 @@ function BattleInner() {
   const toggleReplayPause = useGameStore((s) => s.toggleReplayPause);
   const replayStepBack = useGameStore((s) => s.replayStepBack);
   const setReplaySpeed = useGameStore((s) => s.setReplaySpeed);
-  const isOnline = matchMode === "online";
+  const isSpectate = matchMode === "spectate";
+  // 観戦は「オンラインと同じ描画経路（viewを読む）」を使う
+  const isOnline = matchMode === "online" || isSpectate;
   oppLabel = isOnline ? (opponentName ?? "相手") : kyokanDef ? `${kyokanDef.name}インストラクター` : "CPU";
   const difficulty = useSettingsStore((s) => s.difficulty);
   const aiSpeedMs = useSettingsStore((s) => s.aiSpeedMs);
   const deckState = useDeckStore();
   const record = useRecordStore();
+
+  // 観戦のままこの画面を離れたら接続を閉じる（ホーム等へ抜けた場合の保険）
+  useEffect(() => {
+    return () => {
+      const st = useGameStore.getState();
+      if (st.mode === "spectate") st.quitGame();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [targetingUid, setTargetingUid] = useState<string | null>(null);
@@ -2318,7 +2332,7 @@ function BattleInner() {
   const logLines = allLogLines.slice(-3);
 
   const humanChoice =
-    view.phase.type === "choice" && view.phase.pending.player === ME
+    !isSpectate && view.phase.type === "choice" && view.phase.pending.player === ME
       ? view.phase.pending
       : null;
 
@@ -2459,7 +2473,9 @@ function BattleInner() {
         <TrackBar label="学科" kind="academic" value={shownTracks?.ma ?? me.academic} goal={ACADEMIC_GOAL} color={colors.primary} />
         <TrackBar label="技能" kind="skill" value={shownTracks?.ms ?? me.skill} goal={SKILL_GOAL} color={colors.success} />
         <View style={styles.infoRow}>
-          <Text style={styles.playerLabel}>あなた</Text>
+          <Text style={styles.playerLabel}>
+            {isSpectate ? (spectateNames?.[0] ?? "プレイヤー1") : "あなた"}
+          </Text>
           {/* 山札・場外はタップで中身を確認できる */}
           <Pressable onPress={() => setPileView("deck")} hitSlop={6}>
             <DeckCount count={me.deckCount} baseStyle={styles.infoLink} suffix=" ▸" />
@@ -2484,20 +2500,22 @@ function BattleInner() {
             </TantouMood>
           </PulseRing>
           <View style={{ flex: 1 }} />
-          {battleInfo?.myPriority && (
+          {!isSpectate && battleInfo?.myPriority && (
             <ActionButton
               label="パス"
               color={colors.textMuted}
               onPress={() => doAction({ type: "passSupport", player: ME })}
             />
           )}
-          <ActionButton
-            label="ターン終了"
-            color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
-            onPress={() =>
-              can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: ME })
-            }
-          />
+          {!isSpectate && (
+            <ActionButton
+              label="ターン終了"
+              color={can((a) => a.type === "endTurn") ? colors.accent : colors.border}
+              onPress={() =>
+                can((a) => a.type === "endTurn") && doAction({ type: "endTurn", player: ME })
+              }
+            />
+          )}
         </View>
       </View>
     ),
@@ -2552,7 +2570,7 @@ function BattleInner() {
           </View>
         )}
         {/* オンライン: 定型スタンプの送信ボタンと吹き出し */}
-        {isOnline && (
+        {isOnline && !isSpectate && (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -2593,6 +2611,38 @@ function BattleInner() {
             </Text>
           </View>
         )}
+        {/* 観戦バー: 応援スタンプと簡易表示への切り替え */}
+        {isSpectate && (
+          <View style={styles.spectateBar} pointerEvents="box-none">
+            <View style={styles.spectateBarInner}>
+              <Text style={styles.spectateBadge}>👀 観戦中</Text>
+              {["👏", "🔥", "😆", "😱", "💪"].map((e) => (
+                <Pressable
+                  key={e}
+                  style={styles.cheerButton}
+                  onPress={() => {
+                    haptic("light");
+                    sendCheer(e);
+                  }}
+                >
+                  <Text style={{ fontSize: 20 }}>{e}</Text>
+                </Pressable>
+              ))}
+              <Pressable
+                style={styles.spectateSwitch}
+                onPress={() => {
+                  haptic("light");
+                  const code = useGameStore.getState().roomCode;
+                  quitGame();
+                  router.replace(code ? `/spectate?code=${code}` : "/spectate");
+                }}
+              >
+                <Text style={styles.spectateSwitchText}>📱 簡易表示</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
+
         {/* ランダムマッチ・合言葉の相手を待ちながらCPU対戦しているときの目印 */}
         {queueActive && !isOnline && (
           <View style={styles.queueBadge} pointerEvents="none">
@@ -2792,8 +2842,15 @@ function BattleInner() {
             onDone={() => setDrawFx(null)}
           />
         )}
+        {isSpectate && (
+          <View style={styles.spectateHandRow}>
+            {Array.from({ length: Math.min(spectateHandCount, 10) }, (_, i) => (
+              <CardFace key={i} cardId={me.tantou} size="sm" faceDown />
+            ))}
+          </View>
+        )}
         <HandRow
-          hand={me.hand}
+          hand={isSpectate ? [] : me.hand}
           meta={handMeta}
           dimUnplayable={isMyMain || view.phase.type === "battleSupport"}
           scrollRef={handScroll}
@@ -3222,7 +3279,7 @@ function BattleInner() {
         </Overlay>
       )}
 
-      {view.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !enterWipe && !vsIntro && !autoPlay && (
+      {!isSpectate && view.phase.type === "mulligan" && !me.mulliganDecided && !dealing && !enterWipe && !vsIntro && !autoPlay && (
         <Overlay title="この手札で始めますか？">
           <Text style={styles.annHint}>カードをタップすると拡大して確認できます</Text>
           <View style={styles.overlayCards}>
@@ -3698,7 +3755,7 @@ function BattleInner() {
             <Text style={styles.rematchWaitText}>👋 {oppLabel} さんは対戦をやめました</Text>
           )}
           {/* オンライン: 再戦の申し込み */}
-          {isOnline && onlineStatus !== "opponentLeft" && (
+          {isOnline && !isSpectate && onlineStatus !== "opponentLeft" && (
             <View style={{ gap: 6, alignSelf: "stretch", alignItems: "center" }}>
               {rematchOffered && !rematchRequested && (
                 <Text style={styles.rematchOfferText}>
@@ -3738,6 +3795,16 @@ function BattleInner() {
             </View>
           )}
           <View style={styles.overlayButtons}>
+            {isSpectate && (
+              <ActionButton
+                label="観戦を終える"
+                color={colors.primary}
+                onPress={() => {
+                  quitGame();
+                  router.replace("/spectate");
+                }}
+              />
+            )}
             {replayActive && (
               <ActionButton
                 label="記録へ戻る"
@@ -3774,7 +3841,7 @@ function BattleInner() {
                 }}
               />
             )}
-            {!replayActive && (
+            {!replayActive && !isSpectate && (
               <ActionButton
                 label="📸 結果を保存・共有"
                 color={colors.support}
@@ -8239,6 +8306,38 @@ const styles = StyleSheet.create({
   },
   streakBannerGold: { backgroundColor: "#c9971b" },
   streakBannerText: { color: "#fff", fontSize: 15, fontWeight: "900" },
+  spectateBar: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: 120,
+    alignItems: "center",
+  },
+  spectateBarInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 24, 52, 0.88)",
+    borderRadius: 22,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  spectateBadge: { color: "#ffd54d", fontSize: 12, fontWeight: "900", marginRight: 2 },
+  cheerButton: { padding: 4 },
+  spectateSwitch: {
+    backgroundColor: "#ffffff22",
+    borderRadius: 14,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginLeft: 4,
+  },
+  spectateSwitchText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  spectateHandRow: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 4,
+    paddingVertical: 6,
+  },
   matchFoundLayer: {
     ...StyleSheet.absoluteFill,
     backgroundColor: "#0b1024dd",

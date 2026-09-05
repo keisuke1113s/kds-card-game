@@ -405,11 +405,21 @@ describe("観戦（スペクテイター）", () => {
     }
     for (const m of seen) {
       if (m.type !== "spectateState") continue;
-      const json = JSON.stringify(m);
-      // 手札や山札の中身を運ぶプロパティ自体が存在しない
-      expect(json.includes('"hand"')).toBe(false);
-      expect(json.includes('"deck"')).toBe(false);
-      expect(json.includes('"deckContents"')).toBe(false);
+      // 簡易盤面には手札や山札の中身を運ぶプロパティ自体が存在しない
+      const boardJson = JSON.stringify(m.board);
+      expect(boardJson.includes('"hand"')).toBe(false);
+      expect(boardJson.includes('"deck"')).toBe(false);
+      expect(boardJson.includes('"deckContents"')).toBe(false);
+      // 対戦画面用ビューは同梱されるが、手札・山札の中身・選択肢は常に空
+      expect(m.view).toBeTruthy();
+      if (m.view) {
+        expect(m.view.self.hand.length).toBe(0);
+        expect(m.view.self.deckContents.length).toBe(0);
+        if (m.view.phase.type === "choice") {
+          expect(m.view.phase.pending.options.length).toBe(0);
+        }
+        expect(m.selfHandCount).toBe(m.board.handCounts[0]);
+      }
       // 観戦者向けイベントの cardDrawn はIDを持たない
       for (const e of m.events) {
         if (e.type === "cardDrawn") expect(e.cardId).toBeUndefined();
