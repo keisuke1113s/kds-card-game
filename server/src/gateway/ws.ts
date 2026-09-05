@@ -122,6 +122,46 @@ export function unlockActionFor(
   return null;
 }
 
+/** ストア掲載用: アカウント（LINE連携）とデータの削除リクエスト案内ページ */
+function DELETE_ACCOUNT_PAGE(): string {
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>アカウント・データの削除について | KDSトレーディングカードゲーム</title>
+<style>
+body{font-family:-apple-system,"Hiragino Sans",sans-serif;background:#eef2f8;margin:0;padding:24px;color:#1c2440}
+.card{background:#fff;border-radius:16px;padding:28px 24px;max-width:640px;margin:0 auto;line-height:1.9}
+h1{font-size:20px}h2{font-size:16px;margin-top:24px}p,li{font-size:14px;color:#39415a}
+.mail{display:inline-block;background:#153a86;color:#fff;font-weight:700;text-decoration:none;
+border-radius:10px;padding:10px 18px;margin:8px 0}
+</style></head><body><div class="card">
+<h1>アカウント・データの削除について</h1>
+<p>「KDSトレーディングカードゲーム」（KDS釧路自動車学校）における、
+アカウント（LINE連携）および関連データの削除リクエストのご案内です。</p>
+
+<h2>削除をリクエストする方法</h2>
+<p>下記メールアドレスへ、アプリの設定画面に表示される
+<strong>バージョン番号</strong>と<strong>「LINE連携を削除したい」の旨</strong>をお送りください。
+確認のうえ<strong>7日以内</strong>に削除します。</p>
+<p><a class="mail" href="mailto:kei.soma@kds946.com?subject=%E3%83%88%E3%83%AC%E3%82%AB%E3%82%A2%E3%83%97%E3%83%AA%20%E5%89%8A%E9%99%A4%E4%BE%9D%E9%A0%BC">✉️ kei.soma@kds946.com へ削除を依頼する</a></p>
+
+<h2>削除されるデータ</h2>
+<ul>
+<li>LINE連携の記録（LINEユーザーID・LINE表示名・連携日）</li>
+<li>ランキングに掲載されるプレイヤー名</li>
+<li>端末IDに紐づくサーバー上の対戦関連データ</li>
+</ul>
+
+<h2>保持されるデータと期間</h2>
+<ul>
+<li>個人を特定できない匿名の利用統計（起動数・対戦数など）は、サービス改善のため保持します</li>
+<li>端末の中に保存されたデータ（コレクション・成績など）は、アプリの削除でいつでも消去できます</li>
+</ul>
+
+<p>アカウントの新規作成機能はなく、LINE連携は任意です。
+くわしくは<a href="/privacy">プライバシーポリシー</a>をご覧ください。</p>
+</div></body></html>`;
+}
+
 /** LINEログインのチャネル設定（Flyシークレット）。ID・シークレットがそろうと有効 */
 function lineChannel(): { id: string; secret: string; callback: string } | null {
   const id = process.env.KDS_LINE_CHANNEL_ID ?? "";
@@ -308,6 +348,11 @@ export function startServer(port: number): http.Server {
       // ストア掲載用のプライバシーポリシー
       res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "max-age=3600" });
       res.end(PRIVACY_PAGE());
+      return;
+    }
+    if (req.url === "/delete-account" && req.method === "GET") {
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "max-age=3600" });
+      res.end(DELETE_ACCOUNT_PAGE());
       return;
     }
     if (req.url === "/.well-known/apple-app-site-association" && req.method === "GET") {
