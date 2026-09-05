@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkUnlockCode } from "../gateway/ws";
+import { checkUnlockCode, unlockActionFor } from "../gateway/ws";
 
 describe("スペシャルコードの照合", () => {
   it("登録済みコードと完全一致すれば通る（前後の空白は無視）", () => {
@@ -19,5 +19,12 @@ describe("スペシャルコードの照合", () => {
     expect(checkUnlockCode("", "SOTSUGYO-2026")).toBe(false);
     expect(checkUnlockCode(",,", "")).toBe(false);
     expect(checkUnlockCode("A", "")).toBe(false);
+  });
+
+  it("開放コードと解除コードを区別する（開放が優先・どちらでも無ければ null）", () => {
+    expect(unlockActionFor("KAIHO", "KAIJO", "KAIHO")).toBe("unlock");
+    expect(unlockActionFor("KAIHO", "KAIJO", "KAIJO")).toBe("release");
+    expect(unlockActionFor("KAIHO", "KAIJO", "BETSU")).toBeNull();
+    expect(unlockActionFor("KAIHO", undefined, "KAIJO")).toBeNull();
   });
 });
