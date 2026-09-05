@@ -17,7 +17,7 @@ import { getCard } from "@/data/cards";
 import { checkQrPayload, specialCodeOf } from "@/data/unlock";
 import { trackEvent } from "@/data/telemetry";
 import { evaluateAchievements } from "@/store/achievementStore";
-import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
+import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
 import { playSe } from "@/audio/sound";
 import { colors, radius, spacing } from "@/theme";
@@ -35,6 +35,7 @@ type ScanOutcome =
   | { kind: "needsUpdate" }
   | { kind: "invalid" }
   | { kind: "special" }
+  | { kind: "released" }
   | { kind: "offline" };
 
 export default function ScanScreen() {
@@ -59,13 +60,19 @@ export default function ScanScreen() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ code: codeValue }),
       });
-      const out = (await res.json()) as { ok?: boolean };
-      if (out.ok) {
+      const out = (await res.json()) as { ok?: boolean; action?: string };
+      if (out.ok && out.action === "unlock") {
         useUnlockStore.getState().setAllOpenMode(true);
         haptic("success");
         playSe("janken_win");
         evaluateAchievements();
         setOutcome({ kind: "special" });
+      } else if (out.ok && out.action === "release") {
+        // 全カード開放を解除して通常配布へ戻す（未配布の端末はここで22枚配る）
+        useUnlockStore.getState().setAllOpenMode(false);
+        ensureInitialSet();
+        haptic("medium");
+        setOutcome({ kind: "released" });
       } else {
         // コード違いは通常の無効QRと同じ見た目にする（仕組みの存在を明かさない）
         haptic("light");
@@ -181,6 +188,14 @@ export default function ScanScreen() {
                 <Text style={styles.resultTitle}>スペシャル特典が開放されました！</Text>
                 <Text style={styles.resultSub}>
                   すべてのカードが図鑑とデッキで使えるようになりました
+                </Text>
+              </>
+            ) : outcome.kind === "released" ? (
+              <>
+                <Text style={styles.resultEmoji}>✅</Text>
+                <Text style={styles.resultTitle}>通常配布に戻しました</Text>
+                <Text style={styles.resultSub}>
+                  カードは初回配布ぶんとQRコードで登録したぶんが使えます
                 </Text>
               </>
             ) : outcome.kind === "offline" ? (

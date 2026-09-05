@@ -96,6 +96,21 @@ export function checkUnlockCode(registered: string | undefined, entered: string)
   return code.length > 0 && codes.includes(code);
 }
 
+/**
+ * スペシャルコードがどの操作に対応するかを判定する。
+ * unlock=全カード開放（KDS_UNLOCK_ALL_CODES）、release=通常配布へ戻す
+ * （KDS_UNLOCK_RELEASE_CODES）。どちらにも無ければ null
+ */
+export function unlockActionFor(
+  allCodes: string | undefined,
+  releaseCodes: string | undefined,
+  entered: string
+): "unlock" | "release" | null {
+  if (checkUnlockCode(allCodes, entered)) return "unlock";
+  if (checkUnlockCode(releaseCodes, entered)) return "release";
+  return null;
+}
+
 function fsExistsDir(p: string): boolean {
   try {
     return fs.statSync(p).isDirectory();
@@ -329,10 +344,14 @@ export function startServer(port: number): http.Server {
         if (body.length > 500) req.destroy();
       });
       req.on("end", () => {
-        let ok = false;
+        let action: "unlock" | "release" | null = null;
         try {
           const b = JSON.parse(body) as { code?: string };
-          ok = checkUnlockCode(process.env.KDS_UNLOCK_ALL_CODES, String(b.code ?? ""));
+          action = unlockActionFor(
+            process.env.KDS_UNLOCK_ALL_CODES,
+            process.env.KDS_UNLOCK_RELEASE_CODES,
+            String(b.code ?? "")
+          );
         } catch {
           // 壊れた入力は不一致として扱う
         }
@@ -341,10 +360,10 @@ export function startServer(port: number): http.Server {
             "content-type": "application/json; charset=utf-8",
             "access-control-allow-origin": "*",
           });
-          res.end(JSON.stringify({ ok }));
+          res.end(JSON.stringify(action ? { ok: true, action } : { ok: false }));
         };
         // 不一致は少し待たせて総当たりを遅くする
-        if (ok) respond();
+        if (action) respond();
         else setTimeout(respond, 800);
       });
       return;

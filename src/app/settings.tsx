@@ -88,7 +88,6 @@ export default function SettingsScreen() {
       (s.mode === "online" && s.view !== null && s.view.phase.type !== "finished")
   );
   const [confirmQuit, setConfirmQuit] = useState(false);
-  const allOpenMode = useUnlockStore((s) => s.allOpenMode);
   const {
     aiSpeedMs,
     setAiSpeedMs,
@@ -220,8 +219,9 @@ export default function SettingsScreen() {
         </Text>
       )}
 
-      {/* 全カード開放中の端末（テスト機・スペシャルコード利用者）にだけ切り替えを出す */}
-      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING || allOpenMode) && <DevCardReset />}
+      {/* カードの登録状態の切り替えは開発ビルド専用。本番では表示せず、
+          全カード開放のON/OFFはQR読み取り画面のスペシャルコードで行う */}
+      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
       {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && LINE_GATE_ENABLED && <DevLineReset />}
 
       {!inBattle && <BugReport />}
