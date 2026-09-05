@@ -252,6 +252,59 @@ async function resolveNativeSource(key: string, mod: number): Promise<{ uri: str
   }
 }
 
+// ---- Android専用: プレイヤープール ----
+// Androidは AudioPlayer 1つごとに MediaSession を作り、
+// 端末の上限（数十個）を超えると生成が
+// 「ISession.getController() null」のNPEで拒否される（moto g66j実機で確認）。
+// 音の種類ごとに約170個作る設計は成立しないため、Androidは
+// 少数のプレイヤーを使い回し、再生のたびに音源を差し替える。
+const IS_ANDROID = Platform.OS === "android";
+const SE_POOL_SIZE = 5;
+const sePool: (AudioPlayer | null)[] = [];
+let sePoolIndex = 0;
+let voicePoolPlayer: AudioPlayer | null = null;
+let poolWarned = false;
+
+function androidPlay(kind: "se" | "voice", key: string, mod: number, rate: number): void {
+  void (async () => {
+    const src = await resolveNativeSource(key, mod);
+    if (!src) return;
+    try {
+      let p: AudioPlayer | null;
+      if (kind === "voice") {
+        if (!voicePoolPlayer) voicePoolPlayer = createAudioPlayer(src);
+        p = voicePoolPlayer;
+      } else {
+        if (sePool.length < SE_POOL_SIZE) {
+          p = createAudioPlayer(src);
+          sePool.push(p);
+        } else {
+          p = sePool[sePoolIndex % SE_POOL_SIZE];
+          sePoolIndex++;
+        }
+      }
+      if (!p) return;
+      try {
+        p.replace(src);
+      } catch {
+        // 差し替え失敗時はそのまま鳴らしてみる
+      }
+      try {
+        p.setPlaybackRate(rate);
+      } catch {
+        // 速度変更に対応しない環境では通常の音程
+      }
+      safeSeek(p, 0);
+      safePlay(p);
+    } catch (e) {
+      if (!poolWarned) {
+        poolWarned = true;
+        reportAudioIssue(`プール再生失敗(${key}): ${String(e)}`);
+      }
+    }
+  })();
+}
+
 /**
  * ネイティブのプレイヤーを用意する（無ければ非同期で生成してストアに入れる）。
  * 生成できたらコールバックで返す。すでにあれば即時に返す
@@ -379,6 +432,11 @@ export function playSe(key: SeKey, rate = 1): void {
   if (Platform.OS === "web" && playWeb(key, rate)) return;
   try {
     void ensureAudioMode();
+    if (IS_ANDROID) {
+      // Android: MediaSession上限があるため少数プレイヤーの使い回しで鳴らす
+      androidPlay("se", key, asset, rate);
+      return;
+    }
     ensureNativePlayer(sePlayers, key, asset, (p) => {
       try {
         p.setPlaybackRate(rate);
@@ -519,7 +577,8 @@ export function warmVoices(): void {
             void loadWebBuffer(key);
             return;
           }
-          ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
+          if (IS_ANDROID) void resolveNativeSource(key, seAssets[key]);
+          else ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
         } catch {
           // 読み込めなくても、再生時にあらためて試される
         }
@@ -548,7 +607,9 @@ export function warmBattleStart(): void {
     }
   } else {
     for (const key of BATTLE_START_VOICES) {
-      if (seAssets[key] !== undefined) ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
+      if (seAssets[key] === undefined) continue;
+      if (IS_ANDROID) void resolveNativeSource(key, seAssets[key]);
+      else ensureNativePlayer(sePlayers, key, seAssets[key], () => {});
     }
   }
   // BGMプレイヤーも先に作って読み込みを始めておく（初回の鳴り遅れ対策）
@@ -634,6 +695,11 @@ export function playVoice(key: VoiceKey): void {
     // 1チャンネル制の予約は生成を待たずに行う（実長の表があるため正確）
     const dur = VOICE_DURATIONS[key] ?? 2.2;
     voiceBusyUntil = now + Math.round((dur + 0.25) * 1000);
+    if (IS_ANDROID) {
+      // Android: ボイス専用の1台に音源を差し替えて鳴らす（1チャンネル制と相性良）
+      androidPlay("voice", key, asset, 1);
+      return;
+    }
     ensureNativePlayer(sePlayers, key, asset, (p) => {
       safeSeek(p, 0);
       safePlay(p);
