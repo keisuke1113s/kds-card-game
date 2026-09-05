@@ -2552,7 +2552,12 @@ function BattleInner() {
         )}
         {/* オンライン: 定型スタンプの送信ボタンと吹き出し */}
         {isOnline && (
-          <View style={styles.stampRow}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.stampRow}
+            contentContainerStyle={styles.stampRowInner}
+          >
             {STAMPS.map((s) => {
               // 実績で解禁されるスタンプ（未解禁は薄く表示して押せない）
               const locked =
@@ -2571,7 +2576,7 @@ function BattleInner() {
                 </Pressable>
               );
             })}
-          </View>
+          </ScrollView>
         )}
         {incomingStamp && stampOf(incomingStamp) && (
           <View style={[styles.stampBubble, styles.stampBubbleOpp]} pointerEvents="none">
@@ -8114,11 +8119,11 @@ const styles = StyleSheet.create({
   stampRow: {
     position: "absolute",
     left: 6,
+    right: 6,
     bottom: 6,
-    flexDirection: "row",
-    gap: 6,
     zIndex: 8,
   },
+  stampRowInner: { flexDirection: "row", gap: 6, paddingRight: 12 },
   stampButton: {
     backgroundColor: "#ffffffdd",
     borderRadius: 999,
