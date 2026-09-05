@@ -17,7 +17,7 @@ import { allCards, cardRegistry, cpuDeck, defaultDeck } from "@/data/cards";
  * 本番アプリの公開前に必ず false に戻すこと。
  * false に戻すと「初回起動でランダム22枚配布＋QRで開放」の正式仕様になる。
  */
-export const ALL_CARDS_OPEN_FOR_TESTING = true;
+export const ALL_CARDS_OPEN_FOR_TESTING = false;
 
 /** 署名の種。印刷後に変えると既存のQRがすべて無効になるので変更しないこと */
 const QR_SECRET = "kds-agogo-2026-himitsu-no-tane";
