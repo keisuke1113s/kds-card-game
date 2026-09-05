@@ -23,6 +23,11 @@ git push origin online && git checkout main && git merge online && git push orig
 - 最後に出る `entry-XXXXXXXX` の8桁がバージョン。ユーザーには設定画面のバージョン8桁で最新確認してもらう。
 - **サーバー（server/）を変更したら** `flyctl deploy --ha=false --remote-only` も実行する。ただし**必ず先に `https://kds-taisen.fly.dev/matches` で対局中がゼロなことを確認**（デプロイで進行中の対局が消えるため）。
 - サーバー本番: Fly.io アプリ `kds-taisen`（東京・常時1台） wss://kds-taisen.fly.dev。WS形式エラーの内容は `fly logs` に残る。
+- **ネイティブアプリへのOTA配信（EAS Update）**: JS/アセットのみの変更は、Webデプロイに加えて
+  `npx eas-cli update --channel production --message "変更の要約" --non-interactive`
+  でストア審査なしに配信できる（アプリを開き直した次の起動で反映）。
+  ネイティブ変更（ライブラリ追加・権限・アイコン・SDK更新）はOTA不可＝ストアビルドが必要。
+  runtimeVersionはappVersion方式なので、app.jsonのversionを上げたら以降のOTAは新しいビルドにだけ届く。
 
 ## コマンド
 
