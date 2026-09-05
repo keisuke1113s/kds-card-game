@@ -36,8 +36,14 @@ import { colors, radius, spacing } from "@/theme";
 
 /** 運転適性診断（教習所の適性検査のパロディ・16問16タイプ） */
 export default function ShindanScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <ShindanScreenBody />;
+}
+
+function ShindanScreenBody() {
 
   const router = useRouter();
   const savedKey = useRankStore((s) => s.shindanType);

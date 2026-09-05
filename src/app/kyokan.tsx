@@ -24,8 +24,14 @@ const CPU = 1 as const;
  * タップで下の詳細パネルに出て、そこから挑戦する
  */
 export default function KyokanScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <KyokanScreenBody />;
+}
+
+function KyokanScreenBody() {
 
   const router = useRouter();
   const startGame = useGameStore((s) => s.startGame);

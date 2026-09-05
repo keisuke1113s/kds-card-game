@@ -149,8 +149,14 @@ const SCENE_IMAGES: Record<string, number> = {
 };
 
 export default function KytScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <KytScreenBody />;
+}
+
+function KytScreenBody() {
 
   const router = useRouter();
   const kyt = useKytStore();

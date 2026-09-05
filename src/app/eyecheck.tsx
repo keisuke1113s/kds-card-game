@@ -56,8 +56,14 @@ function LandoltC({ dir, size }: { dir: Dir; size: number }) {
 }
 
 export default function EyeCheckScreen() {
+  // LINEゲートの殻。連携状態でフックの数が変わって落ちないよう（React #310）、
+  // 本体は別コンポーネントに分けて連携済みのときだけマウントする
   const lineLinked = useLineStore((s) => s.linked);
   if (LINE_GATE_ENABLED && !lineLinked) return <LineGate />;
+  return <EyeCheckScreenBody />;
+}
+
+function EyeCheckScreenBody() {
 
   const router = useRouter();
   const vision = useVisionStore();
