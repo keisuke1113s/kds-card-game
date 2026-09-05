@@ -15,7 +15,7 @@ import { AchievementToast } from "@/components/AchievementToast";
 import { ImageWarmLayer } from "@/components/ImageWarmLayer";
 import { setupErrorReporting } from "@/data/errlog";
 import { trackEvent } from "@/data/telemetry";
-import { useLineStore } from "@/store/lineStore";
+import { restoreLineLinkFromServer, useLineStore } from "@/store/lineStore";
 import { preloadAllSmall, preloadAllThumbs } from "@/data/preload";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { ensureInitialSet } from "@/store/unlockStore";
@@ -178,6 +178,8 @@ export default function RootLayout() {
   // 初回起動なら、ランダムな22枚（デッキ1つ分）をこの端末の初期セットとして配る
   useEffect(() => {
     ensureInitialSet();
+    // LINEログイン済みの端末はサーバー記録から連携状態を復元する
+    restoreLineLinkFromServer();
     setupErrorReporting();
     if (isAdmin) return;
     trackEvent("appOpen", { line: useLineStore.getState().linked });

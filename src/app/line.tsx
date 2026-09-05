@@ -31,6 +31,8 @@ export default function LineScreen() {
   // LINEログイン連携（方式B）。サーバーにチャネル設定があるときだけボタンを出す
   const [loginAvailable, setLoginAvailable] = useState(false);
   const [loginWaiting, setLoginWaiting] = useState(false);
+  // コード連携の折りたたみ（ログイン連携が使えるときは目立たせない）
+  const [codeOpen, setCodeOpen] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -229,35 +231,45 @@ export default function LineScreen() {
               </View>
             )}
 
-            <View style={styles.stepBox}>
-              <Text style={styles.stepTitle}>
-                {loginAvailable ? "うまくいかないとき　連携コードで連携" : "STEP 2　連携コードを入力"}
-              </Text>
-              <Text style={styles.stepNote}>
-                友だち追加すると、LINEに「連携コード」が届きます。
-                届かないときはトークで「トレカ連携」と送ってみてね。
-              </Text>
-              {/* テスト期間中だけ、動作チェック用にコードをそのまま見せる */}
-              {ALL_CARDS_OPEN_FOR_TESTING && (
-                <Text style={styles.testCode} selectable>
-                  🔧 動作チェック用コード: <Text style={{ fontWeight: "900" }}>{LINE_LINK_CODES[0]}</Text>
-                </Text>
-              )}
-              <TextInput
-                style={styles.codeInput}
-                value={code}
-                onChangeText={(v) => {
-                  setCode(v);
-                  setError(null);
-                }}
-                placeholder="連携コードを入力"
-                autoCapitalize="characters"
-              />
-              {error && <Text style={styles.error}>{error}</Text>}
-              <Pressable style={[styles.lineButton, { backgroundColor: colors.primary }]} onPress={tryLink}>
-                <Text style={styles.lineButtonText}>連携する</Text>
+            {/* LINEログインが使えるときは、コード連携は目立たない折りたたみにする
+                （社内用コードと、万一のときの予備の入り口として残す） */}
+            {loginAvailable && !codeOpen ? (
+              <Pressable onPress={() => setCodeOpen(true)} hitSlop={6}>
+                <Text style={styles.small}>コードをお持ちの方はこちら</Text>
               </Pressable>
-            </View>
+            ) : (
+              <View style={styles.stepBox}>
+                <Text style={styles.stepTitle}>
+                  {loginAvailable ? "コードで連携" : "STEP 2　連携コードを入力"}
+                </Text>
+                {!loginAvailable && (
+                  <Text style={styles.stepNote}>
+                    友だち追加すると、LINEに「連携コード」が届きます。
+                    届かないときはトークで「トレカ連携」と送ってみてね。
+                  </Text>
+                )}
+                {/* テスト期間中だけ、動作チェック用にコードをそのまま見せる */}
+                {ALL_CARDS_OPEN_FOR_TESTING && (
+                  <Text style={styles.testCode} selectable>
+                    🔧 動作チェック用コード: <Text style={{ fontWeight: "900" }}>{LINE_LINK_CODES[0]}</Text>
+                  </Text>
+                )}
+                <TextInput
+                  style={styles.codeInput}
+                  value={code}
+                  onChangeText={(v) => {
+                    setCode(v);
+                    setError(null);
+                  }}
+                  placeholder="コードを入力"
+                  autoCapitalize="characters"
+                />
+                {error && <Text style={styles.error}>{error}</Text>}
+                <Pressable style={[styles.lineButton, { backgroundColor: colors.primary }]} onPress={tryLink}>
+                  <Text style={styles.lineButtonText}>連携する</Text>
+                </Pressable>
+              </View>
+            )}
 
             <Text style={styles.small}>
               連携は無料で、アプリが取得する個人情報はありません。
