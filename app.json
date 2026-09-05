@@ -16,6 +16,8 @@
       },
       "associatedDomains": [
         "applinks:kds-taisen.fly.dev",
+        "applinks:tcg.kds946.com",
+        "applinks:kds-taisen.fly.dev",
         "applinks:tcg.kds946.com"
       ]
     },
@@ -29,6 +31,11 @@
       "predictiveBackGestureEnabled": false,
       "package": "com.kds946.cardgame",
       "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.CAMERA",
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.FOREGROUND_SERVICE",
@@ -85,6 +92,12 @@
         "projectId": "fa1e0584-04f7-4217-91a7-b559cce6225b"
       }
     },
-    "owner": "keisuke1113"
+    "owner": "keisuke1113",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/fa1e0584-04f7-4217-91a7-b559cce6225b"
+    }
   }
 }
