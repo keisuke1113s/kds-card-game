@@ -256,6 +256,11 @@ async function resolveNativeSource(key: string, mod: number): Promise<{ uri: str
  * ネイティブのプレイヤーを用意する（無ければ非同期で生成してストアに入れる）。
  * 生成できたらコールバックで返す。すでにあれば即時に返す
  */
+// AndroidはMediaSessionの初期化が絡むため、プレイヤーを同時に大量生成すると
+// 内部で競合してNullPointerExceptionになる（診断ログで確認）。
+// 生成は必ず1件ずつ直列に行い、失敗したら少し待って1回だけやり直す
+let createChain: Promise<void> = Promise.resolve();
+
 function ensureNativePlayer(
   store: Record<string, AudioPlayer>,
   key: string,
@@ -267,22 +272,32 @@ function ensureNativePlayer(
     onReady(existing);
     return;
   }
-  void (async () => {
+  createChain = createChain.then(async () => {
+    if (store[key]) {
+      onReady(store[key]);
+      return;
+    }
     const src = await resolveNativeSource(key, mod);
     if (!src) return;
-    try {
-      // 並行呼び出しで二重生成しない
-      if (store[key]) {
-        onReady(store[key]);
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const p = createAudioPlayer(src, {
+          // セッション維持はiOSの巻き添え停止対策。Androidでは
+          // MediaSessionまわりの初期化を増やさないため付けない
+          keepAudioSessionActive: Platform.OS === "ios",
+        });
+        store[key] = p;
+        onReady(p);
         return;
+      } catch (e) {
+        if (attempt === 1) {
+          reportAudioIssue(`生成失敗(${key}): ${String(e)}`);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 150));
       }
-      const p = createAudioPlayer(src, { keepAudioSessionActive: true });
-      store[key] = p;
-      onReady(p);
-    } catch (e) {
-      reportAudioIssue(`生成失敗(${key}): ${String(e)}`);
     }
-  })();
+  });
 }
 
 /** play() が Promise を返す環境（Web）では拒否を握りつぶす */
