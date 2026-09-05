@@ -15,7 +15,7 @@ import { CardFace } from "@/components/CardFace";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { getCard } from "@/data/cards";
 import { checkQrPayload, specialCodeOf } from "@/data/unlock";
-import { trackEvent } from "@/data/telemetry";
+import { getDeviceId, trackEvent } from "@/data/telemetry";
 import { evaluateAchievements } from "@/store/achievementStore";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { haptic } from "@/audio/haptics";
@@ -64,7 +64,8 @@ export default function ScanScreen() {
       const res = await fetch("https://tcg.kds946.com/unlock-all", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ code: codeValue }),
+        // 端末IDは連携解除コードのとき、サーバー側の連携記録を消すのに使われる
+        body: JSON.stringify({ code: codeValue, device: await getDeviceId() }),
       });
       const out = (await res.json()) as { ok?: boolean; action?: string };
       if (out.ok && out.action === "unlock") {

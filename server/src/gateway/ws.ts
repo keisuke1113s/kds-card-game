@@ -533,7 +533,7 @@ export function startServer(port: number): http.Server {
       req.on("end", () => {
         let action: SpecialAction | null = null;
         try {
-          const b = JSON.parse(body) as { code?: string };
+          const b = JSON.parse(body) as { code?: string; device?: string };
           action = unlockActionFor(
             {
               unlock: process.env.KDS_UNLOCK_ALL_CODES,
@@ -543,6 +543,12 @@ export function startServer(port: number): http.Server {
             },
             String(b.code ?? "")
           );
+          // 連携解除コードはサーバーの連携記録も消す
+          // （残すと起動時の自動復元がすぐ連携済みに戻してしまう）
+          const device = String(b.device ?? "").slice(0, 64);
+          if (action === "lineUnlink" && /^[0-9a-f]{8,64}$/i.test(device)) {
+            lineLinks.remove(device);
+          }
         } catch {
           // 壊れた入力は不一致として扱う
         }

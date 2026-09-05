@@ -76,6 +76,13 @@ export class LineLinks {
     return this.links[device] ?? null;
   }
 
+  /** 連携記録を消す（検証用の連携解除コードから使う） */
+  remove(device: string): void {
+    if (!(device in this.links)) return;
+    delete this.links[device];
+    this.save();
+  }
+
   private purgeStates(): void {
     const cutoff = this.now() - STATE_TTL_MS;
     for (const [k, v] of this.states) {
