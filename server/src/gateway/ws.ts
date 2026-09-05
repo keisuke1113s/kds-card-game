@@ -12,6 +12,53 @@ import { Tourney } from "../core/tourney";
 import { config } from "../config";
 
 /** ディレクトリとして存在し書き込めそうか */
+/** プライバシーポリシーのページHTML */
+function PRIVACY_PAGE(): string {
+  return `<!doctype html><html lang="ja"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>プライバシーポリシー | KDSトレーディングカードゲーム</title>
+<style>
+body{margin:0;font-family:-apple-system,"Hiragino Sans",sans-serif;background:#f5f7fb;color:#1c2430;line-height:1.9}
+.wrap{max-width:720px;margin:0 auto;padding:32px 20px 64px}
+h1{font-size:22px;border-bottom:3px solid #1a5fb4;padding-bottom:8px}
+h2{font-size:17px;margin-top:32px;color:#1a5fb4}
+li{margin:6px 0}
+.date{color:#6a7686;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>KDSトレーディングカードゲーム プライバシーポリシー</h1>
+<p class="date">制定日: 2026年9月5日</p>
+<p>KDS釧路自動車学校（株式会社苗穂自動車学園。以下「当校」）は、アプリ「KDSトレーディングカードゲーム」（以下「本アプリ」）における利用者情報の取り扱いについて、以下のとおり定めます。</p>
+<h2>1. 収集する情報</h2>
+<ul>
+<li><b>端末の識別子（ランダムに生成されるID）</b> — オンライン対戦の対戦相手の識別、および利用状況の集計のために生成します。氏名・電話番号・メールアドレス等の個人を特定する情報とは紐付きません。</li>
+<li><b>利用状況の統計情報</b> — アプリの起動回数、対戦回数、機能の利用状況など。サービスの改善のために匿名で集計します。</li>
+<li><b>エラー情報</b> — 不具合の調査のため、エラー発生時の技術情報（エラー内容・端末の種類）を収集します。</li>
+<li><b>表示名（任意）</b> — 利用者が任意で設定した場合のみ、オンライン対戦・週間ランキングに表示されます。</li>
+</ul>
+<h2>2. 収集しない情報</h2>
+<ul>
+<li>氏名・住所・電話番号・メールアドレス等の個人情報は収集しません。</li>
+<li>位置情報は端末内での天気演出のみに使用し、外部へ送信しません。</li>
+<li>写真（教習生免許証の顔写真機能）は端末内にのみ保存され、外部へ送信されません。</li>
+<li>広告の配信および広告目的のトラッキングは行いません。</li>
+</ul>
+<h2>3. 情報の利用目的</h2>
+<ul>
+<li>オンライン対戦・ランキング等のサービス提供</li>
+<li>利用状況の把握とサービスの改善</li>
+<li>不具合の調査と修正</li>
+</ul>
+<h2>4. 第三者への提供</h2>
+<p>法令に基づく場合を除き、収集した情報を第三者に提供しません。広告事業者・分析事業者への提供もありません。</p>
+<h2>5. 情報の保管</h2>
+<p>収集した情報は当校が管理するサーバーに保管し、通信はすべて暗号化（HTTPS/WSS）されます。</p>
+<h2>6. お問い合わせ</h2>
+<p>本ポリシーに関するお問い合わせは、KDS釧路自動車学校（<a href="https://kds946.com">kds946.com</a>）までご連絡ください。</p>
+<h2>7. 改定</h2>
+<p>本ポリシーを改定する場合は、本ページにて公表します。</p>
+</div></body></html>`;
+}
+
 /** 合言葉共有リンクの中継ページHTML */
 function JOIN_PAGE(code: string, appUrl: string, webUrl: string): string {
   return `<!doctype html><html lang="ja"><head>
@@ -108,6 +155,12 @@ export function startServer(port: number): http.Server {
         res.writeHead(204, { "access-control-allow-origin": "*" });
         res.end();
       });
+      return;
+    }
+    if (req.url === "/privacy" && req.method === "GET") {
+      // ストア掲載用のプライバシーポリシー
+      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "max-age=3600" });
+      res.end(PRIVACY_PAGE());
       return;
     }
     if (req.url === "/.well-known/apple-app-site-association" && req.method === "GET") {
