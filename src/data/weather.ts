@@ -24,7 +24,8 @@ function kindFromCode(code: number): WeatherKind {
 async function fetchWeather(lat: number, lon: number): Promise<WeatherKind | null> {
   try {
     const res = await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(2)}&longitude=${lon.toFixed(2)}&current=weather_code`
+      // 座標は約10km単位に丸めてから送る（正確な現在地を外部に出さない）
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(1)}&longitude=${lon.toFixed(1)}&current=weather_code`
     );
     const d = (await res.json()) as { current?: { weather_code?: number } };
     const code = d.current?.weather_code;
