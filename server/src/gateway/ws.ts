@@ -83,6 +83,19 @@ p{font-size:12px;color:#cfe0f5;line-height:1.7}
 </div></body></html>`;
 }
 
+/**
+ * スペシャルコードの照合。環境変数（カンマ区切り）に登録されたコードと
+ * 完全一致（前後の空白は無視）したときだけ true
+ */
+export function checkUnlockCode(registered: string | undefined, entered: string): boolean {
+  const codes = (registered ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const code = entered.trim();
+  return code.length > 0 && codes.includes(code);
+}
+
 function fsExistsDir(p: string): boolean {
   try {
     return fs.statSync(p).isDirectory();
@@ -295,6 +308,45 @@ export function startServer(port: number): http.Server {
         "cache-control": "no-store",
       });
       res.end(JSON.stringify({ matches: matchmaker.listWatchable() }));
+      return;
+    }
+    // スペシャルコード（卒業生向けの全カード開放など）。
+    // 有効なコードは環境変数 KDS_UNLOCK_ALL_CODES（カンマ区切り）で管理し、
+    // いつでも差し替え・無効化できる。リポジトリにはコードを書かないこと
+    if (req.url === "/unlock-all" && req.method === "OPTIONS") {
+      res.writeHead(204, {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST",
+        "access-control-allow-headers": "content-type",
+      });
+      res.end();
+      return;
+    }
+    if (req.url === "/unlock-all" && req.method === "POST") {
+      let body = "";
+      req.on("data", (c) => {
+        body += c;
+        if (body.length > 500) req.destroy();
+      });
+      req.on("end", () => {
+        let ok = false;
+        try {
+          const b = JSON.parse(body) as { code?: string };
+          ok = checkUnlockCode(process.env.KDS_UNLOCK_ALL_CODES, String(b.code ?? ""));
+        } catch {
+          // 壊れた入力は不一致として扱う
+        }
+        const respond = () => {
+          res.writeHead(200, {
+            "content-type": "application/json; charset=utf-8",
+            "access-control-allow-origin": "*",
+          });
+          res.end(JSON.stringify({ ok }));
+        };
+        // 不一致は少し待たせて総当たりを遅くする
+        if (ok) respond();
+        else setTimeout(respond, 800);
+      });
       return;
     }
     if (req.url === "/challenge" && req.method === "OPTIONS") {

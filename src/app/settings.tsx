@@ -88,6 +88,7 @@ export default function SettingsScreen() {
       (s.mode === "online" && s.view !== null && s.view.phase.type !== "finished")
   );
   const [confirmQuit, setConfirmQuit] = useState(false);
+  const allOpenMode = useUnlockStore((s) => s.allOpenMode);
   const {
     aiSpeedMs,
     setAiSpeedMs,
@@ -219,8 +220,11 @@ export default function SettingsScreen() {
         </Text>
       )}
 
-      {/* テスト期間中は安定版でも切り替えを出す（本番公開時はフラグを戻すと開発版のみに戻る） */}
-      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
+      {/* スペシャルコード（卒業生向けの全カード開放。サーバーで照合する） */}
+      {!inBattle && <SpecialCodeSection />}
+
+      {/* 全カード開放中の端末（テスト機・スペシャルコード利用者）にだけ切り替えを出す */}
+      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING || allOpenMode) && <DevCardReset />}
       {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && LINE_GATE_ENABLED && <DevLineReset />}
 
       {!inBattle && <BugReport />}
@@ -445,6 +449,84 @@ function DevLineReset() {
       >
         <Text style={styles.wideButtonText}>💔 LINE連携を解除（連携前に戻す）</Text>
       </Pressable>
+    </View>
+  );
+}
+
+/**
+ * スペシャルコードの入力欄。
+ * 卒業記念などで配られたコードをサーバーで照合し、合っていれば
+ * この端末を「全カード登録」にする。有効なコードはサーバーの
+ * 環境変数で管理していて、アプリの更新なしで差し替えられる
+ */
+function SpecialCodeSection() {
+  const [code, setCode] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const allOpen = useUnlockStore((s) => s.allOpenMode);
+  const submit = async () => {
+    const entered = code.trim();
+    if (!entered || busy) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("https://tcg.kds946.com/unlock-all", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ code: entered }),
+      });
+      const out = (await res.json()) as { ok?: boolean };
+      if (out.ok) {
+        useUnlockStore.getState().setAllOpenMode(true);
+        haptic("success");
+        setCode("");
+        setMessage("🎉 全カードが開放されました！図鑑で確認できます");
+      } else {
+        haptic("light");
+        setMessage("コードが違います。もう一度確認してください");
+      }
+    } catch {
+      setMessage("通信できませんでした。電波の良いところでもう一度お試しください");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <View style={{ gap: 8 }}>
+      <Text style={styles.sectionTitle}>スペシャルコード</Text>
+      {allOpen ? (
+        <Text style={styles.note}>✅ この端末は全カード開放済みです。</Text>
+      ) : (
+        <>
+          <Text style={styles.note}>
+            卒業記念などで配られたコードを入力すると、特典が開放されます。
+          </Text>
+          <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
+            <TextInput
+              style={[styles.transferInput, { flex: 1 }]}
+              value={code}
+              onChangeText={(v) => {
+                setCode(v);
+                setMessage(null);
+              }}
+              placeholder="コードを入力"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <Pressable
+              style={[
+                styles.wideButtonSecondary,
+                { alignSelf: "auto" },
+                (busy || code.trim().length === 0) && { opacity: 0.4 },
+              ]}
+              onPress={submit}
+            >
+              <Text style={styles.transferButtonText}>{busy ? "確認中…" : "使う"}</Text>
+            </Pressable>
+          </View>
+        </>
+      )}
+      {message && <Text style={styles.note}>{message}</Text>}
     </View>
   );
 }
