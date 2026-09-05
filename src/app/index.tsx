@@ -25,6 +25,7 @@ import { cpuDeckFor, resolveActiveDeck, useDeckStore } from "@/store/deckStore";
 import { useGameStore } from "@/store/gameStore";
 import { useRecordStore } from "@/store/recordStore";
 import { colors, DARK_MODE, radius, shadow, spacing } from "@/theme";
+import { useDevDemo, useHydrated } from "@/data/hydration";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { ScreenEnter } from "@/components/ScreenEnter";
 import { allCards } from "@/data/cards";
@@ -44,11 +45,9 @@ import { playSe } from "@/audio/sound";
 import { haptic } from "@/audio/haptics";
 import { unlockedSet, useUnlockStore } from "@/store/unlockStore";
 
-/** 開発版デモ（GitHub Pages の /dev/ 配下）で開いているか */
-const IS_DEV_DEMO =
-  Platform.OS === "web" &&
-  typeof window !== "undefined" &&
-  window.location.pathname.includes("/dev/");
+// 開発版デモ（/dev/）判定と時刻依存の表示は、静的書き出しHTMLとの
+// 不一致（hydrationエラー）を避けるためマウント後に確定させる
+// （useDevDemo / useHydrated を参照）
 
 /** 枠内ボタンの下地。ライト=白 / ダーク=カード面の濃紺（白だと眩しいため） */
 const PALE_BG = DARK_MODE ? "#1a2536" : "#ffffff";
@@ -262,7 +261,8 @@ function FallingPiece({ emoji, index }: { emoji: string; index: number }) {
 }
 
 function SeasonalParticles() {
-  const emoji = seasonEmoji();
+  const hydrated = useHydrated();
+  const emoji = hydrated ? seasonEmoji() : null;
   if (!emoji) return null;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -275,6 +275,9 @@ function SeasonalParticles() {
 
 export default function HomeScreen() {
   const router = useRouter();
+  // 静的書き出しHTMLと一致させるため、URL・時刻依存の表示はマウント後に確定させる
+  const hydrated = useHydrated();
+  const isDevDemo = useDevDemo();
   const inProgress = useGameStore((s) => s.state !== null && s.state.phase.type !== "finished");
   const queueCancelledNotice = useGameStore((s) => s.queueCancelledNotice);
   const clearQueueCancelledNotice = useGameStore((s) => s.clearQueueCancelledNotice);
@@ -508,14 +511,14 @@ export default function HomeScreen() {
           : null;
 
   return (
-    <LinearGradient colors={skyColors()} style={styles.root}>
+    <LinearGradient colors={hydrated ? skyColors() : [colors.background, colors.backgroundDeep]} style={styles.root}>
       {/* KDS校舎のイラストをタイトルの後ろにうっすら敷く。
           夕方〜夜（17時〜6時）は窓に明かりの灯った夜バージョンになり、
           スクロールでわずかに視差で動く */}
       <Animated.View style={[styles.homeBgArt, bgParallax]} pointerEvents="none">
         <Image
           source={
-            isNightTime()
+            hydrated && isNightTime()
               ? require("../../assets/images/fx/bg_home_night.webp")
               : require("../../assets/images/fx/bg_home.webp")
           }
@@ -531,12 +534,12 @@ export default function HomeScreen() {
           showsVerticalScrollIndicator={false}
         >
         {/* 社外に出さないための注意書き（公開に伴い開発版デモ /dev/ だけに表示） */}
-        {IS_DEV_DEMO && (
+        {isDevDemo && (
           <View style={styles.warning}>
             <Text style={styles.warningText}>開発中のため社外厳禁！！</Text>
           </View>
         )}
-        {seasonalEvent() && (
+        {hydrated && seasonalEvent() && (
           <View style={styles.seasonEventBadge}>
             <Text style={styles.seasonEventText}>{seasonalEvent()}</Text>
           </View>
@@ -544,7 +547,7 @@ export default function HomeScreen() {
 
 
         {/* 開発版デモ（/dev/）のときだけ目印を出す。本番デモとネイティブでは出さない */}
-        {IS_DEV_DEMO && (
+        {isDevDemo && (
           <View style={styles.devBadge}>
             <Text style={styles.devBadgeText}>🔧 開発版（動作確認用）</Text>
           </View>
@@ -699,8 +702,9 @@ export default function HomeScreen() {
           )}
           {/* 今日のデイリーミッション（教習手帳）。LINE連携後に表示 */}
           {!lineLock && <MissionCard />}
-          {/* 今日の安全運転豆知識（日替わり）。LINE連携後に表示 */}
-          {!lineLock && (
+          {/* 今日の安全運転豆知識（日替わり）。LINE連携後に表示。
+              内容が日付で変わるため、静的HTMLとの不一致を避けてマウント後に出す */}
+          {!lineLock && hydrated && (
           <View style={styles.tipCard}>
             <Text style={styles.tipTitle}>💡 今日の安全運転豆知識</Text>
             <Text style={styles.tipText}>{tipOfToday()}</Text>

@@ -493,9 +493,11 @@ function BattleInner() {
   // （親のBattleScreenが直後にこの本体ごと取り外す）
   const lastViewRef = useRef(viewLive);
   if (viewLive) lastViewRef.current = viewLive;
-  const view = viewLive ?? lastViewRef.current;
+  // 親（BattleScreen）が view!==null のときだけ本体をマウントするため、
+  // 初回に必ず値が入り、以後この値が null になることはない
+  const view = (viewLive ?? lastViewRef.current)!;
   // 自分の席番号（オフラインは常に0。オンラインの後手は1になる）
-  const ME = (view?.playerId ?? HUMAN) as 0 | 1;
+  const ME = view.playerId as 0 | 1;
   const OPP = (1 - ME) as 0 | 1;
   const dispatch = useGameStore((s) => s.dispatch);
   const quitGame = useGameStore((s) => s.quitGame);
@@ -2148,11 +2150,6 @@ function BattleInner() {
       }
     }
   }, [lastEvents]);
-
-  if (!view) {
-    // 起動直後に対局が無いままここへ来た場合のみ（通常は親が防いでいる）
-    return null;
-  }
 
   const me = view.self;
   const cpu = view.opponent;

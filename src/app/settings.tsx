@@ -13,6 +13,7 @@ import { useLineStore } from "@/store/lineStore";
 import { LINE_GATE_ENABLED, LINE_LINK_CODES } from "@/data/lineConfig";
 import { ensureInitialSet, unlockedSet, useUnlockStore } from "@/store/unlockStore";
 import { DARK_MODE, setDarkModePreference } from "@/theme";
+import { useDevDemo } from "@/data/hydration";
 
 /**
  * ダークモードを切り替えて反映する（色は起動時に固定のため読み込み直す）。
@@ -70,14 +71,12 @@ const speeds: { label: string; ms: number }[] = [
 ];
 
 /** 開発版デモ（/dev/）か、開発中の起動か（テスト用機能を出す条件） */
-const IS_DEV_BUILD =
-  (typeof __DEV__ !== "undefined" && __DEV__) ||
-  (Platform.OS === "web" &&
-    typeof window !== "undefined" &&
-    window.location.pathname.includes("/dev/"));
+const IS_DEV_BUILD = typeof __DEV__ !== "undefined" && __DEV__;
 
 export default function SettingsScreen() {
   const router = useRouter();
+  // 開発版デモ（/dev/）判定はマウント後に確定させる（静的HTMLとの不一致を防ぐ）
+  const devBuild = IS_DEV_BUILD || useDevDemo();
   const quitGame = useGameStore((s) => s.quitGame);
   const queueActive = useGameStore((s) => s.queueActive);
   // CPU対戦は state、オンライン対戦は view（サーバー権威で state を持たない）を見る。
@@ -119,7 +118,7 @@ export default function SettingsScreen() {
           {record.streak >= 2 ? `（${record.streak}連勝中）` : ""}
         </Text>
         {/* 成績のリセットは正式版には無い機能。開発中の動作確認用にだけ出す */}
-        {IS_DEV_BUILD && (
+        {devBuild && (
           <Pressable style={styles.recordReset} onPress={() => record.reset()} hitSlop={6}>
             <Text style={styles.recordResetText}>成績をリセット（テスト用）</Text>
           </Pressable>
@@ -218,8 +217,8 @@ export default function SettingsScreen() {
 
       {/* カードの登録状態の切り替えは開発ビルド専用。本番では表示せず、
           全カード開放のON/OFFはQR読み取り画面のスペシャルコードで行う */}
-      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
-      {!inBattle && (IS_DEV_BUILD || ALL_CARDS_OPEN_FOR_TESTING) && LINE_GATE_ENABLED && <DevLineReset />}
+      {!inBattle && (devBuild || ALL_CARDS_OPEN_FOR_TESTING) && <DevCardReset />}
+      {!inBattle && (devBuild || ALL_CARDS_OPEN_FOR_TESTING) && LINE_GATE_ENABLED && <DevLineReset />}
 
       {!inBattle && <BugReport />}
 

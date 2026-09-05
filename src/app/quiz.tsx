@@ -1,5 +1,5 @@
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -282,27 +282,32 @@ function QuizScreenBody() {
     setPhase("play");
   };
 
-  // 効果測定の残り時間。0になったらその場で採点
+  // 効果測定の残り時間。0になったらその場で採点。
+  // タイマーの閉包が古い finishKentei を掴まないよう、refで常に最新を呼ぶ
+  const finishKenteiRef = useRef<() => void>(() => {});
   useEffect(() => {
     if (!kentei || phase !== "play") return;
     const h = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
           clearInterval(h);
-          finishKentei();
+          finishKenteiRef.current();
           return 0;
         }
         return t - 1;
       });
     }, 1000);
     return () => clearInterval(h);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kentei, phase]);
 
   const finishKentei = () => {
     setPhase("result");
     setTimeout(evaluateAchievements, 400);
   };
+  // タイマーから呼ばれる用に、毎レンダー最新の関数をrefへ入れておく
+  useEffect(() => {
+    finishKenteiRef.current = finishKentei;
+  });
 
   const q = questions[index];
   const correct = picked !== null && q ? picked === q.answer : false;

@@ -20,7 +20,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # 品質ゲート: 型チェックとテストが通らなければデプロイしない
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: 型チェック
+        run: npx tsc --noEmit
+      - name: テスト
+        run: npm test
+
   build:
+    needs: check
     runs-on: ubuntu-latest
     steps:
       # ---- 安定版（main） ----
