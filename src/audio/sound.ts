@@ -390,6 +390,8 @@ const sePlayers: Record<string, AudioPlayer> = {};
 /** BGMは曲ごとにプレイヤーを使い回す（切り替え時も再生位置を保ち、続きから再開できる） */
 const bgmPlayers: Record<string, AudioPlayer> = {};
 let currentBgmKey: string | null = null;
+/** pauseBgm/stopBgm による「意図した停止」中か（見張りが勝手に再開しないため） */
+let bgmIntentPaused = false;
 
 export type SeKey =
   | "draw"
@@ -731,6 +733,7 @@ export function playBgm(key: string): boolean {
     pendingBgmKey = key; // 解禁後に再生
     return true;
   }
+  bgmIntentPaused = false;
   if (currentBgmKey === key && bgmPlayers[key]) {
     // 同じ曲でも pauseBgm で止まっていることがあるので、再生を指示し直す
     // （再生中に play を呼んでも害はない）
@@ -801,6 +804,7 @@ useSettingsStore.subscribe(() => {
 
 /** BGMを再生位置を保ったまま一時停止する（勝敗カットイン中に効果音だけを響かせる用） */
 export function pauseBgm(): void {
+  bgmIntentPaused = true;
   pendingBgmKey = null;
   for (const p of Object.values(bgmPlayers)) {
     try {
@@ -812,6 +816,7 @@ export function pauseBgm(): void {
 }
 
 export function stopBgm(): void {
+  bgmIntentPaused = true;
   pendingBgmKey = null;
   // 全曲を止め、次の対戦では頭から始まるよう先頭に戻しておく
   for (const p of Object.values(bgmPlayers)) {
@@ -823,6 +828,19 @@ export function stopBgm(): void {
     }
   }
   currentBgmKey = null;
+}
+
+/**
+ * BGMの見張り: 意図せず止まっていたら再生を指示し直す。
+ * iOSは通知・Siri・画面ロック等の割り込みでBGMが止まったままになることがある。
+ * 対戦画面が数秒おきに呼ぶ（意図的な停止中は何もしない）
+ */
+export function nudgeBgm(): void {
+  if (!currentBgmKey || bgmIntentPaused) return;
+  if (!bgmAllowed(currentBgmKey)) return;
+  const p = bgmPlayers[currentBgmKey] as (AudioPlayer & { playing?: boolean; paused?: boolean }) | undefined;
+  if (!p) return;
+  if (p.playing === false || p.paused === true) safePlay(p);
 }
 
 /** 利用可能なBGMキー（設定画面等の表示用） */

@@ -43,7 +43,7 @@ import {
   pauseBgm,
   playBgm,
   playSe,
-  hasCardVoice, playCardVoice, playVoice, playVoiceSoon,
+  hasCardVoice, nudgeBgm, playCardVoice, playVoice, playVoiceSoon,
   stopBgm,
   warmVoices,
   type VoiceKey,
@@ -1925,6 +1925,11 @@ function BattleInner() {
     }, 350);
     return () => clearTimeout(t);
   }, [bgmEnabled, seEnabled, battleBgmOn, battleResultCutinShowing, finishedOutcome, resultShown, reachOn, doubleReachOn, jankenActive]);
+  // BGMの見張り: 割り込み（通知・ロック等）で止まったままなら再開する
+  useEffect(() => {
+    const t = setInterval(() => nudgeBgm(), 4000);
+    return () => clearInterval(t);
+  }, []);
   // 連戦（再戦・トーナメント続行）では新しい対戦画面がBGMを鳴らした後に
   // 前の画面のアンマウントが走ることがあり、無条件のstopBgmだと消してしまう。
   // 自分が最後にマウントされた対戦画面のときだけ止める
@@ -4712,8 +4717,14 @@ function DealtCard({
  */
 function SlamEnter({ children }: { children: React.ReactNode }) {
   const p = useSharedValue(0);
+  // ネイティブではアニメーション更新がまれに走らず透明度0のまま固まり、
+  // 場に出したカードが見えなくなることがある（実機で確認）。
+  // 演出時間が過ぎたら素のViewに切り替え、必ず表示される状態を保証する
+  const [settled, setSettled] = useState(false);
   useEffect(() => {
     p.value = withSpring(1, { damping: 13, stiffness: 140 });
+    const t = setTimeout(() => setSettled(true), 700);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const style = useAnimatedStyle(() => ({
@@ -4724,6 +4735,7 @@ function SlamEnter({ children }: { children: React.ReactNode }) {
       { rotate: `${(1 - p.value) * -10}deg` },
     ],
   }));
+  if (settled) return <View>{children}</View>;
   return <Animated.View style={style}>{children}</Animated.View>;
 }
 
